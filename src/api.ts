@@ -80,7 +80,17 @@ export const api = {
     invoke<void>("set_folder_description", { id, description }),
   setEdits: (id: number, edits: string) => invoke<void>("set_edits", { id, edits }),
   exportPicture: (path: string, dataBase64: string) => invoke<void>("export_picture", { path, dataBase64 }),
+  setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),
+  getTags: (ids: number[]) => invoke<TagCount[]>("get_tags", { ids }),
+  suggest: (prefix: string) => invoke<TagCount[]>("suggest", { prefix }),
+  openInDefaultApp: (path: string) => invoke<void>("open_in_default_app", { path }),
+  excludeFolder: (path: string) => invoke<void>("exclude_folder", { path }),
 };
+
+export interface TagCount {
+  tag: string;
+  count: number;
+}
 
 /** Debug helper: forwards a message to the Rust log. */
 export const uiLog = (message: string) => void invoke("ui_log", { message }).catch(() => {});

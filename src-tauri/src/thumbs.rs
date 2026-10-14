@@ -1,10 +1,13 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Condvar, Mutex};
 
 use image::{imageops, DynamicImage, ImageBuffer, Luma, Rgb};
+use rayon::prelude::*;
 use tauri::http::{Request, Response};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, UriSchemeResponder};
 
 use crate::AppState;
 
@@ -18,26 +21,122 @@ struct PhotoRef {
   orientation: i64,
 }
 
-pub fn handle_thumb(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
-  let Some(id) = parse_id(req) else { return not_found() };
-  let Some(photo) = lookup(app, id) else { return not_found() };
-  let cache = cache_path(&app.state::<AppState>().thumb_dir, id, photo.mtime);
+type Job = Box<dyn FnOnce() + Send>;
+
+/// LIFO work queue for thumbnail decodes: the most recently requested thumbnails (the ones
+/// on screen right now) are built first, so fast scrolling and slider changes stay snappy.
+pub struct ThumbQueue {
+  jobs: Mutex<Vec<Job>>,
+  ready: Condvar,
+}
+
+impl ThumbQueue {
+  pub fn start(workers: usize) -> Arc<Self> {
+    let q = Arc::new(ThumbQueue { jobs: Mutex::new(Vec::new()), ready: Condvar::new() });
+    for i in 0..workers {
+      let q = q.clone();
+      std::thread::Builder::new()
+        .name(format!("thumb-{i}"))
+        .spawn(move || loop {
+          let job = {
+            let mut jobs = q.jobs.lock().unwrap();
+            while jobs.is_empty() {
+              jobs = q.ready.wait(jobs).unwrap();
+            }
+            jobs.pop().unwrap()
+          };
+          job();
+        })
+        .expect("spawn thumbnail worker");
+    }
+    q
+  }
+
+  pub fn push(&self, job: impl FnOnce() + Send + 'static) {
+    self.jobs.lock().unwrap().push(Box::new(job));
+    self.ready.notify_one();
+  }
+
+  pub fn pending(&self) -> usize {
+    self.jobs.lock().unwrap().len()
+  }
+}
+
+/// Cache hits answer immediately; misses are queued for a decode.
+pub fn handle_thumb(app: AppHandle, req: Request<Vec<u8>>, responder: UriSchemeResponder) {
+  let Some(id) = parse_id(&req) else { return responder.respond(not_found()) };
+  let Some(photo) = lookup(&app, id) else { return responder.respond(not_found()) };
+  let state = app.state::<AppState>();
+  let cache = cache_path(&state.thumb_dir, id, photo.mtime);
   if let Ok(bytes) = std::fs::read(&cache) {
-    return image_response(bytes, "image/jpeg");
+    return responder.respond(image_response(bytes, "image/jpeg"));
   }
-  match build_thumb(Path::new(&photo.path), photo.orientation) {
-    Ok(bytes) => {
-      if let Some(dir) = cache.parent() {
-        let _ = std::fs::create_dir_all(dir);
+  state.thumbs.push(move || {
+    let response = match ensure_thumb(&cache, &photo) {
+      Ok(bytes) => image_response(bytes, "image/jpeg"),
+      Err(e) => {
+        log::warn!("thumb {}: {e}", photo.path);
+        not_found()
       }
-      let _ = std::fs::write(&cache, &bytes);
-      image_response(bytes, "image/jpeg")
-    }
-    Err(e) => {
-      log::warn!("thumb {}: {e}", photo.path);
-      not_found()
-    }
+    };
+    responder.respond(response);
+  });
+}
+
+fn ensure_thumb(cache: &Path, photo: &PhotoRef) -> Result<Vec<u8>, String> {
+  if let Ok(bytes) = std::fs::read(cache) {
+    return Ok(bytes);
   }
+  let bytes = build_thumb(Path::new(&photo.path), photo.orientation)?;
+  if let Some(dir) = cache.parent() {
+    let _ = std::fs::create_dir_all(dir);
+  }
+  let _ = std::fs::write(cache, &bytes);
+  Ok(bytes)
+}
+
+/// Background warmer: after a scan, pre-build every missing thumbnail (newest folders first)
+/// on two low-priority threads, backing off whenever the UI is waiting on the queue.
+pub fn spawn_warmer(app: AppHandle) {
+  let state = app.state::<AppState>();
+  if state.warming.swap(true, Ordering::SeqCst) {
+    return;
+  }
+  let db = state.db.clone();
+  let dir = state.thumb_dir.clone();
+  let queue = state.thumbs.clone();
+  let flag = state.warming.clone();
+  std::thread::spawn(move || {
+    let photos: Vec<(i64, PhotoRef)> = {
+      let conn = db.lock().unwrap();
+      let mut stmt = conn
+        .prepare(
+          "SELECT p.id, p.path, p.mtime, p.orientation FROM photos p JOIN folders f ON f.id = p.folder_id
+           ORDER BY f.updated DESC, p.folder_id, COALESCE(p.taken, p.mtime), p.name",
+        )
+        .unwrap();
+      let rows = stmt
+        .query_map([], |r| Ok((r.get(0)?, PhotoRef { path: r.get(1)?, mtime: r.get(2)?, orientation: r.get(3)? })))
+        .unwrap();
+      rows.filter_map(Result::ok).collect()
+    };
+    let todo: Vec<_> = photos.into_iter().filter(|(id, p)| !cache_path(&dir, *id, p.mtime).exists()).collect();
+    if !todo.is_empty() {
+      log::info!("warming {} thumbnails", todo.len());
+      let started = std::time::Instant::now();
+      let pool = rayon::ThreadPoolBuilder::new().num_threads(2).thread_name(|i| format!("warm-{i}")).build().unwrap();
+      pool.install(|| {
+        todo.par_iter().for_each(|(id, p)| {
+          while queue.pending() > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(40));
+          }
+          let _ = ensure_thumb(&cache_path(&dir, *id, p.mtime), p);
+        })
+      });
+      log::info!("warmed {} thumbnails in {:?}", todo.len(), started.elapsed());
+    }
+    flag.store(false, Ordering::SeqCst);
+  });
 }
 
 pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {

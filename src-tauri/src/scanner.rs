@@ -73,6 +73,7 @@ pub fn spawn_rescan(app: AppHandle) {
     let _ = app.emit("scan-progress", progress.clone());
     let _ = app.emit("library-changed", ());
     log::info!("scan finished: {} folders in {:?}", progress.folders_seen, started.elapsed());
+    crate::thumbs::spawn_warmer(app.clone());
   });
 }
 

@@ -134,7 +134,53 @@ Color Space, Thumbnail. ✅ (embedded thumbnail preview ⬜)
 
 Picaluma keeps the same menu structure; unimplemented entries are shown disabled.
 
-## 9. Folder Manager / watched folders
+## 9. Controls, cursors and selection
+
+- **Library scrollbar is a jog shuttle**: buttons at the top (⤒ jump to top, ▲ up) and bottom
+  (▼ down, ⤓ jump to bottom); the grip in the middle carries ▲/▼ arrows, rests at the centre,
+  scrolls continuously while dragged (speed grows with distance) and springs back. ✅
+- Panel scrollbars (tree, properties): light-grey track, white gradient thumb, blue ▲/▼ arrows. ✅
+- Thumbnail-size slider: grooved rounded track, pill-shaped grip with a vertical line. ✅
+- Square 28×26 gradient buttons in folder headers; wide "Share ▾" split button. ✅
+- **Selection**: a 2 px bright-blue (`#1A8CFF`) frame hugging the photo, no cell fill. ✅
+- No hover highlight or tooltip on thumbnails. ✅
+- **Cursors** (probed with GetCursorInfo): hand over thumbnails and clickable buttons
+  (Play, Share, Import); I-beam in search and description fields; ↔ on the tree/grid splitter;
+  arrow on tree rows, section headers, menus, sliders, status bar and empty grid. ✅
+
+## 10. Context menus
+
+**Photo** (right-click thumbnail): **View and Edit** Enter · Add to Album ▸ · Rotate Clockwise
+Ctrl+R · Rotate Counterclockwise Ctrl+Shift+R · Undo all Edits · Hide · Move to New Folder… ·
+Split Folder Here… · Open File Ctrl+Shift+O · Open With ▸ · Save Ctrl+S · Revert · Locate on Disk
+Ctrl+Enter · Delete from Disk Ctrl+Delete · Copy Full Path · Upload… · Block from Uploading ·
+Reset Faces · Properties Alt+Enter. ✅ (Picaluma adds Add/Remove Star and Tags…)
+
+**Folder** (right-click tree row or folder header): Edit Folder Description… · Select All
+Pictures Ctrl+A · Clear Selection Ctrl+D · Invert Selection Ctrl+I · Move to Collection ▸ ·
+Refresh Thumbnails · Sort Folder By ▸ · Hide Folder · Locate on Disk Ctrl+Enter · Remove from
+Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML Page… · Add name tags. ✅
+
+## 11. Crop and Straighten
+
+- **Crop** replaces the Basic Fixes panel with "Crop Photo": instructions, an aspect dropdown
+  (Manual · Current ratio · 4×6 Small print · 5×7 Large print · 8.5×11 Letter paper · 8×10 ·
+  Square CD Cover · 4:3 Standard screen · 16:10 Widescreen monitor · 16:9 HDTV · 5:3 Widescreen
+  Photo Frame · Add Custom Aspect Ratio…), three suggested crops, Rotate · Preview · Reset ·
+  Apply ✓ · Cancel ✕. The rest of the UI greys out while cropping. ✅ (Rotate/Preview/custom ⬜)
+- **Straighten** overlays a dashed grid on the photo and shows a dark rounded bar below it with
+  an angle slider, APPLY and CANCEL. ✅
+
+## 12. Tags panel (Ctrl+T)
+
+Replaces the Properties panel: "Type in a tag to add:" + green ➕, "Tags in IMG_xxxx.JPG:" list,
+and **Quick Tags** — a grid of configurable one-click tag buttons ("?" when unset). ✅
+Search suggestions show matching tags with counts, bold prefix (`house`hold (3)). ✅
+
+## 13. Folder Manager / watched folders
+
+Dialog: folder tree on the left; for the current folder Scan Once / Remove from Picasa /
+Scan Always (+ Face Detection toggle); Watched Folders list; OK · Cancel · Help. 🟡
 
 Picasa stores its scan list in `<AppLocalDataPath>\Google\Picasa2\db3\scanlist.txt`
 (`AppLocalDataPath` from `HKCU\Software\Google\Picasa\Picasa2\Preferences`, default

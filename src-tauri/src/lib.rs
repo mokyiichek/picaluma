@@ -12,7 +12,9 @@ use tauri::Manager;
 pub struct AppState {
   pub db: Arc<Mutex<rusqlite::Connection>>,
   pub thumb_dir: PathBuf,
+  pub thumbs: Arc<thumbs::ThumbQueue>,
   pub scanning: Arc<AtomicBool>,
+  pub warming: Arc<AtomicBool>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -29,10 +31,14 @@ pub fn run() {
       std::fs::create_dir_all(&thumb_dir)?;
       let conn = db::open(&data_dir.join("library.db"))?;
       log::info!("library at {}", data_dir.display());
+      // Leave a core free for the UI and the background warmer.
+      let workers = std::thread::available_parallelism().map(|n| n.get().saturating_sub(2)).unwrap_or(2).max(2);
       app.manage(AppState {
         db: Arc::new(Mutex::new(conn)),
         thumb_dir,
+        thumbs: thumbs::ThumbQueue::start(workers),
         scanning: Arc::new(AtomicBool::new(false)),
+        warming: Arc::new(AtomicBool::new(false)),
       });
       scanner::spawn_rescan(app.handle().clone());
       // `maximized` in tauri.conf.json is unreliable on multi-monitor Windows setups.
@@ -45,7 +51,7 @@ pub fn run() {
     // stream thousands of images without base64 round-trips through IPC.
     .register_asynchronous_uri_scheme_protocol("thumb", |ctx, request, responder| {
       let app = ctx.app_handle().clone();
-      rayon::spawn(move || responder.respond(thumbs::handle_thumb(&app, &request)));
+      rayon::spawn(move || thumbs::handle_thumb(app, request, responder));
     })
     .register_asynchronous_uri_scheme_protocol("photo", |ctx, request, responder| {
       let app = ctx.app_handle().clone();
@@ -68,6 +74,11 @@ pub fn run() {
       commands::set_edits,
       commands::export_picture,
       commands::ui_log,
+      commands::set_tags,
+      commands::get_tags,
+      commands::suggest,
+      commands::open_in_default_app,
+      commands::exclude_folder,
     ])
     .run(tauri::generate_context!())
     .expect("error while running Picaluma");

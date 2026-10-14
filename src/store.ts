@@ -39,6 +39,9 @@ interface State {
   editId: number | null;
   thumbSize: number;
   showProps: boolean;
+  sidePanel: "props" | "tags";
+  contextMenu: { x: number; y: number; kind: "photo" | "folder"; folderId?: number } | null;
+  leftWidth: number;
   leftSection: "albums" | "people" | "folders";
   query: string;
   search: { ids: Set<number>; seconds: number } | null;
@@ -62,6 +65,9 @@ interface State {
   endFlight: () => void;
   setThumbSize: (n: number) => void;
   toggleProps: () => void;
+  toggleTags: () => void;
+  openContextMenu: (m: State["contextMenu"]) => void;
+  setLeftWidth: (w: number) => void;
   setLeftSection: (s: State["leftSection"]) => void;
   runSearch: (q: string) => Promise<void>;
   clearSearch: () => void;
@@ -93,6 +99,9 @@ export const useStore = create<State>((set, get) => ({
   editId: null,
   thumbSize: Number(localStorageGet("thumbSize")) || 150,
   showProps: localStorageGet("showProps") !== "0",
+  sidePanel: "props",
+  contextMenu: null,
+  leftWidth: Number(localStorageGet("leftWidth")) || 420,
   leftSection: "folders",
   query: "",
   search: null,
@@ -195,9 +204,22 @@ export const useStore = create<State>((set, get) => ({
   },
 
   toggleProps: () => {
-    const v = !get().showProps;
+    const { showProps, sidePanel } = get();
+    const v = !(showProps && sidePanel === "props");
     localStorageSet("showProps", v ? "1" : "0");
-    set({ showProps: v });
+    set({ showProps: v, sidePanel: "props" });
+  },
+
+  toggleTags: () => {
+    const { showProps, sidePanel } = get();
+    set({ showProps: !(showProps && sidePanel === "tags"), sidePanel: "tags" });
+  },
+
+  openContextMenu: (contextMenu) => set({ contextMenu }),
+
+  setLeftWidth: (leftWidth) => {
+    localStorageSet("leftWidth", String(Math.round(leftWidth)));
+    set({ leftWidth });
   },
 
   setLeftSection: (leftSection) => set({ leftSection }),

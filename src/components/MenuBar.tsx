@@ -148,7 +148,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Help",
       [
-        { label: "About Picaluma", action: () => alert("Picaluma 0.1.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
+        { label: "About Picaluma", action: () => alert("Picaluma 0.2.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
       ],
     ],
   ];
@@ -195,7 +195,10 @@ export default function MenuBar() {
           {name}
         </div>
       ))}
-      <span className="brand">Picaluma 0.1</span>
+      <span className="brand">
+        <img src="/logo.png" width={14} height={14} alt="" style={{ verticalAlign: -2, marginRight: 5 }} />
+        Picaluma 0.2
+      </span>
       {openEntries && (
         <div className="menu-drop" style={{ left }}>
           {openEntries.map((e, i) =>

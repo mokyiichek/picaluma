@@ -4,7 +4,7 @@ import { api, ScanProgress } from "./api";
 import { useStore } from "./store";
 import MenuBar from "./components/MenuBar";
 import LibraryToolbar from "./components/LibraryToolbar";
-import LeftPanel from "./components/LeftPanel";
+import LeftPanel, { Splitter } from "./components/LeftPanel";
 import LibraryGrid from "./components/LibraryGrid";
 import PropertiesPanel from "./components/PropertiesPanel";
 import StatusBar from "./components/StatusBar";
@@ -13,10 +13,14 @@ import EditView, { EditToolbar } from "./components/EditView";
 import FlightOverlay from "./components/FlightOverlay";
 import Slideshow from "./components/Slideshow";
 import FolderManager from "./components/FolderManager";
+import TagsPanel from "./components/TagsPanel";
+import ContextMenu, { rotateSelected } from "./components/ContextMenu";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
 export default function App() {
   const view = useStore((s) => s.view);
   const showProps = useStore((s) => s.showProps);
+  const sidePanel = useStore((s) => s.sidePanel);
 
   useEffect(() => {
     const s = useStore.getState();
@@ -59,6 +63,18 @@ export default function App() {
       } else if (e.altKey && e.key === "Enter") {
         e.preventDefault();
         st.toggleProps();
+      } else if (e.ctrlKey && e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        st.toggleTags();
+      } else if (e.ctrlKey && e.key.toLowerCase() === "r" && sel.length) {
+        e.preventDefault();
+        rotateSelected(e.shiftKey ? -90 : 90);
+      } else if (e.ctrlKey && !e.shiftKey && e.key === "Enter" && sel.length === 1) {
+        e.preventDefault();
+        api.getPhoto(sel[0]).then((p) => revealItemInDir(p.path));
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o" && sel.length === 1) {
+        e.preventDefault();
+        api.getPhoto(sel[0]).then((p) => api.openInDefaultApp(p.path));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -83,19 +99,21 @@ export default function App() {
           {/* The library stays mounted under the editor so scroll position survives the round trip. */}
           <div className={`layer${view === "library" ? "" : " hidden"}`}>
             <LeftPanel />
+            <Splitter />
             <LibraryGrid />
           </div>
           <div className={`layer${view === "edit" ? "" : " hidden"}`}>
             <EditView active={view === "edit"} />
           </div>
         </div>
-        {showProps && <PropertiesPanel />}
+        {showProps && (sidePanel === "tags" ? <TagsPanel /> : <PropertiesPanel />)}
       </div>
       <StatusBar />
       <Tray />
       <FlightOverlay />
       <Slideshow />
       <FolderManager />
+      <ContextMenu />
     </div>
   );
 }

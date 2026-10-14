@@ -18,6 +18,7 @@ export default function LeftPanel() {
   const starredOnly = useStore((s) => s.starredOnly);
   const setStarredOnly = useStore((s) => s.setStarredOnly);
   const currentName = useStore((s) => (s.currentFolderId != null ? s.folderById.get(s.currentFolderId)?.name : ""));
+  const width = useStore((s) => s.leftWidth);
 
   const head = (id: typeof section, label: string) => (
     <div className="section-head" onClick={() => setSection(id)}>
@@ -28,7 +29,7 @@ export default function LeftPanel() {
   );
 
   return (
-    <div className="left">
+    <div className="left" style={{ width }}>
       {head("albums", `Albums (${1 + (search ? 1 : 0)})`)}
       {section === "albums" && (
         <div className="section-body">
@@ -58,6 +59,26 @@ export default function LeftPanel() {
       {section === "folders" && <FolderTree />}
     </div>
   );
+}
+
+/** Drag handle between the tree and the grid. */
+export function Splitter() {
+  const setLeftWidth = useStore((s) => s.setLeftWidth);
+  const onDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startW = useStore.getState().leftWidth;
+    const move = (ev: PointerEvent) => setLeftWidth(Math.max(200, Math.min(window.innerWidth * 0.6, startW + ev.clientX - startX)));
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+  };
+  return <div className="splitter" onPointerDown={onDown} />;
 }
 
 function FolderTree() {
@@ -118,7 +139,17 @@ function FolderTree() {
               </div>
             );
           return (
-            <div key={item.key} className={`tree-row${r.id === current ? " sel" : ""}`} style={style} onMouseDown={() => selectFolder(r.id)}>
+            <div
+              key={item.key}
+              className={`tree-row${r.id === current ? " sel" : ""}`}
+              style={style}
+              onMouseDown={(e) => e.button === 0 && selectFolder(r.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                selectFolder(r.id);
+                useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "folder", folderId: r.id });
+              }}
+            >
               <FolderIcon />
               <span className="name">
                 {r.name} ({r.count.toLocaleString()})

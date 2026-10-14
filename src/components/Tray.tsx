@@ -14,6 +14,8 @@ export default function Tray() {
   const setThumbSize = useStore((s) => s.setThumbSize);
   const toggleProps = useStore((s) => s.toggleProps);
   const showProps = useStore((s) => s.showProps);
+  const sidePanel = useStore((s) => s.sidePanel);
+  const toggleTags = useStore((s) => s.toggleTags);
   const clearSelection = useStore((s) => s.clearSelection);
   const toggleStar = useStore((s) => s.toggleStar);
   const allStarred = useStore((s) => s.selected.size > 0 && [...s.selected].every((id) => s.starred.has(id)));
@@ -97,10 +99,10 @@ export default function Tray() {
           <button className="tbtn icon" disabled title="Places (coming soon)">
             <PinIcon size={16} />
           </button>
-          <button className="tbtn icon" disabled title="Tags (coming soon)">
+          <button className={`tbtn icon${showProps && sidePanel === "tags" ? " pressed" : ""}`} title="Tags (Ctrl+T)" onClick={toggleTags}>
             <TagIcon size={16} />
           </button>
-          <button className={`tbtn icon${showProps ? " pressed" : ""}`} title="Properties" onClick={toggleProps}>
+          <button className={`tbtn icon${showProps && sidePanel === "props" ? " pressed" : ""}`} title="Properties (Alt+Enter)" onClick={toggleProps}>
             <InfoIcon size={16} />
           </button>
         </span>

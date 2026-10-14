@@ -4,7 +4,11 @@
 export interface Edit {
   op: string;
   v?: number;
+  /** Crop rectangle as fractions of the (unrotated) image: [x, y, w, h]. */
+  r?: [number, number, number, number];
 }
+
+export type CropRect = [number, number, number, number];
 
 export type Overlay = "grain" | "gradTint" | "cinemascope";
 export type Frame = "border" | "shadow" | "matte" | "polaroid";
@@ -24,8 +28,8 @@ const f = (s: string) => () => s;
 
 export const EFFECTS: Record<string, EffectDef> = {
   // Basic fixes
-  crop: { id: "crop", label: "Crop", todo: true },
-  straighten: { id: "straighten", label: "Straighten", todo: true },
+  crop: { id: "crop", label: "Crop" },
+  straighten: { id: "straighten", label: "Straighten" },
   redeye: { id: "redeye", label: "Redeye", todo: true },
   lucky: { id: "lucky", label: "I'm Feeling Lucky", filter: f("contrast(1.12) saturate(1.12) brightness(1.04)") },
   autoContrast: { id: "autoContrast", label: "Auto Contrast", filter: f("contrast(1.2)") },
@@ -111,14 +115,24 @@ export interface Rendered {
   vignette: number;
   overlays: Overlay[];
   frame: Frame | null;
+  crop: CropRect | null;
+  straighten: number;
 }
 
 export function render(edits: Edit[]): Rendered {
-  const out: Rendered = { filter: "", rotate: 0, vignette: 0, overlays: [], frame: null };
+  const out: Rendered = { filter: "", rotate: 0, vignette: 0, overlays: [], frame: null, crop: null, straighten: 0 };
   const parts: string[] = [];
   for (const e of edits) {
     if (e.op === "rotate") {
       out.rotate = (((out.rotate + (e.v ?? 0)) % 360) + 360) % 360;
+      continue;
+    }
+    if (e.op === "crop") {
+      out.crop = e.r ?? null;
+      continue;
+    }
+    if (e.op === "straighten") {
+      out.straighten = e.v ?? 0;
       continue;
     }
     const def = EFFECTS[e.op];
@@ -130,6 +144,26 @@ export function render(edits: Edit[]): Rendered {
   }
   out.filter = parts.join(" ");
   return out;
+}
+
+/** CSS object-view-box that shows only the cropped region (the img's aspect follows it). */
+export function cropViewBox(c: CropRect | null): string | undefined {
+  if (!c) return undefined;
+  const [x, y, w, h] = c;
+  const pct = (n: number) => `${(Math.max(0, n) * 100).toFixed(3)}%`;
+  return `inset(${pct(y)} ${pct(1 - x - w)} ${pct(1 - y - h)} ${pct(x)})`;
+}
+
+/** Scale needed so a w×h image rotated by `deg` still covers its original frame. */
+export function straightenScale(deg: number, aspect: number): number {
+  const t = (Math.abs(deg) * Math.PI) / 180;
+  return Math.cos(t) + Math.sin(t) * Math.max(aspect, 1 / aspect);
+}
+
+/** Display aspect of a photo after crop and 90° rotations. */
+export function displayAspect(base: number, r: Rendered): number {
+  const a = r.crop ? (base * r.crop[2]) / r.crop[3] : base;
+  return r.rotate === 90 || r.rotate === 270 ? 1 / a : a;
 }
 
 export function parseEdits(json: string | undefined): Edit[] {
@@ -151,17 +185,26 @@ export function sliderValue(edits: Edit[], op: string, fallback = 0): number {
 export async function renderToCanvas(src: string, edits: Edit[]): Promise<HTMLCanvasElement> {
   const img = await loadImage(src);
   const r = render(edits);
+  const [cx, cy, cw, ch] = r.crop ?? [0, 0, 1, 1];
+  const sx = cx * img.naturalWidth;
+  const sy = cy * img.naturalHeight;
+  const sw = Math.max(1, cw * img.naturalWidth);
+  const sh = Math.max(1, ch * img.naturalHeight);
   const swap = r.rotate === 90 || r.rotate === 270;
-  const w = swap ? img.naturalHeight : img.naturalWidth;
-  const h = swap ? img.naturalWidth : img.naturalHeight;
+  const w = Math.round(swap ? sh : sw);
+  const h = Math.round(swap ? sw : sh);
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
   ctx.filter = r.filter || "none";
   ctx.translate(w / 2, h / 2);
-  ctx.rotate((r.rotate * Math.PI) / 180);
-  ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+  ctx.rotate(((r.rotate + r.straighten) * Math.PI) / 180);
+  if (r.straighten) {
+    const k = straightenScale(r.straighten, sw / sh);
+    ctx.scale(k, k);
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.filter = "none";
   if (r.vignette > 0) {

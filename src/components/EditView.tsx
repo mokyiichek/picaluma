@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo } from "../api";
-import { Edit, EFFECTS, render, SLIDER_OPS, sliderValue, TABS } from "../effects";
+import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, render, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
+import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
 import { ArrowIcon, BackIcon, BrushIcon, PlayIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
@@ -18,10 +19,11 @@ function useEditStack(id: number | null) {
   useEffect(() => setRedo([]), [id]);
 
   const apply = useCallback(
-    (op: string, v?: number) => {
+    (op: string, v?: number, r?: CropRect) => {
       if (id == null) return;
       const last = edits[edits.length - 1];
-      const next = SLIDER_OPS.has(op) && last?.op === op ? [...edits.slice(0, -1), { op, v }] : [...edits, { op, v }];
+      const e: Edit = r ? { op, r } : { op, v };
+      const next = SLIDER_OPS.has(op) && last?.op === op ? [...edits.slice(0, -1), e] : [...edits, e];
       setPhotoEdits(id, next);
       setRedo([]);
     },
@@ -116,19 +118,47 @@ export default function EditView({ active }: { active: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [active, stack]);
 
+  // Modal tools (Crop / Straighten) take over the stage and left panel like Picasa's.
+  const [tool, setTool] = useState<Tool>(null);
+  useEffect(() => setTool(null), [id]);
+
   if (id == null) return null;
+  const startTool = (t: "crop" | "straighten") => {
+    const r = render(stack.edits);
+    setTool(t === "crop" ? { kind: "crop", rect: r.crop ?? [0, 0, 1, 1], aspect: null } : { kind: "straighten", angle: r.straighten });
+  };
+  const applyTool = () => {
+    if (tool?.kind === "crop") {
+      const [, , w, h] = tool.rect;
+      if (w < 0.999 || h < 0.999) stack.apply("crop", undefined, tool.rect);
+    } else if (tool?.kind === "straighten") stack.apply("straighten", tool.angle);
+    setTool(null);
+  };
+
   return (
     <>
-      <EditPanel id={id} photo={photo} stack={stack} />
+      {tool?.kind === "crop" ? (
+        <CropPanel id={id} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
+      ) : (
+        <EditPanel id={id} photo={photo} stack={stack} onTool={startTool} disabled={tool != null} />
+      )}
       <div className="edit-center">
-        <Stage id={id} photo={photo} edits={stack.edits} active={active} />
+        <Stage id={id} photo={photo} edits={stack.edits} active={active} tool={tool} setTool={setTool} />
+        {tool?.kind === "straighten" && <StraightenBar tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />}
         <CaptionBar photo={photo} />
       </div>
     </>
   );
 }
 
-function Stage({ id, photo, edits, active }: { id: number; photo: Photo | null; edits: Edit[]; active: boolean }) {
+/** While a tool is open the stage previews the photo without the edit being changed. */
+function previewEdits(edits: Edit[], tool: Tool): Edit[] {
+  if (!tool) return edits;
+  if (tool.kind === "crop") return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
+  return [...edits.filter((e) => e.op !== "straighten"), { op: "straighten", v: tool.angle }];
+}
+
+function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo: Photo | null; edits: Edit[]; active: boolean; tool: Tool; setTool: (t: Tool) => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 0, h: 0 });
@@ -136,7 +166,7 @@ function Stage({ id, photo, edits, active }: { id: number; photo: Photo | null; 
   const [fullReady, setFullReady] = useState(false);
   const flight = useStore((s) => s.flight);
   const endFlight = useStore((s) => s.endFlight);
-  const r = render(edits);
+  const r = render(previewEdits(edits, tool));
   const rot90 = r.rotate === 90 || r.rotate === 270;
 
   useLayoutEffect(() => {
@@ -164,9 +194,10 @@ function Stage({ id, photo, edits, active }: { id: number; photo: Photo | null; 
 
   // Prefer the cache during render so the very first frame for a new photo has the right shape.
   const aspectNow = aspectCache.get(id) ?? baseAspect;
+  const cropKey = r.crop?.join(",");
   const box = useMemo(() => {
     if (!aspectNow || !stage.w) return null;
-    const aspect = rot90 ? 1 / aspectNow : aspectNow;
+    const aspect = displayAspect(aspectNow, r);
     const maxW = stage.w - STAGE_PAD * 2;
     const maxH = stage.h - STAGE_PAD * 2;
     // Don't upscale small images past their real pixel size.
@@ -178,7 +209,7 @@ function Stage({ id, photo, edits, active }: { id: number; photo: Photo | null; 
       w = h * aspect;
     }
     return { x: (stage.w - w) / 2, y: (stage.h - h) / 2, w, h };
-  }, [aspectNow, stage, rot90, photo]);
+  }, [aspectNow, stage, rot90, photo, cropKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zoom in from the thumbnail that was double-clicked.
   useLayoutEffect(() => {
@@ -197,27 +228,36 @@ function Stage({ id, photo, edits, active }: { id: number; photo: Photo | null; 
   }, [flight?.nonce, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const frameClass = r.frame ? ` frame-${r.frame}` : "";
+  const innerW = box ? (rot90 ? box.h : box.w) : 0;
+  const innerH = box ? (rot90 ? box.w : box.h) : 0;
   const inner: React.CSSProperties = box
     ? {
         position: "absolute",
         left: "50%",
         top: "50%",
-        width: rot90 ? box.h : box.w,
-        height: rot90 ? box.w : box.h,
+        width: innerW,
+        height: innerH,
+        overflow: "hidden",
         transform: `translate(-50%, -50%) rotate(${r.rotate}deg)`,
         filter: r.filter || undefined,
       }
     : {};
+  const imgStyle: React.CSSProperties = {
+    objectViewBox: cropViewBox(r.crop),
+    transform: r.straighten ? `rotate(${r.straighten}deg) scale(${straightenScale(r.straighten, innerW / Math.max(1, innerH))})` : undefined,
+  } as React.CSSProperties;
 
   return (
-    <div className="edit-stage" ref={stageRef} onDoubleClick={backToLibrary}>
+    <div className="edit-stage" ref={stageRef} onDoubleClick={tool ? undefined : backToLibrary}>
       {box && (
         <div ref={boxRef} className={`edit-photo${frameClass}`} style={{ left: box.x, top: box.y, width: box.w, height: box.h, transformOrigin: "0 0" }}>
           <div style={inner}>
-            <img src={thumbUrl(id)} alt="" draggable={false} />
-            <img key={id} className={`full${fullReady ? " ready" : ""}`} src={photoUrl(id)} onLoad={() => setFullReady(true)} alt="" draggable={false} />
+            <img src={thumbUrl(id)} style={imgStyle} alt="" draggable={false} />
+            <img key={id} className={`full${fullReady ? " ready" : ""}`} src={photoUrl(id)} style={imgStyle} onLoad={() => setFullReady(true)} alt="" draggable={false} />
           </div>
-          <Overlays r={r} />
+          {!tool && <Overlays r={r} />}
+          {tool?.kind === "straighten" && <div className="straighten-grid" />}
+          {tool?.kind === "crop" && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
         </div>
       )}
     </div>
@@ -269,7 +309,19 @@ function CaptionBar({ photo }: { photo: Photo | null }) {
 
 type Stack = ReturnType<typeof useEditStack>;
 
-function EditPanel({ id, photo, stack }: { id: number; photo: Photo | null; stack: Stack }) {
+function EditPanel({
+  id,
+  photo,
+  stack,
+  onTool,
+  disabled,
+}: {
+  id: number;
+  photo: Photo | null;
+  stack: Stack;
+  onTool: (t: "crop" | "straighten") => void;
+  disabled: boolean;
+}) {
   const [tab, setTab] = useState("fixes");
   const tabIcons: Record<string, React.ReactNode> = {
     fixes: <WrenchIcon />,
@@ -296,7 +348,13 @@ function EditPanel({ id, photo, stack }: { id: number; photo: Photo | null; stac
             {t.effects.map((e) => {
               const def = EFFECTS[e];
               return (
-                <button key={e} className="fix-btn" disabled={def.todo} title={def.todo ? `${def.label} — coming soon` : def.label} onClick={() => stack.apply(e)}>
+                <button
+                  key={e}
+                  className="fix-btn"
+                  disabled={def.todo || disabled}
+                  title={def.todo ? `${def.label} — coming soon` : def.label}
+                  onClick={() => (e === "crop" || e === "straighten" ? onTool(e) : stack.apply(e))}
+                >
                   <span className="ico">
                     <img src={thumbUrl(id)} style={{ filter: def.filter?.(1) }} alt="" />
                   </span>

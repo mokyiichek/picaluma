@@ -329,6 +329,95 @@ pub fn set_edits(state: State<'_, AppState>, id: i64, edits: String) -> CmdResul
   Ok(())
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagCount {
+  tag: String,
+  count: i64,
+}
+
+/// Tags are stored comma-separated in `photos.tags` and indexed by FTS, so search finds them.
+#[tauri::command]
+pub fn set_tags(state: State<'_, AppState>, ids: Vec<i64>, add: Vec<String>, remove: Vec<String>) -> CmdResult<()> {
+  let mut conn = state.db.lock().map_err(err)?;
+  let tx = conn.transaction().map_err(err)?;
+  for id in ids {
+    let current: String = tx.query_row("SELECT tags FROM photos WHERE id = ?1", [id], |r| r.get(0)).map_err(err)?;
+    let mut tags: Vec<String> = current.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
+    tags.retain(|t| !remove.iter().any(|r| r.eq_ignore_ascii_case(t)));
+    for a in &add {
+      let a = a.trim();
+      if !a.is_empty() && !tags.iter().any(|t| t.eq_ignore_ascii_case(a)) {
+        tags.push(a.to_string());
+      }
+    }
+    tx.execute("UPDATE photos SET tags = ?1 WHERE id = ?2", params![tags.join(", "), id]).map_err(err)?;
+    db::reindex_photo(&tx, id).map_err(err)?;
+  }
+  tx.commit().map_err(err)
+}
+
+#[tauri::command]
+pub fn get_tags(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<Vec<TagCount>> {
+  let conn = state.db.lock().map_err(err)?;
+  let mut counts: HashMap<String, i64> = HashMap::new();
+  for id in ids {
+    let tags: String = conn.query_row("SELECT tags FROM photos WHERE id = ?1", [id], |r| r.get(0)).unwrap_or_default();
+    for t in tags.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+      *counts.entry(t.to_string()).or_default() += 1;
+    }
+  }
+  let mut out: Vec<TagCount> = counts.into_iter().map(|(tag, count)| TagCount { tag, count }).collect();
+  out.sort_by(|a, b| a.tag.to_lowercase().cmp(&b.tag.to_lowercase()));
+  Ok(out)
+}
+
+/// Search-box suggestions: tags and folder names starting with the typed prefix, with counts.
+#[tauri::command]
+pub fn suggest(state: State<'_, AppState>, prefix: String) -> CmdResult<Vec<TagCount>> {
+  let p = prefix.trim().to_lowercase();
+  if p.is_empty() {
+    return Ok(vec![]);
+  }
+  let conn = state.db.lock().map_err(err)?;
+  let mut counts: HashMap<String, i64> = HashMap::new();
+  let mut stmt = conn.prepare_cached("SELECT tags FROM photos WHERE tags != ''").map_err(err)?;
+  let rows = stmt.query_map([], |r| r.get::<_, String>(0)).map_err(err)?;
+  for tags in rows.filter_map(Result::ok) {
+    for t in tags.split(',').map(str::trim).filter(|t| t.to_lowercase().starts_with(&p)) {
+      *counts.entry(t.to_string()).or_default() += 1;
+    }
+  }
+  let mut out: Vec<TagCount> = counts.into_iter().map(|(tag, count)| TagCount { tag, count }).collect();
+  out.sort_by(|a, b| b.count.cmp(&a.count).then(a.tag.cmp(&b.tag)));
+  out.truncate(8);
+  Ok(out)
+}
+
+/// "Open File": hand the photo to the system's default viewer/editor.
+#[tauri::command]
+pub fn open_in_default_app(app: AppHandle, path: String) -> CmdResult<()> {
+  use tauri_plugin_opener::OpenerExt;
+  app.opener().open_path(path, None::<&str>).map_err(err)
+}
+
+/// Folder › Remove from Picaluma: exclude the folder from future scans and drop it now.
+#[tauri::command]
+pub fn exclude_folder(app: AppHandle, state: State<'_, AppState>, path: String) -> CmdResult<()> {
+  {
+    let conn = state.db.lock().map_err(err)?;
+    conn
+      .execute("INSERT INTO roots(path, excluded) VALUES (?1, 1) ON CONFLICT(path) DO UPDATE SET excluded = 1", [&path])
+      .map_err(err)?;
+    conn
+      .execute("DELETE FROM photos_fts WHERE rowid IN (SELECT p.id FROM photos p JOIN folders f ON f.id = p.folder_id WHERE f.path = ?1)", [&path])
+      .map_err(err)?;
+    conn.execute("DELETE FROM folders WHERE path = ?1", [&path]).map_err(err)?;
+  }
+  scanner::spawn_rescan(app);
+  Ok(())
+}
+
 /// Lets the UI write diagnostics into the app log (visible in `tauri dev` output).
 #[tauri::command]
 pub fn ui_log(message: String) {

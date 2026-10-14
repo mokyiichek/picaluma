@@ -1,12 +1,13 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, Folder } from "../api";
-import { render } from "../effects";
+import { cropViewBox, render } from "../effects";
 import { fmtDate } from "../format";
 import { selectVisible, useStore } from "../store";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
 import { aspectCache } from "./EditView";
+import JogScrollbar from "./JogScrollbar";
 
 type Row =
   | { kind: "head"; folder: Folder; photos: number[]; h: number }
@@ -14,6 +15,10 @@ type Row =
 
 const HEAD_H = 124;
 const SIDE_PAD = 18;
+const RESIZE_ANIM_MS = 240;
+
+/** Thumbnails that have already decoded once; remounts show them instantly without a placeholder. */
+const loadedThumbs = new Set<number>();
 
 export default function LibraryGrid() {
   const visible = useStore(selectVisible);
@@ -25,6 +30,8 @@ export default function LibraryGrid() {
   const snapshotLoaded = useStore((s) => s.snapshot != null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
+  const [resizing, setResizing] = useState(false);
+  const topAnchor = useRef<{ photo: number; delta: number } | null>(null);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -40,66 +47,93 @@ export default function LibraryGrid() {
   const cellW = (width - SIDE_PAD * 2) / cols;
   const cellH = thumbSize + 30;
 
-  const { rows, ordered, rowOfPhoto, headOfFolder } = useMemo(() => {
+  const { rows, offsets, ordered, rowOfPhoto, headOfFolder } = useMemo(() => {
     const rows: Row[] = [];
+    const offsets: number[] = [];
     const ordered: number[] = [];
     const rowOfPhoto = new Map<number, number>();
     const headOfFolder = new Map<number, number>();
+    let y = 0;
+    const push = (r: Row) => {
+      offsets.push(y);
+      y += r.h;
+      rows.push(r);
+    };
     for (const { folder, photos } of visible) {
       headOfFolder.set(folder.id, rows.length);
-      rows.push({ kind: "head", folder, photos, h: HEAD_H });
+      push({ kind: "head", folder, photos, h: HEAD_H });
       for (let i = 0; i < photos.length; i += cols) {
         const chunk = photos.slice(i, i + cols);
         for (const p of chunk) rowOfPhoto.set(p, rows.length);
-        rows.push({ kind: "thumbs", folderId: folder.id, photos: chunk, h: cellH + (i + cols >= photos.length ? 18 : 0) });
+        push({ kind: "thumbs", folderId: folder.id, photos: chunk, h: cellH + (i + cols >= photos.length ? 18 : 0) });
         ordered.push(...chunk);
       }
     }
-    return { rows, ordered, rowOfPhoto, headOfFolder };
+    return { rows, offsets, ordered, rowOfPhoto, headOfFolder };
   }, [visible, cols, cellH]);
 
   const v = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (i) => rows[i].h,
-    overscan: 4,
+    overscan: 3,
   });
 
-  useEffect(() => v.measure(), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => v.measure(), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to a folder (tree click) or back to a photo (leaving the editor).
+  // Thumbnail-size slider: animate cells to their new size and keep the same photo at the top.
+  const prevSize = useRef(thumbSize);
+  useLayoutEffect(() => {
+    if (prevSize.current === thumbSize) return;
+    prevSize.current = thumbSize;
+    setResizing(true);
+    const a = topAnchor.current;
+    const el = scrollRef.current;
+    if (a && el) {
+      const idx = rowOfPhoto.get(a.photo);
+      if (idx != null) el.scrollTop = Math.max(0, offsets[idx] - a.delta);
+    }
+    const t = window.setTimeout(() => setResizing(false), RESIZE_ANIM_MS);
+    return () => clearTimeout(t);
+  }, [thumbSize, rowOfPhoto, offsets]);
+
+  // Folder click jumps straight to the folder; leaving the editor reveals the photo if hidden.
   useLayoutEffect(() => {
     if (!scrollTarget) return;
-    const idx =
-      scrollTarget.photoId != null && rowOfPhoto.has(scrollTarget.photoId)
-        ? rowOfPhoto.get(scrollTarget.photoId)!
-        : headOfFolder.get(scrollTarget.folderId);
-    if (idx == null) return;
-    if (scrollTarget.photoId != null) {
-      const el = scrollRef.current!;
-      let top = 0;
-      for (let i = 0; i < idx; i++) top += rows[i].h;
-      // Only move if the photo is off-screen; keeps the zoom-back landing where the user left.
-      if (top < el.scrollTop || top + rows[idx].h > el.scrollTop + el.clientHeight) v.scrollToIndex(idx, { align: "center" });
-    } else {
-      v.scrollToIndex(idx, { align: "start" });
+    const el = scrollRef.current;
+    if (!el) return;
+    if (scrollTarget.photoId != null && rowOfPhoto.has(scrollTarget.photoId)) {
+      const idx = rowOfPhoto.get(scrollTarget.photoId)!;
+      const top = offsets[idx];
+      if (top < el.scrollTop || top + rows[idx].h > el.scrollTop + el.clientHeight) {
+        el.scrollTop = Math.max(0, top - (el.clientHeight - rows[idx].h) / 2);
+      }
+      return;
     }
+    const idx = headOfFolder.get(scrollTarget.folderId);
+    if (idx != null) el.scrollTop = offsets[idx];
   }, [scrollTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // As the grid scrolls, the tree highlights whichever folder is at the top.
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    const items = v.getVirtualItems();
+    if (!el || !rows.length) return;
     const top = el.scrollTop + 30;
-    const item = items.find((it) => it.end > top);
-    if (!item) return;
-    const r = rows[item.index];
-    if (!r) return;
+    // Binary search the row under the top edge.
+    let lo = 0;
+    let hi = offsets.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (offsets[mid] <= top) lo = mid;
+      else hi = mid - 1;
+    }
+    const r = rows[lo];
+    const firstThumbRow = r.kind === "thumbs" ? lo : lo + 1 < rows.length ? lo + 1 : lo;
+    const tr = rows[firstThumbRow];
+    if (tr?.kind === "thumbs") topAnchor.current = { photo: tr.photos[0], delta: offsets[firstThumbRow] - el.scrollTop };
     useStore.getState().setCurrentFolder(r.kind === "head" ? r.folder.id : r.folderId);
-  }, [rows, v]);
+  }, [rows, offsets]);
 
-  // Rows change while scanning or searching; re-derive which folder is at the top.
   useEffect(() => {
     const id = requestAnimationFrame(onScroll);
     return () => cancelAnimationFrame(id);
@@ -114,13 +148,20 @@ export default function LibraryGrid() {
       if (next == null) return;
       s.clickPhoto(next, { ctrl: false, shift: e.shiftKey }, ordered);
       const idx = rowOfPhoto.get(next);
-      if (idx != null) v.scrollToIndex(idx, { align: "auto" });
+      const el = scrollRef.current;
+      if (idx != null && el) {
+        const top = offsets[idx];
+        if (top < el.scrollTop) el.scrollTop = top;
+        else if (top + rows[idx].h > el.scrollTop + el.clientHeight) el.scrollTop = top + rows[idx].h - el.clientHeight;
+      }
     };
     if (e.key === "ArrowRight") move(1);
     else if (e.key === "ArrowLeft") move(-1);
     else if (e.key === "ArrowDown") move(cols);
     else if (e.key === "ArrowUp") move(-cols);
     else if (e.key === "Enter" && s.anchor != null) openWithFlight(s.anchor);
+    else if (e.key === "Home" && scrollRef.current) scrollRef.current.scrollTop = 0;
+    else if (e.key === "End" && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     else if (e.ctrlKey && e.key.toLowerCase() === "a") {
       e.preventDefault();
       const f = visible.find((x) => x.folder.id === s.currentFolderId);
@@ -129,6 +170,17 @@ export default function LibraryGrid() {
   };
 
   const items = v.getVirtualItems();
+  const children: React.ReactNode[] = [];
+  for (const item of items) {
+    const r = rows[item.index];
+    if (r.kind === "head") {
+      children.push(<FolderHead key={`f${r.folder.id}`} folder={r.folder} photos={r.photos} top={item.start} />);
+      continue;
+    }
+    r.photos.forEach((id, j) =>
+      children.push(<Thumb key={id} id={id} x={SIDE_PAD + j * cellW} y={item.start} w={cellW} h={cellH} ordered={ordered} />),
+    );
+  }
 
   return (
     <div className="gridwrap">
@@ -140,34 +192,27 @@ export default function LibraryGrid() {
           </span>
         </div>
       )}
-      <div className="grid-scroll" ref={scrollRef} onScroll={onScroll} tabIndex={0} onKeyDown={onKeyDown}>
-        <div style={{ height: v.getTotalSize(), position: "relative" }}>
-          {items.map((item) => {
-            const r = rows[item.index];
-            if (r.kind === "head") return <FolderHead key={item.key} folder={r.folder} photos={r.photos} top={item.start} />;
-            return (
-              <div key={item.key} className="thumb-row" style={{ top: item.start, height: cellH }}>
-                {r.photos.map((id) => (
-                  <Thumb key={id} id={id} w={cellW} h={cellH} ordered={ordered} />
-                ))}
-              </div>
-            );
-          })}
-        </div>
-        {snapshotLoaded && rows.length === 0 && (
-          <div className="grid-empty">
-            {search ? (
-              <span>No pictures match your search.</span>
-            ) : scanning ? (
-              <>
-                <div className="spinner" />
-                <span>Scanning your folders for pictures…</span>
-              </>
-            ) : (
-              <span>No pictures yet — use Import or Tools › Folder Manager to add folders.</span>
-            )}
+      <div className="grid-body">
+        <div className="grid-scroll" ref={scrollRef} onScroll={onScroll} tabIndex={0} onKeyDown={onKeyDown}>
+          <div className={`grid-canvas${resizing ? " resizing" : ""}`} style={{ height: v.getTotalSize() }}>
+            {children}
           </div>
-        )}
+          {snapshotLoaded && rows.length === 0 && (
+            <div className="grid-empty">
+              {search ? (
+                <span>No pictures match your search.</span>
+              ) : scanning ? (
+                <>
+                  <div className="spinner" />
+                  <span>Scanning your folders for pictures…</span>
+                </>
+              ) : (
+                <span>No pictures yet — use Import or Tools › Folder Manager to add folders.</span>
+              )}
+            </div>
+          )}
+        </div>
+        <JogScrollbar target={scrollRef} rowHeight={cellH} />
       </div>
     </div>
   );
@@ -198,7 +243,14 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
       : fmtDate(folder.dateMax || folder.dateMin);
 
   return (
-    <div className="folder-head" style={{ top, height: HEAD_H - 6 }}>
+    <div
+      className="folder-head"
+      style={{ top, height: HEAD_H - 6 }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "folder", folderId: folder.id });
+      }}
+    >
       <div className="title-row">
         <FolderIcon size={34} />
         <div style={{ minWidth: 0 }}>
@@ -207,19 +259,19 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
         </div>
       </div>
       <div className="actions">
-        <button className="tbtn icon" title="Play fullscreen slideshow" onClick={() => startSlideshow(photos)}>
+        <button className="tbtn icon sq" title="Play fullscreen slideshow" onClick={() => startSlideshow(photos)}>
           <PlayIcon />
         </button>
-        <button className="tbtn icon" title="Create a picture collage (coming soon)" disabled>
+        <button className="tbtn icon sq" title="Create a picture collage (coming soon)" disabled>
           <CollageIcon />
         </button>
-        <button className="tbtn icon" title="Create a movie (coming soon)" disabled>
+        <button className="tbtn icon sq" title="Create a movie (coming soon)" disabled>
           <MovieIcon />
         </button>
-        <button className="tbtn icon" title="Star all photos in this folder" onClick={() => toggleStar(photos)}>
+        <button className="tbtn icon sq" title="Star all photos in this folder" onClick={() => toggleStar(photos)}>
           <StarIcon />
         </button>
-        <button className="tbtn icon" title="Export this folder with edits applied" onClick={() => exportPhotos(photos)}>
+        <button className="tbtn icon sq" title="Export this folder with edits applied" onClick={() => exportPhotos(photos)}>
           <SaveIcon />
         </button>
       </div>
@@ -236,25 +288,34 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
   );
 });
 
-const Thumb = memo(function Thumb({ id, w, h, ordered }: { id: number; w: number; h: number; ordered: number[] }) {
+const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: number; y: number; w: number; h: number; ordered: number[] }) {
   const selected = useStore((s) => s.selected.has(id));
   const starred = useStore((s) => s.starred.has(id));
   const geo = useStore((s) => s.geotagged.has(id));
   const edits = useStore((s) => s.edits.get(id));
   const clickPhoto = useStore((s) => s.clickPhoto);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
   const r = edits ? render(edits) : null;
-  const style: React.CSSProperties | undefined = r
-    ? { filter: r.filter || undefined, transform: r.rotate ? `rotate(${r.rotate}deg)` : undefined }
+  const style = r
+    ? ({
+        filter: r.filter || undefined,
+        transform: r.rotate ? `rotate(${r.rotate}deg)` : undefined,
+        objectViewBox: cropViewBox(r.crop),
+      } as React.CSSProperties)
     : undefined;
 
   return (
     <div
       className={`cell${selected ? " sel" : ""}`}
-      style={{ width: w, height: h }}
+      style={{ width: w, height: h, transform: `translate(${x}px, ${y}px)` }}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
         clickPhoto(id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }, ordered);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (!useStore.getState().selected.has(id)) clickPhoto(id, { ctrl: false, shift: false }, ordered);
+        useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "photo" });
       }}
       onDoubleClick={() => openWithFlight(id)}
     >
@@ -268,6 +329,7 @@ const Thumb = memo(function Thumb({ id, w, h, ordered }: { id: number; w: number
         onLoad={(e) => {
           const img = e.currentTarget;
           aspectCache.set(id, img.naturalWidth / img.naturalHeight);
+          loadedThumbs.add(id);
           setLoaded(true);
         }}
         alt=""
