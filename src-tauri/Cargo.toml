@@ -1,0 +1,42 @@
+[package]
+name = "picaluma"
+version = "0.1.0"
+description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
+authors = ["mokyiichek"]
+license = "Apache-2.0 OR MIT"
+edition = "2021"
+
+[lib]
+name = "picaluma_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+walkdir = "2"
+rayon = "1"
+kamadak-exif = "0.5"
+imagesize = "0.13"
+jpeg-decoder = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp", "tiff"] }
+chrono = "0.4"
+base64 = "0.22"
+log = "0.4"
+env_logger = "0.11"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
+
+# Image decoding is painfully slow unoptimised; keep dev builds usable.
+[profile.dev.package."*"]
+opt-level = 3
