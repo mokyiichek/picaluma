@@ -18,6 +18,7 @@ export interface Snapshot {
   geotagged: number[];
   edits: [number, string][];
   totalPhotos: number;
+  libraryId: string;
 }
 
 export interface Photo {
@@ -65,8 +66,11 @@ const schemeBase = (scheme: string) => (isWindows ? `http://${scheme}.localhost/
 const THUMB = schemeBase("thumb");
 const PHOTO = schemeBase("photo");
 
-export const thumbUrl = (id: number) => `${THUMB}${id}`;
-export const photoUrl = (id: number) => `${PHOTO}${id}`;
+// Library id in the URL keeps the webview's HTTP cache from mixing up ids across libraries.
+let libraryTag = "";
+export const setLibraryTag = (id: string) => (libraryTag = id);
+export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}`;
+export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}`;
 
 export const api = {
   snapshot: () => invoke<Snapshot>("library_snapshot"),

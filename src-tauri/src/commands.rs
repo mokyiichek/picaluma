@@ -39,6 +39,7 @@ pub struct Snapshot {
   geotagged: Vec<i64>,
   edits: Vec<(i64, String)>,
   total_photos: i64,
+  library_id: String,
 }
 
 #[derive(Serialize)]
@@ -138,7 +139,10 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
       edits.push((id, e));
     }
   }
-  Ok(Snapshot { folders, starred, geotagged, edits, total_photos: total })
+  drop(rows);
+  drop(stmt);
+  let library_id = db::library_id(&conn);
+  Ok(Snapshot { folders, starred, geotagged, edits, total_photos: total, library_id })
 }
 
 #[tauri::command]

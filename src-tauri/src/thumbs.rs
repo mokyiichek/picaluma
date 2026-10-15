@@ -66,7 +66,7 @@ pub fn handle_thumb(app: AppHandle, req: Request<Vec<u8>>, responder: UriSchemeR
   let Some(id) = parse_id(&req) else { return responder.respond(not_found()) };
   let Some(photo) = lookup(&app, id) else { return responder.respond(not_found()) };
   let state = app.state::<AppState>();
-  let cache = cache_path(&state.thumb_dir, id, photo.mtime);
+  let cache = cache_path(&state.thumb_dir, &photo.path, photo.mtime);
   if let Ok(bytes) = std::fs::read(&cache) {
     return responder.respond(image_response(bytes, "image/jpeg"));
   }
@@ -95,8 +95,8 @@ fn ensure_thumb(cache: &Path, photo: &PhotoRef) -> Result<Vec<u8>, String> {
 }
 
 /// Used by the indexer, which already holds the file's bytes.
-pub fn write_thumb_from_bytes(dir: &Path, id: i64, mtime: i64, path: &str, src: &[u8], orientation: i64) {
-  let cache = cache_path(dir, id, mtime);
+pub fn write_thumb_from_bytes(dir: &Path, mtime: i64, path: &str, src: &[u8], orientation: i64) {
+  let cache = cache_path(dir, path, mtime);
   if cache.exists() {
     return;
   }
@@ -143,17 +143,17 @@ pub fn spawn_warmer(app: AppHandle) {
         .unwrap();
       rows.filter_map(Result::ok).collect()
     };
-    let todo: Vec<_> = photos.into_iter().filter(|(id, p)| !cache_path(&dir, *id, p.mtime).exists()).collect();
+    let todo: Vec<_> = photos.into_iter().filter(|(_, p)| !cache_path(&dir, &p.path, p.mtime).exists()).collect();
     if !todo.is_empty() {
       log::info!("warming {} thumbnails", todo.len());
       let started = std::time::Instant::now();
       let pool = rayon::ThreadPoolBuilder::new().num_threads(2).thread_name(|i| format!("warm-{i}")).build().unwrap();
       pool.install(|| {
-        todo.par_iter().for_each(|(id, p)| {
+        todo.par_iter().for_each(|(_, p)| {
           while queue.pending() > 0 {
             std::thread::sleep(std::time::Duration::from_millis(40));
           }
-          let _ = ensure_thumb(&cache_path(&dir, *id, p.mtime), p);
+          let _ = ensure_thumb(&cache_path(&dir, &p.path, p.mtime), p);
         })
       });
       log::info!("warmed {} thumbnails in {:?}", todo.len(), started.elapsed());
@@ -185,8 +185,15 @@ fn lookup(app: &AppHandle, id: i64) -> Option<PhotoRef> {
     .ok()
 }
 
-fn cache_path(dir: &Path, id: i64, mtime: i64) -> PathBuf {
-  dir.join(format!("{:03}", id % 1000)).join(format!("{id}_{mtime}.jpg"))
+/// Cache files are keyed by the photo's path (not its database id), so a rebuilt library can
+/// never pick up another photo's thumbnail.
+fn cache_path(dir: &Path, path: &str, mtime: i64) -> PathBuf {
+  let h = fnv1a(path.to_lowercase().as_bytes());
+  dir.join(format!("{:02x}", h & 0xff)).join(format!("{h:016x}_{mtime}.jpg"))
+}
+
+fn fnv1a(bytes: &[u8]) -> u64 {
+  bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ *b as u64).wrapping_mul(0x0100_0000_01b3))
 }
 
 fn build_thumb(src: &[u8], path: &str, orientation: i64) -> Result<Vec<u8>, String> {

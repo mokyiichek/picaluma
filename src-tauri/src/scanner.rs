@@ -384,7 +384,7 @@ fn index_file(thumb_dir: &Path, p: &Pending) -> Meta {
   if let Ok(ex) = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)) {
     fill_exif(&mut meta, &ex);
   }
-  thumbs::write_thumb_from_bytes(thumb_dir, p.id, p.mtime, &p.path, &bytes, meta.orientation);
+  thumbs::write_thumb_from_bytes(thumb_dir, p.mtime, &p.path, &bytes, meta.orientation);
   meta
 }
 

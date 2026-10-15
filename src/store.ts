@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, Folder, ScanProgress, Snapshot } from "./api";
+import { api, Folder, ScanProgress, setLibraryTag, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
 
 export interface Rect {
@@ -114,6 +114,7 @@ export const useStore = create<State>((set, get) => ({
 
   loadSnapshot: async () => {
     const snapshot = await api.snapshot();
+    setLibraryTag(snapshot.libraryId);
     const folderById = new Map<number, Folder>();
     const folderOfPhoto = new Map<number, number>();
     for (const f of snapshot.folders) {
