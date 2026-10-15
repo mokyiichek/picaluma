@@ -883,6 +883,92 @@ input[type="range"]:focus {
   word-break: break-all;
 }
 
+/* ---------- Scanning notifier (bottom-right, like Picasa's) ---------- */
+.scan-notifier {
+  position: fixed;
+  right: 14px;
+  bottom: 118px;
+  z-index: 150;
+  width: 330px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: linear-gradient(#ffffff, #eef3f8);
+  border: 1px solid #a9b9c9;
+  border-radius: 6px;
+  box-shadow: 2px 4px 14px rgba(0, 0, 0, 0.25);
+  animation: notifierIn 260ms var(--ease-out);
+}
+.scan-notifier.done {
+  animation: notifierOut 300ms ease-in 1.9s forwards;
+}
+@keyframes notifierIn {
+  from {
+    transform: translateX(120%);
+  }
+}
+@keyframes notifierOut {
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+.scan-notifier .close {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+}
+.scan-notifier .fan {
+  position: relative;
+  width: 64px;
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scan-notifier .fan img {
+  position: absolute;
+  top: 6px;
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border: 2px solid #fff;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.45);
+}
+.scan-notifier .txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scan-notifier .cur {
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scan-notifier .bar {
+  height: 7px;
+  margin-top: 3px;
+  border: 1px solid #9fb3c7;
+  border-radius: 4px;
+  background: #e3e9ef;
+  overflow: hidden;
+}
+.scan-notifier .bar div {
+  height: 100%;
+  background: linear-gradient(#7fb2e5, #3f7fc0);
+  transition: width 400ms linear;
+}
+
 /* ---------- Tags panel ---------- */
 .tags-body {
   flex: 1;

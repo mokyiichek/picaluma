@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS photos (
   caption     TEXT NOT NULL DEFAULT '',
   tags        TEXT NOT NULL DEFAULT '',
   starred     INTEGER NOT NULL DEFAULT 0,
-  edits       TEXT NOT NULL DEFAULT ''
+  edits       TEXT NOT NULL DEFAULT '',
+  meta_done   INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS photos_by_folder ON photos(folder_id, taken, name);
 
@@ -57,7 +58,22 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     "PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON; PRAGMA cache_size=-65536;",
   )?;
   conn.execute_batch(SCHEMA)?;
+  migrate(&conn)?;
   Ok(conn)
+}
+
+/// Additive migrations for libraries created by older versions.
+fn migrate(conn: &Connection) -> rusqlite::Result<()> {
+  let has = |col: &str| -> rusqlite::Result<bool> {
+    let mut stmt = conn.prepare("SELECT 1 FROM pragma_table_info('photos') WHERE name = ?1")?;
+    stmt.exists([col])
+  };
+  // v0.3: two-phase scanning. Rows from older versions were fully read at scan time.
+  if !has("meta_done")? {
+    conn.execute_batch("ALTER TABLE photos ADD COLUMN meta_done INTEGER NOT NULL DEFAULT 1")?;
+  }
+  conn.execute_batch("CREATE INDEX IF NOT EXISTS photos_pending ON photos(meta_done) WHERE meta_done = 0")?;
+  Ok(())
 }
 
 /// Rebuild one photo's full-text row. Called after insert/update and caption edits.

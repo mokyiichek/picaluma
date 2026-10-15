@@ -1,8 +1,16 @@
-﻿use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
+//! Two-phase, Picasa-style scanning.
+//!
+//! 1. **Listing** walks the watched folders and records every picture from directory metadata
+//!    alone (name, size, mtime). No file is opened, so even cloud-synced folders (Synology
+//!    Drive, OneDrive placeholders) appear in the library within seconds, folder by folder.
+//! 2. **Indexing** then reads each new or changed file exactly once, newest folders first,
+//!    extracting EXIF *and* writing its thumbnail from the same bytes. It yields to the UI's
+//!    on-screen thumbnail requests and reports progress for the scanning popup.
+
+use std::collections::{HashMap, HashSet};
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -13,6 +21,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
 
 use crate::db;
+use crate::thumbs;
 use crate::AppState;
 
 const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "png", "gif", "bmp", "webp", "tif", "tiff"];
@@ -23,12 +32,22 @@ const SKIP_DIRS: &[&str] = &[
   "programdata", "appdata", "node_modules", "recovery", "msocache", "$windows.~bt", "$windows.~ws",
 ];
 
-const EVENT_THROTTLE: Duration = Duration::from_millis(750);
+/// How often the UI is told to reload while folders stream in.
+const EVENT_THROTTLE: Duration = Duration::from_millis(400);
+/// Photos indexed per DB transaction.
+const INDEX_BATCH: usize = 48;
+const INDEX_THREADS: usize = 3;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
   pub scanning: bool,
+  /// "listing" | "indexing" | "" (idle)
+  pub phase: String,
   pub folders_seen: u64,
+  pub photos_found: u64,
+  pub indexed: u64,
+  pub to_index: u64,
   pub current: String,
 }
 
@@ -39,46 +58,62 @@ struct FileInfo {
   mtime: i64,
 }
 
-struct Meta {
-  width: i64,
-  height: i64,
-  taken: Option<i64>,
-  orientation: i64,
-  make: String,
-  model: String,
-  has_gps: bool,
-  exif: String,
+pub struct Meta {
+  pub width: i64,
+  pub height: i64,
+  pub taken: Option<i64>,
+  pub orientation: i64,
+  pub make: String,
+  pub model: String,
+  pub has_gps: bool,
+  pub exif: String,
 }
 
 pub fn spawn_rescan(app: AppHandle) {
   let state = app.state::<AppState>();
   if state.scanning.swap(true, Ordering::SeqCst) {
+    // A scan is running; ask it to go round once more when it finishes.
+    state.rescan_requested.store(true, Ordering::SeqCst);
     return;
   }
-  let db = state.db.clone();
-  let flag = state.scanning.clone();
-  std::thread::spawn(move || {
-    let started = Instant::now();
-    let (roots, excluded) = load_roots(&db);
-    let mut progress = ScanProgress { scanning: true, folders_seen: 0, current: String::new() };
-    let mut last_emit = Instant::now() - EVENT_THROTTLE;
-    let mut seen_folders: Vec<String> = Vec::new();
-    for root in &roots {
-      scan_root(&app, &db, Path::new(root), &excluded, &mut progress, &mut last_emit, &mut seen_folders);
+  std::thread::spawn(move || loop {
+    let state = app.state::<AppState>();
+    state.rescan_requested.store(false, Ordering::SeqCst);
+    run_scan(&app);
+    if !state.rescan_requested.load(Ordering::SeqCst) {
+      state.scanning.store(false, Ordering::SeqCst);
+      break;
     }
-    prune_missing_folders(&db, &roots, &excluded, &seen_folders);
-    flag.store(false, Ordering::SeqCst);
-    progress.scanning = false;
-    progress.current.clear();
-    let _ = app.emit("scan-progress", progress.clone());
-    let _ = app.emit("library-changed", ());
-    log::info!("scan finished: {} folders in {:?}", progress.folders_seen, started.elapsed());
-    crate::thumbs::spawn_warmer(app.clone());
   });
 }
 
 pub fn is_scanning(app: &AppHandle) -> bool {
   app.state::<AppState>().scanning.load(Ordering::SeqCst)
+}
+
+fn run_scan(app: &AppHandle) {
+  let state = app.state::<AppState>();
+  let db = state.db.clone();
+  let started = Instant::now();
+  let (roots, excluded) = load_roots(&db);
+  let mut progress = ScanProgress { scanning: true, phase: "listing".into(), ..Default::default() };
+  let mut last_emit = Instant::now() - EVENT_THROTTLE;
+  let mut seen: Vec<String> = Vec::new();
+
+  for root in &roots {
+    list_root(app, &db, Path::new(root), &excluded, &mut progress, &mut last_emit, &mut seen);
+  }
+  prune_missing_folders(&db, &roots, &excluded, &seen);
+  let _ = app.emit("library-changed", ());
+  log::info!("listing finished: {} folders, {} photos in {:?}", progress.folders_seen, progress.photos_found, started.elapsed());
+
+  index_pending(app, &db, &mut progress);
+
+  progress = ScanProgress::default();
+  let _ = app.emit("scan-progress", progress);
+  let _ = app.emit("library-changed", ());
+  log::info!("scan finished in {:?}", started.elapsed());
+  thumbs::spawn_warmer(app.clone());
 }
 
 fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
@@ -94,14 +129,18 @@ fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
   (roots, excluded)
 }
 
-fn scan_root(
+// ---------------------------------------------------------------------------------------------
+// Phase 1: listing
+// ---------------------------------------------------------------------------------------------
+
+fn list_root(
   app: &AppHandle,
   db: &Arc<Mutex<Connection>>,
   root: &Path,
   excluded: &[String],
   progress: &mut ScanProgress,
   last_emit: &mut Instant,
-  seen_folders: &mut Vec<String>,
+  seen: &mut Vec<String>,
 ) {
   let walker = WalkDir::new(root).follow_links(false).into_iter().filter_entry(|e| {
     if !e.file_type().is_dir() {
@@ -120,43 +159,45 @@ fn scan_root(
   for entry in walker.filter_map(Result::ok) {
     let dir = entry.path();
     progress.folders_seen += 1;
-    match scan_dir(db, dir) {
-      Ok(Some(changed)) => {
-        seen_folders.push(dir.to_string_lossy().into_owned());
-        if changed && last_emit.elapsed() >= EVENT_THROTTLE {
-          *last_emit = Instant::now();
-          progress.current = dir.to_string_lossy().into_owned();
-          let _ = app.emit("scan-progress", progress.clone());
-          let _ = app.emit("library-changed", ());
+    match list_dir(db, dir) {
+      Ok(Some((count, changed))) => {
+        seen.push(dir.to_string_lossy().into_owned());
+        progress.photos_found += count as u64;
+        if changed {
+          progress.current = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         }
       }
       Ok(None) => {}
-      Err(e) => log::warn!("scan {}: {e}", dir.display()),
+      Err(e) => log::warn!("list {}: {e}", dir.display()),
+    }
+    if last_emit.elapsed() >= EVENT_THROTTLE {
+      *last_emit = Instant::now();
+      let _ = app.emit("scan-progress", progress.clone());
+      let _ = app.emit("library-changed", ());
     }
   }
 }
 
-/// Index one directory. Returns Some(changed) when it holds pictures, None when it holds none.
-fn scan_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<bool>> {
+/// Record one directory from metadata only. Returns Some((picture count, changed)) or None if
+/// the directory holds no pictures.
+fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<(usize, bool)>> {
   let files = list_images(dir);
   let dir_str = dir.to_string_lossy().into_owned();
+  let mut conn = db.lock().unwrap();
 
   if files.is_empty() {
-    let conn = db.lock().unwrap();
+    conn.execute("DELETE FROM photos_fts WHERE rowid IN (SELECT p.id FROM photos p JOIN folders f ON f.id = p.folder_id WHERE f.path = ?1)", [&dir_str])?;
     conn.execute("DELETE FROM folders WHERE path = ?1", [&dir_str])?;
     return Ok(None);
   }
 
-  // Compare against what we already know so rescans only touch new or changed files.
   let known: HashMap<String, (i64, i64, i64)> = {
-    let conn = db.lock().unwrap();
     let mut stmt = conn.prepare_cached(
       "SELECT p.path, p.id, p.size, p.mtime FROM photos p JOIN folders f ON f.id = p.folder_id WHERE f.path = ?1",
     )?;
     let rows = stmt.query_map([&dir_str], |r| Ok((r.get::<_, String>(0)?, (r.get(1)?, r.get(2)?, r.get(3)?))))?;
     rows.filter_map(Result::ok).collect()
   };
-
   let changed: Vec<&FileInfo> = files
     .iter()
     .filter(|f| match known.get(&*f.path.to_string_lossy()) {
@@ -164,61 +205,35 @@ fn scan_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<
       None => true,
     })
     .collect();
-  let live: std::collections::HashSet<String> = files.iter().map(|f| f.path.to_string_lossy().into_owned()).collect();
+  let live: HashSet<String> = files.iter().map(|f| f.path.to_string_lossy().into_owned()).collect();
   let removed: Vec<i64> = known.iter().filter(|(p, _)| !live.contains(*p)).map(|(_, v)| v.0).collect();
-
   if changed.is_empty() && removed.is_empty() {
-    return Ok(Some(false));
+    return Ok(Some((files.len(), false)));
   }
 
-  // EXIF parsing is the slow part; do it in parallel without holding the DB lock.
-  let metas: Vec<(&FileInfo, Meta)> = changed.par_iter().map(|f| (*f, read_meta(&f.path))).collect();
-
-  let mut conn = db.lock().unwrap();
   let tx = conn.transaction()?;
   let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dir_str.clone());
   tx.execute("INSERT OR IGNORE INTO folders(path, name) VALUES (?1, ?2)", params![dir_str, name])?;
   let folder_id: i64 = tx.query_row("SELECT id FROM folders WHERE path = ?1", [&dir_str], |r| r.get(0))?;
-
   for id in &removed {
     tx.execute("DELETE FROM photos_fts WHERE rowid = ?1", [id])?;
     tx.execute("DELETE FROM photos WHERE id = ?1", [id])?;
   }
   {
     let mut upsert = tx.prepare_cached(
-      "INSERT INTO photos(folder_id, path, name, size, mtime, taken, width, height, orientation, make, model, has_gps, exif)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-       ON CONFLICT(path) DO UPDATE SET
-         folder_id = excluded.folder_id, size = excluded.size, mtime = excluded.mtime, taken = excluded.taken,
-         width = excluded.width, height = excluded.height, orientation = excluded.orientation,
-         make = excluded.make, model = excluded.model, has_gps = excluded.has_gps, exif = excluded.exif
+      "INSERT INTO photos(folder_id, path, name, size, mtime, meta_done) VALUES (?1, ?2, ?3, ?4, ?5, 0)
+       ON CONFLICT(path) DO UPDATE SET folder_id = excluded.folder_id, size = excluded.size,
+         mtime = excluded.mtime, meta_done = 0
        RETURNING id",
     )?;
-    for (f, m) in &metas {
-      let id: i64 = upsert.query_row(
-        params![
-          folder_id,
-          f.path.to_string_lossy(),
-          f.name,
-          f.size,
-          f.mtime,
-          m.taken,
-          m.width,
-          m.height,
-          m.orientation,
-          m.make,
-          m.model,
-          m.has_gps as i64,
-          m.exif
-        ],
-        |r| r.get(0),
-      )?;
+    for f in &changed {
+      let id: i64 = upsert.query_row(params![folder_id, f.path.to_string_lossy(), f.name, f.size, f.mtime], |r| r.get(0))?;
       db::reindex_photo(&tx, id)?;
     }
   }
   db::refresh_folder(&tx, folder_id)?;
   tx.commit()?;
-  Ok(Some(true))
+  Ok(Some((files.len(), true)))
 }
 
 fn list_images(dir: &Path) -> Vec<FileInfo> {
@@ -231,7 +246,7 @@ fn list_images(dir: &Path) -> Vec<FileInfo> {
         return None;
       }
       let md = e.metadata().ok()?;
-      if !md.is_file() {
+      if !md.is_file() || md.len() == 0 {
         return None;
       }
       Some(FileInfo {
@@ -246,7 +261,7 @@ fn list_images(dir: &Path) -> Vec<FileInfo> {
 
 /// Drop folders that vanished from disk or now fall outside the watched roots.
 fn prune_missing_folders(db: &Arc<Mutex<Connection>>, roots: &[String], excluded: &[String], seen: &[String]) {
-  let seen: std::collections::HashSet<&str> = seen.iter().map(String::as_str).collect();
+  let seen: HashSet<&str> = seen.iter().map(String::as_str).collect();
   let roots_norm: Vec<String> = roots.iter().map(|r| normalize(r)).collect();
   let conn = db.lock().unwrap();
   let all: Vec<(i64, String)> = {
@@ -264,25 +279,122 @@ fn prune_missing_folders(db: &Arc<Mutex<Connection>>, roots: &[String], excluded
   }
 }
 
-fn read_meta(path: &Path) -> Meta {
-  let (width, height) = imagesize::size(path).map(|s| (s.width as i64, s.height as i64)).unwrap_or((0, 0));
-  let mut meta = Meta {
-    width,
-    height,
-    taken: None,
-    orientation: 1,
-    make: String::new(),
-    model: String::new(),
-    has_gps: false,
-    exif: "[]".into(),
-  };
-  let Ok(file) = File::open(path) else { return meta };
-  let Ok(ex) = exif::Reader::new().read_from_container(&mut BufReader::new(file)) else {
-    return meta;
-  };
+// ---------------------------------------------------------------------------------------------
+// Phase 2: indexing (EXIF + thumbnail from one read)
+// ---------------------------------------------------------------------------------------------
 
+struct Pending {
+  id: i64,
+  folder_id: i64,
+  path: String,
+  mtime: i64,
+}
+
+fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut ScanProgress) {
+  let pending: Vec<Pending> = {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn
+      .prepare(
+        "SELECT p.id, p.folder_id, p.path, p.mtime FROM photos p JOIN folders f ON f.id = p.folder_id
+         WHERE p.meta_done = 0 ORDER BY f.updated DESC, p.folder_id, p.name",
+      )
+      .unwrap();
+    let rows = stmt
+      .query_map([], |r| Ok(Pending { id: r.get(0)?, folder_id: r.get(1)?, path: r.get(2)?, mtime: r.get(3)? }))
+      .unwrap();
+    rows.filter_map(Result::ok).collect()
+  };
+  if pending.is_empty() {
+    return;
+  }
+  let state = app.state::<AppState>();
+  let thumb_dir = state.thumb_dir.clone();
+  let queue = state.thumbs.clone();
+  progress.phase = "indexing".into();
+  progress.to_index = pending.len() as u64;
+  progress.indexed = 0;
+  let _ = app.emit("scan-progress", progress.clone());
+  log::info!("indexing {} pictures", pending.len());
+
+  let done = AtomicU64::new(0);
+  let pool = rayon::ThreadPoolBuilder::new().num_threads(INDEX_THREADS).thread_name(|i| format!("index-{i}")).build().unwrap();
+  let mut last_emit = Instant::now();
+
+  for batch in pending.chunks(INDEX_BATCH) {
+    // New listing requests (user added a folder) take priority over finishing this pass.
+    if state.rescan_requested.load(Ordering::SeqCst) {
+      break;
+    }
+    let metas: Vec<(&Pending, Meta)> = pool.install(|| {
+      batch
+        .par_iter()
+        .map(|p| {
+          while queue.pending() > 0 {
+            std::thread::sleep(Duration::from_millis(30));
+          }
+          let meta = index_file(&thumb_dir, p);
+          done.fetch_add(1, Ordering::Relaxed);
+          (p, meta)
+        })
+        .collect()
+    });
+
+    {
+      let mut conn = db.lock().unwrap();
+      let Ok(tx) = conn.transaction() else { continue };
+      let mut folders = HashSet::new();
+      for (p, m) in &metas {
+        let _ = tx.execute(
+          "UPDATE photos SET taken = ?1, width = ?2, height = ?3, orientation = ?4, make = ?5, model = ?6,
+             has_gps = ?7, exif = ?8, meta_done = 1 WHERE id = ?9",
+          params![m.taken, m.width, m.height, m.orientation, m.make, m.model, m.has_gps as i64, m.exif, p.id],
+        );
+        if !m.make.is_empty() || !m.model.is_empty() {
+          let _ = db::reindex_photo(&tx, p.id);
+        }
+        folders.insert(p.folder_id);
+      }
+      for f in folders {
+        let _ = db::refresh_folder(&tx, f);
+      }
+      let _ = tx.commit();
+    }
+
+    progress.indexed = done.load(Ordering::Relaxed);
+    progress.current = batch
+      .last()
+      .and_then(|p| Path::new(&p.path).parent()?.file_name().map(|n| n.to_string_lossy().into_owned()))
+      .unwrap_or_default();
+    if last_emit.elapsed() >= Duration::from_millis(700) {
+      last_emit = Instant::now();
+      let _ = app.emit("scan-progress", progress.clone());
+      let _ = app.emit("library-changed", ());
+    }
+  }
+}
+
+/// Read the file once: EXIF + dimensions, and write its thumbnail if not cached yet.
+fn index_file(thumb_dir: &Path, p: &Pending) -> Meta {
+  let mut meta = empty_meta();
+  let Ok(bytes) = std::fs::read(&p.path) else { return meta };
+  if let Ok(sz) = imagesize::blob_size(&bytes) {
+    meta.width = sz.width as i64;
+    meta.height = sz.height as i64;
+  }
+  if let Ok(ex) = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)) {
+    fill_exif(&mut meta, &ex);
+  }
+  thumbs::write_thumb_from_bytes(thumb_dir, p.id, p.mtime, &p.path, &bytes, meta.orientation);
+  meta
+}
+
+fn empty_meta() -> Meta {
+  Meta { width: 0, height: 0, taken: None, orientation: 1, make: String::new(), model: String::new(), has_gps: false, exif: "[]".into() }
+}
+
+fn fill_exif(meta: &mut Meta, ex: &exif::Exif) {
   let text = |tag: exif::Tag| -> Option<String> {
-    ex.get_field(tag, exif::In::PRIMARY).map(|f| f.display_value().with_unit(&ex).to_string().trim_matches('"').trim().to_string())
+    ex.get_field(tag, exif::In::PRIMARY).map(|f| f.display_value().with_unit(ex).to_string().trim_matches('"').trim().to_string())
   };
   meta.make = text(exif::Tag::Make).unwrap_or_default();
   meta.model = text(exif::Tag::Model).unwrap_or_default();
@@ -321,17 +433,17 @@ fn read_meta(path: &Path) -> Meta {
     ("Latitude", exif::Tag::GPSLatitude),
     ("Longitude", exif::Tag::GPSLongitude),
   ];
+  let orientation = meta.orientation;
   let pairs: Vec<(&str, String)> = rows
     .iter()
     .filter_map(|(label, tag)| {
       if *tag == exif::Tag::Orientation {
-        return Some((*label, orientation_name(meta.orientation).to_string()));
+        return Some((*label, orientation_name(orientation).to_string()));
       }
       text(*tag).map(|v| (*label, v))
     })
     .collect();
   meta.exif = serde_json::to_string(&pairs).unwrap_or_else(|_| "[]".into());
-  meta
 }
 
 fn orientation_name(o: i64) -> &'static str {

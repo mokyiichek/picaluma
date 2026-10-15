@@ -16,6 +16,10 @@ type Row =
 const HEAD_H = 124;
 const SIDE_PAD = 18;
 const RESIZE_ANIM_MS = 240;
+/** Spring stiffness (rad/s) fitted to Picasa's wheel animation. */
+const WHEEL_OMEGA = 16;
+/** WebView2 reports ~91 deltaY per notch here; Picasa moves ~117px per notch. */
+const WHEEL_PX_PER_DELTA = 1.16;
 
 /** Thumbnails that have already decoded once; remounts show them instantly without a placeholder. */
 const loadedThumbs = new Set<number>();
@@ -80,6 +84,53 @@ export default function LibraryGrid() {
   });
 
   useLayoutEffect(() => v.measure(), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Picasa's animated wheel scrolling, measured frame-by-frame from Picasa 3 with special effects
+  // on: each notch moves ~117px, easing in from rest and gliding out (≈15% at 60ms, 54% at
+  // 120ms, 90% at 280ms). A critically damped spring reproduces that curve; notches accumulate.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let target = 0;
+    let pos = 0;
+    let vel = 0;
+    let raf = 0;
+    let last = 0;
+    const step = (t: number) => {
+      const dt = last ? Math.min(0.032, (t - last) / 1000) : 1 / 60;
+      last = t;
+      const acc = WHEEL_OMEGA * WHEEL_OMEGA * (target - pos) - 2 * WHEEL_OMEGA * vel;
+      vel += acc * dt;
+      pos += vel * dt;
+      if (Math.abs(target - pos) < 0.5 && Math.abs(vel) < 20) {
+        el.scrollTop = target;
+        raf = 0;
+        vel = 0;
+        return;
+      }
+      el.scrollTop = pos;
+      raf = requestAnimationFrame(step);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? el.clientHeight : 1;
+      if (!raf) {
+        // Something else (jog bar, keys, folder jump) may have moved the grid since.
+        pos = el.scrollTop;
+        target = pos;
+        vel = 0;
+        last = 0;
+      }
+      target = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, target + e.deltaY * unit * WHEEL_PX_PER_DELTA));
+      if (!raf) raf = requestAnimationFrame(step);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   // Thumbnail-size slider: animate cells to their new size and keep the same photo at the top.
   const prevSize = useRef(thumbSize);

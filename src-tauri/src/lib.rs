@@ -14,6 +14,7 @@ pub struct AppState {
   pub thumb_dir: PathBuf,
   pub thumbs: Arc<thumbs::ThumbQueue>,
   pub scanning: Arc<AtomicBool>,
+  pub rescan_requested: Arc<AtomicBool>,
   pub warming: Arc<AtomicBool>,
 }
 
@@ -25,7 +26,11 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
     .setup(|app| {
-      let data_dir = app.path().app_data_dir()?;
+      // PICALUMA_DATA_DIR points at an alternate library (testing, portable installs).
+      let data_dir = match std::env::var_os("PICALUMA_DATA_DIR") {
+        Some(dir) => PathBuf::from(dir),
+        None => app.path().app_data_dir()?,
+      };
       std::fs::create_dir_all(&data_dir)?;
       let thumb_dir = data_dir.join("thumbs");
       std::fs::create_dir_all(&thumb_dir)?;
@@ -38,6 +43,7 @@ pub fn run() {
         thumb_dir,
         thumbs: thumbs::ThumbQueue::start(workers),
         scanning: Arc::new(AtomicBool::new(false)),
+        rescan_requested: Arc::new(AtomicBool::new(false)),
         warming: Arc::new(AtomicBool::new(false)),
       });
       scanner::spawn_rescan(app.handle().clone());

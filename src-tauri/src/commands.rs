@@ -183,7 +183,7 @@ pub fn rescan(app: AppHandle) {
 
 #[tauri::command]
 pub fn scan_status(app: AppHandle) -> ScanProgress {
-  ScanProgress { scanning: scanner::is_scanning(&app), folders_seen: 0, current: String::new() }
+  ScanProgress { scanning: scanner::is_scanning(&app), ..Default::default() }
 }
 
 fn picasa_scanlist_path() -> Option<PathBuf> {

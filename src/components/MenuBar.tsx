@@ -148,7 +148,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Help",
       [
-        { label: "About Picaluma", action: () => alert("Picaluma 0.2.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
+        { label: "About Picaluma", action: () => alert("Picaluma 0.3.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
       ],
     ],
   ];
@@ -197,7 +197,7 @@ export default function MenuBar() {
       ))}
       <span className="brand">
         <img src="/logo.png" width={14} height={14} alt="" style={{ verticalAlign: -2, marginRight: 5 }} />
-        Picaluma 0.2
+        Picaluma 0.3
       </span>
       {openEntries && (
         <div className="menu-drop" style={{ left }}>

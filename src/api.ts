@@ -44,7 +44,12 @@ export interface Root {
 
 export interface ScanProgress {
   scanning: boolean;
+  /** "listing" | "indexing" | "" */
+  phase: string;
   foldersSeen: number;
+  photosFound: number;
+  indexed: number;
+  toIndex: number;
   current: string;
 }
 

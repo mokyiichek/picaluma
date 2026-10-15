@@ -1,5 +1,4 @@
-use std::fs::File;
-use std::io::BufReader;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex};
@@ -87,12 +86,36 @@ fn ensure_thumb(cache: &Path, photo: &PhotoRef) -> Result<Vec<u8>, String> {
   if let Ok(bytes) = std::fs::read(cache) {
     return Ok(bytes);
   }
-  let bytes = build_thumb(Path::new(&photo.path), photo.orientation)?;
+  let src = std::fs::read(&photo.path).map_err(|e| e.to_string())?;
+  // Orientation comes from the file itself: indexing may not have recorded it yet.
+  let orientation = exif_orientation(&src).unwrap_or(photo.orientation);
+  let bytes = build_thumb(&src, &photo.path, orientation)?;
+  store(cache, &bytes);
+  Ok(bytes)
+}
+
+/// Used by the indexer, which already holds the file's bytes.
+pub fn write_thumb_from_bytes(dir: &Path, id: i64, mtime: i64, path: &str, src: &[u8], orientation: i64) {
+  let cache = cache_path(dir, id, mtime);
+  if cache.exists() {
+    return;
+  }
+  match build_thumb(src, path, orientation) {
+    Ok(bytes) => store(&cache, &bytes),
+    Err(e) => log::warn!("thumb {path}: {e}"),
+  }
+}
+
+fn store(cache: &Path, bytes: &[u8]) {
   if let Some(dir) = cache.parent() {
     let _ = std::fs::create_dir_all(dir);
   }
-  let _ = std::fs::write(cache, &bytes);
-  Ok(bytes)
+  let _ = std::fs::write(cache, bytes);
+}
+
+fn exif_orientation(src: &[u8]) -> Option<i64> {
+  let ex = exif::Reader::new().read_from_container(&mut Cursor::new(src)).ok()?;
+  ex.get_field(exif::Tag::Orientation, exif::In::PRIMARY)?.value.get_uint(0).map(|v| v as i64)
 }
 
 /// Background warmer: after a scan, pre-build every missing thumbnail (newest folders first)
@@ -166,8 +189,8 @@ fn cache_path(dir: &Path, id: i64, mtime: i64) -> PathBuf {
   dir.join(format!("{:03}", id % 1000)).join(format!("{id}_{mtime}.jpg"))
 }
 
-fn build_thumb(path: &Path, orientation: i64) -> Result<Vec<u8>, String> {
-  let img = decode_scaled(path)?;
+fn build_thumb(src: &[u8], path: &str, orientation: i64) -> Result<Vec<u8>, String> {
+  let img = decode_scaled(src, path)?;
   let thumb = img.thumbnail(THUMB_EDGE, THUMB_EDGE);
   let thumb = apply_orientation(thumb, orientation);
   let mut out = Vec::new();
@@ -180,24 +203,18 @@ fn build_thumb(path: &Path, orientation: i64) -> Result<Vec<u8>, String> {
 
 /// JPEGs are decoded with DCT scaling (1/2..1/8) straight to near-thumbnail size,
 /// which is several times faster than a full decode. Everything else goes through `image`.
-fn decode_scaled(path: &Path) -> Result<DynamicImage, String> {
-  let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-  if matches!(ext.as_str(), "jpg" | "jpeg" | "jpe") {
-    if let Ok(img) = decode_jpeg_scaled(path) {
+fn decode_scaled(src: &[u8], path: &str) -> Result<DynamicImage, String> {
+  let ext = Path::new(path).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+  if matches!(ext.as_str(), "jpg" | "jpeg" | "jpe") || src.starts_with(&[0xFF, 0xD8]) {
+    if let Ok(img) = decode_jpeg_scaled(src) {
       return Ok(img);
     }
   }
-  image::ImageReader::open(path)
-    .map_err(|e| e.to_string())?
-    .with_guessed_format()
-    .map_err(|e| e.to_string())?
-    .decode()
-    .map_err(|e| e.to_string())
+  image::load_from_memory(src).map_err(|e| e.to_string())
 }
 
-fn decode_jpeg_scaled(path: &Path) -> Result<DynamicImage, String> {
-  let file = File::open(path).map_err(|e| e.to_string())?;
-  let mut dec = jpeg_decoder::Decoder::new(BufReader::new(file));
+fn decode_jpeg_scaled(src: &[u8]) -> Result<DynamicImage, String> {
+  let mut dec = jpeg_decoder::Decoder::new(Cursor::new(src));
   dec.read_info().map_err(|e| e.to_string())?;
   let (w, h) = dec.scale(THUMB_EDGE as u16, THUMB_EDGE as u16).map_err(|e| e.to_string())?;
   let pixels = dec.decode().map_err(|e| e.to_string())?;

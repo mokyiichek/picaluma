@@ -106,7 +106,7 @@ export const useStore = create<State>((set, get) => ({
   query: "",
   search: null,
   starredOnly: false,
-  scan: { scanning: false, foldersSeen: 0, current: "" },
+  scan: { scanning: false, phase: "", foldersSeen: 0, photosFound: 0, indexed: 0, toIndex: 0, current: "" },
   flight: null,
   slideshow: null,
   folderManager: false,
