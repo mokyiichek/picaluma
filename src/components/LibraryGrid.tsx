@@ -36,6 +36,8 @@ export default function LibraryGrid() {
   const [width, setWidth] = useState(800);
   const [resizing, setResizing] = useState(false);
   const topAnchor = useRef<{ photo: number; delta: number } | null>(null);
+  const smooth = useRef<{ to: (y: number) => void } | null>(null);
+  const effects = useStore((s) => s.effects);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -88,6 +90,7 @@ export default function LibraryGrid() {
   // Picasa's animated wheel scrolling, measured frame-by-frame from Picasa 3 with special effects
   // on: each notch moves ~117px, easing in from rest and gliding out (≈15% at 60ms, 54% at
   // 120ms, 90% at 280ms). A critically damped spring reproduces that curve; notches accumulate.
+  // The same spring also carries folder-to-folder jumps (see scrollTarget below).
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -96,6 +99,32 @@ export default function LibraryGrid() {
     let vel = 0;
     let raf = 0;
     let last = 0;
+    const sync = () => {
+      // Something else (jog bar, keys, slider) may have moved the grid since the last animation.
+      if (!raf) {
+        pos = el.scrollTop;
+        target = pos;
+        vel = 0;
+        last = 0;
+      }
+    };
+    const maxTop = () => el.scrollHeight - el.clientHeight;
+    smooth.current = {
+      to: (dest: number) => {
+        sync();
+        dest = Math.max(0, Math.min(maxTop(), dest));
+        // Long hops pre-jump so the glide only ever covers about two screens, like Picasa's
+        // fast scroll: you see motion and direction without waiting through every folder.
+        const span = el.clientHeight * 2;
+        if (Math.abs(dest - pos) > span) {
+          pos = dest - Math.sign(dest - pos) * span;
+          vel = 0;
+          el.scrollTop = pos;
+        }
+        target = dest;
+        if (!raf) raf = requestAnimationFrame(step);
+      },
+    };
     const step = (t: number) => {
       const dt = last ? Math.min(0.032, (t - last) / 1000) : 1 / 60;
       last = t;
@@ -112,23 +141,18 @@ export default function LibraryGrid() {
       raf = requestAnimationFrame(step);
     };
     const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) return;
+      if (e.ctrlKey || !useStore.getState().effects) return; // effects off: native scrolling
       e.preventDefault();
       const unit = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? el.clientHeight : 1;
-      if (!raf) {
-        // Something else (jog bar, keys, folder jump) may have moved the grid since.
-        pos = el.scrollTop;
-        target = pos;
-        vel = 0;
-        last = 0;
-      }
-      target = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, target + e.deltaY * unit * WHEEL_PX_PER_DELTA));
+      sync();
+      target = Math.max(0, Math.min(maxTop(), target + e.deltaY * unit * WHEEL_PX_PER_DELTA));
       if (!raf) raf = requestAnimationFrame(step);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       el.removeEventListener("wheel", onWheel);
       cancelAnimationFrame(raf);
+      smooth.current = null;
     };
   }, []);
 
@@ -148,7 +172,8 @@ export default function LibraryGrid() {
     return () => clearTimeout(t);
   }, [thumbSize, rowOfPhoto, offsets]);
 
-  // Folder click jumps straight to the folder; leaving the editor reveals the photo if hidden.
+  // Folder click glides to the folder (instant jump with special effects off); leaving the
+  // editor reveals the photo if it is off-screen.
   useLayoutEffect(() => {
     if (!scrollTarget) return;
     const el = scrollRef.current;
@@ -162,7 +187,9 @@ export default function LibraryGrid() {
       return;
     }
     const idx = headOfFolder.get(scrollTarget.folderId);
-    if (idx != null) el.scrollTop = offsets[idx];
+    if (idx == null) return;
+    if (useStore.getState().effects && smooth.current) smooth.current.to(offsets[idx]);
+    else el.scrollTop = offsets[idx];
   }, [scrollTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // As the grid scrolls, the tree highlights whichever folder is at the top.
@@ -245,7 +272,7 @@ export default function LibraryGrid() {
       )}
       <div className="grid-body">
         <div className="grid-scroll" ref={scrollRef} onScroll={onScroll} tabIndex={0} onKeyDown={onKeyDown}>
-          <div className={`grid-canvas${resizing ? " resizing" : ""}`} style={{ height: v.getTotalSize() }}>
+          <div className={`grid-canvas${resizing && effects ? " resizing" : ""}`} style={{ height: v.getTotalSize() }}>
             {children}
           </div>
           {snapshotLoaded && rows.length === 0 && (

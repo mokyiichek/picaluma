@@ -15,6 +15,7 @@ import Slideshow from "./components/Slideshow";
 import FolderManager from "./components/FolderManager";
 import TagsPanel from "./components/TagsPanel";
 import ScanNotifier from "./components/ScanNotifier";
+import OptionsDialog from "./components/OptionsDialog";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
@@ -116,6 +117,7 @@ export default function App() {
       <FolderManager />
       <ContextMenu />
       <ScanNotifier />
+      <OptionsDialog />
     </div>
   );
 }

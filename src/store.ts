@@ -39,6 +39,9 @@ interface State {
   editId: number | null;
   thumbSize: number;
   showProps: boolean;
+  /** Tools › Options › Special effects: animated transitions and smooth scrolling. */
+  effects: boolean;
+  optionsOpen: boolean;
   sidePanel: "props" | "tags";
   contextMenu: { x: number; y: number; kind: "photo" | "folder"; folderId?: number } | null;
   leftWidth: number;
@@ -66,6 +69,8 @@ interface State {
   setThumbSize: (n: number) => void;
   toggleProps: () => void;
   toggleTags: () => void;
+  setEffects: (on: boolean) => void;
+  setOptionsOpen: (open: boolean) => void;
   openContextMenu: (m: State["contextMenu"]) => void;
   setLeftWidth: (w: number) => void;
   setLeftSection: (s: State["leftSection"]) => void;
@@ -99,6 +104,8 @@ export const useStore = create<State>((set, get) => ({
   editId: null,
   thumbSize: Number(localStorageGet("thumbSize")) || 150,
   showProps: localStorageGet("showProps") !== "0",
+  effects: applyEffectsClass(localStorageGet("effects") !== "0"),
+  optionsOpen: false,
   sidePanel: "props",
   contextMenu: null,
   leftWidth: Number(localStorageGet("leftWidth")) || 420,
@@ -183,7 +190,7 @@ export const useStore = create<State>((set, get) => ({
       selected: new Set([id]),
       anchor: id,
       currentFolderId: get().folderOfPhoto.get(id) ?? get().currentFolderId,
-      flight: flight ? { ...flight, nonce: ++flightSeq } : null,
+      flight: flight && get().effects ? { ...flight, nonce: ++flightSeq } : null,
     }),
 
   closeEditor: (flight) => {
@@ -191,7 +198,7 @@ export const useStore = create<State>((set, get) => ({
     const folderId = id != null ? get().folderOfPhoto.get(id) : undefined;
     set({
       view: "library",
-      flight: flight ? { ...flight, nonce: ++flightSeq } : null,
+      flight: flight && get().effects ? { ...flight, nonce: ++flightSeq } : null,
       scrollTarget: folderId != null ? { folderId, photoId: id ?? undefined, nonce: Date.now() } : get().scrollTarget,
     });
   },
@@ -217,6 +224,13 @@ export const useStore = create<State>((set, get) => ({
   },
 
   openContextMenu: (contextMenu) => set({ contextMenu }),
+
+  setEffects: (on) => {
+    localStorageSet("effects", on ? "1" : "0");
+    set({ effects: applyEffectsClass(on) });
+  },
+
+  setOptionsOpen: (optionsOpen) => set({ optionsOpen }),
 
   setLeftWidth: (leftWidth) => {
     localStorageSet("leftWidth", String(Math.round(leftWidth)));
@@ -302,6 +316,12 @@ export function selectEditorSequence(s: State): number[] {
   const fid = s.folderOfPhoto.get(s.editId);
   const vis = selectVisible(s).find((v) => v.folder.id === fid);
   return vis?.photos ?? (fid != null ? s.folderById.get(fid)?.photos ?? [] : []);
+}
+
+/** With special effects off, a root class disables every CSS transition and animation. */
+function applyEffectsClass(on: boolean): boolean {
+  document.documentElement.classList.toggle("no-effects", !on);
+  return on;
 }
 
 function localStorageGet(k: string): string | null {

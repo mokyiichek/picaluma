@@ -883,6 +883,54 @@ input[type="range"]:focus {
   word-break: break-all;
 }
 
+/* ---------- Special effects off (Tools › Options) ---------- */
+.no-effects *,
+.no-effects *::before,
+.no-effects *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition: none !important;
+}
+
+/* ---------- Options dialog ---------- */
+.modal.options {
+  width: 520px;
+}
+.opt-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid #c9c9c9;
+  background: #ececec;
+}
+.opt-tab {
+  padding: 4px 12px;
+  border: 1px solid #c9c9c9;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(#f2f2f2, #dcdcdc);
+  cursor: pointer;
+}
+.opt-tab.active {
+  background: #f4f4f4;
+  position: relative;
+  top: 1px;
+}
+.options fieldset {
+  border: 1px solid #ccc;
+  padding: 8px 12px 12px;
+}
+.opt-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.opt-check input {
+  margin-top: 2px;
+}
+
 /* ---------- Scanning notifier (bottom-right, like Picasa's) ---------- */
 .scan-notifier {
   position: fixed;
