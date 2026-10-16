@@ -110,7 +110,15 @@ fn salvage(conn: &Connection, damaged: &Path) {
          has_gps, exif, caption, tags, starred, edits FROM old.photos",
     ),
   ];
-  for (name, sql) in steps {
+  let album_steps = [
+    ("albums", "INSERT OR IGNORE INTO albums(id, name, description, created) SELECT id, name, description, created FROM old.albums"),
+    (
+      "album photos",
+      "INSERT OR IGNORE INTO album_photos(album_id, photo_id, pos)
+       SELECT a.album_id, a.photo_id, a.pos FROM old.album_photos a WHERE a.photo_id IN (SELECT id FROM photos)",
+    ),
+  ];
+  for (name, sql) in steps.into_iter().chain(album_steps) {
     match conn.execute(sql, []) {
       Ok(n) => log::info!("salvaged {n} {name}"),
       Err(e) => log::warn!("could not salvage {name}: {e}"),
@@ -136,6 +144,21 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN meta_done INTEGER NOT NULL DEFAULT 1")?;
   }
   conn.execute_batch("CREATE INDEX IF NOT EXISTS photos_pending ON photos(meta_done) WHERE meta_done = 0")?;
+  // v0.5: albums. Photos are referenced by id; deleting a photo drops it from its albums.
+  conn.execute_batch(
+    "CREATE TABLE IF NOT EXISTS albums (
+       id          INTEGER PRIMARY KEY,
+       name        TEXT NOT NULL,
+       description TEXT NOT NULL DEFAULT '',
+       created     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+     );
+     CREATE TABLE IF NOT EXISTS album_photos (
+       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+       photo_id INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+       pos      INTEGER NOT NULL,
+       PRIMARY KEY (album_id, photo_id)
+     );",
+  )?;
   // A per-library id, used in image URLs so the webview's HTTP cache never mixes up libraries.
   conn.execute_batch("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")?;
   let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);

@@ -16,6 +16,7 @@ import FolderManager from "./components/FolderManager";
 import TagsPanel from "./components/TagsPanel";
 import ScanNotifier from "./components/ScanNotifier";
 import OptionsDialog from "./components/OptionsDialog";
+import AlbumPicker from "./components/AlbumPicker";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
@@ -65,6 +66,9 @@ export default function App() {
       } else if (e.altKey && e.key === "Enter") {
         e.preventDefault();
         st.toggleProps();
+      } else if (e.ctrlKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        st.setAlbumPicker(sel);
       } else if (e.ctrlKey && e.key.toLowerCase() === "t") {
         e.preventDefault();
         st.toggleTags();
@@ -118,6 +122,7 @@ export default function App() {
       <ContextMenu />
       <ScanNotifier />
       <OptionsDialog />
+      <AlbumPicker />
     </div>
   );
 }

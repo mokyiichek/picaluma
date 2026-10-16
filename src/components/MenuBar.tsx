@@ -28,7 +28,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "File",
       [
-        { label: "New Album...", shortcut: "Ctrl+N" },
+        { label: "New Album...", shortcut: "Ctrl+N", action: () => s.setAlbumPicker(selected) },
         sep,
         { label: "Add Folder to Picaluma...", action: () => s.setFolderManager(true) },
         { label: "Add File to Picaluma...", shortcut: "Ctrl+O" },
@@ -148,7 +148,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Help",
       [
-        { label: "About Picaluma", action: () => alert("Picaluma 0.4.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
+        { label: "About Picaluma", action: () => alert("Picaluma 0.5.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
       ],
     ],
   ];
@@ -197,7 +197,7 @@ export default function MenuBar() {
       ))}
       <span className="brand">
         <img src="/logo.png" width={14} height={14} alt="" style={{ verticalAlign: -2, marginRight: 5 }} />
-        Picaluma 0.4
+        Picaluma 0.5
       </span>
       {openEntries && (
         <div className="menu-drop" style={{ left }}>

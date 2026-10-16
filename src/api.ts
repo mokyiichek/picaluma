@@ -12,8 +12,17 @@ export interface Folder {
   photos: number[];
 }
 
+export interface Album {
+  id: number;
+  name: string;
+  description: string;
+  created: number;
+  photos: number[];
+}
+
 export interface Snapshot {
   folders: Folder[];
+  albums: Album[];
   starred: number[];
   geotagged: number[];
   edits: [number, string][];
@@ -94,6 +103,12 @@ export const api = {
   suggest: (prefix: string) => invoke<TagCount[]>("suggest", { prefix }),
   openInDefaultApp: (path: string) => invoke<void>("open_in_default_app", { path }),
   excludeFolder: (path: string) => invoke<void>("exclude_folder", { path }),
+  createAlbum: (name: string, ids: number[]) => invoke<number>("create_album", { name, ids }),
+  albumAdd: (id: number, ids: number[]) => invoke<void>("album_add", { id, ids }),
+  albumRemove: (id: number, ids: number[]) => invoke<void>("album_remove", { id, ids }),
+  updateAlbum: (id: number, patch: { name?: string; description?: string }) =>
+    invoke<void>("update_album", { id, name: patch.name ?? null, description: patch.description ?? null }),
+  deleteAlbum: (id: number) => invoke<void>("delete_album", { id }),
 };
 
 export interface TagCount {

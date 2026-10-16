@@ -85,6 +85,11 @@ pub fn run() {
       commands::suggest,
       commands::open_in_default_app,
       commands::exclude_folder,
+      commands::create_album,
+      commands::album_add,
+      commands::album_remove,
+      commands::update_album,
+      commands::delete_album,
     ])
     .run(tauri::generate_context!())
     .expect("error while running Picaluma");

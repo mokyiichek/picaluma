@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, Folder, ScanProgress, setLibraryTag, Snapshot } from "./api";
+import { Album, api, Folder, ScanProgress, setLibraryTag, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
 
 export interface Rect {
@@ -43,7 +43,7 @@ interface State {
   effects: boolean;
   optionsOpen: boolean;
   sidePanel: "props" | "tags";
-  contextMenu: { x: number; y: number; kind: "photo" | "folder"; folderId?: number } | null;
+  contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album"; folderId?: number; albumId?: number } | null;
   leftWidth: number;
   leftSection: "albums" | "people" | "folders";
   query: string;
@@ -54,6 +54,10 @@ interface State {
   slideshow: { photos: number[]; index: number } | null;
   folderManager: boolean;
   scrollTarget: { folderId: number; photoId?: number; nonce: number } | null;
+  /** Album shown instead of the folder list (Picasa's album view). */
+  albumView: number | null;
+  /** Photos waiting for an album choice in the Add to Album dialog. */
+  albumPicker: number[] | null;
 
   loadSnapshot: () => Promise<void>;
   setScan: (p: ScanProgress) => void;
@@ -84,6 +88,13 @@ interface State {
   stopSlideshow: () => void;
   setFolderManager: (open: boolean) => void;
   setFolderDescription: (id: number, text: string) => void;
+  openAlbum: (id: number | null) => void;
+  setAlbumPicker: (ids: number[] | null) => void;
+  createAlbum: (name: string, ids: number[]) => Promise<number>;
+  addToAlbum: (albumId: number, ids: number[]) => Promise<void>;
+  removeFromAlbum: (albumId: number, ids: number[]) => Promise<void>;
+  renameAlbum: (albumId: number, name: string) => Promise<void>;
+  deleteAlbum: (albumId: number) => Promise<void>;
 }
 
 let searchSeq = 0;
@@ -118,6 +129,8 @@ export const useStore = create<State>((set, get) => ({
   slideshow: null,
   folderManager: false,
   scrollTarget: null,
+  albumView: null,
+  albumPicker: null,
 
   loadSnapshot: async () => {
     const snapshot = await api.snapshot();
@@ -131,6 +144,8 @@ export const useStore = create<State>((set, get) => ({
     const edits = new Map<number, Edit[]>();
     for (const [id, json] of snapshot.edits) edits.set(id, parseEdits(json));
     const cur = get().currentFolderId;
+    const albumView = get().albumView;
+    const albumAlive = albumView != null && snapshot.albums.some((a) => a.id === albumView);
     set({
       snapshot,
       folderById,
@@ -138,7 +153,8 @@ export const useStore = create<State>((set, get) => ({
       starred: new Set(snapshot.starred),
       geotagged: new Set(snapshot.geotagged),
       edits,
-      currentFolderId: cur != null && folderById.has(cur) ? cur : snapshot.folders[0]?.id ?? null,
+      albumView: albumAlive ? albumView : null,
+      currentFolderId: albumAlive ? -albumView! : cur != null && folderById.has(cur) ? cur : snapshot.folders[0]?.id ?? null,
     });
     // Re-run an active search so results reflect newly scanned photos.
     const q = get().query;
@@ -149,6 +165,7 @@ export const useStore = create<State>((set, get) => ({
 
   selectFolder: (id, scroll = true) =>
     set({
+      albumView: id < 0 ? get().albumView : null,
       currentFolderId: id,
       selected: new Set(),
       anchor: null,
@@ -177,7 +194,7 @@ export const useStore = create<State>((set, get) => ({
     } else {
       next = new Set([id]);
     }
-    set({ selected: next, anchor: id, currentFolderId: get().folderOfPhoto.get(id) ?? get().currentFolderId });
+    set({ selected: next, anchor: id, currentFolderId: homeFolder(get(), id) });
   },
 
   selectOnly: (ids) => set({ selected: new Set(ids), anchor: ids[ids.length - 1] ?? null }),
@@ -189,13 +206,13 @@ export const useStore = create<State>((set, get) => ({
       editId: id,
       selected: new Set([id]),
       anchor: id,
-      currentFolderId: get().folderOfPhoto.get(id) ?? get().currentFolderId,
+      currentFolderId: homeFolder(get(), id),
       flight: flight && get().effects ? { ...flight, nonce: ++flightSeq } : null,
     }),
 
   closeEditor: (flight) => {
     const id = get().editId;
-    const folderId = id != null ? get().folderOfPhoto.get(id) : undefined;
+    const folderId = id != null ? homeFolder(get(), id) ?? undefined : undefined;
     set({
       view: "library",
       flight: flight && get().effects ? { ...flight, nonce: ++flightSeq } : null,
@@ -284,18 +301,82 @@ export const useStore = create<State>((set, get) => ({
   setFolderManager: (folderManager) => set({ folderManager }),
 
   setFolderDescription: (id, text) => {
+    // Negative ids are albums shown through the folder header.
+    if (id < 0) {
+      const a = get().snapshot?.albums.find((x) => x.id === -id);
+      if (a) a.description = text;
+      api.updateAlbum(-id, { description: text });
+      return;
+    }
     const f = get().folderById.get(id);
     if (f) f.description = text;
     api.setFolderDescription(id, text);
   },
+
+  openAlbum: (id) =>
+    set({
+      albumView: id,
+      leftSection: id != null ? "albums" : get().leftSection,
+      starredOnly: false,
+      selected: new Set(),
+      anchor: null,
+      currentFolderId: id != null ? -id : get().snapshot?.folders[0]?.id ?? null,
+      scrollTarget: id != null ? { folderId: -id, nonce: Date.now() } : get().scrollTarget,
+    }),
+
+  setAlbumPicker: (albumPicker) => set({ albumPicker }),
+
+  createAlbum: async (name, ids) => {
+    const id = await api.createAlbum(name, ids);
+    await get().loadSnapshot();
+    return id;
+  },
+
+  addToAlbum: async (albumId, ids) => {
+    await api.albumAdd(albumId, ids);
+    await get().loadSnapshot();
+  },
+
+  removeFromAlbum: async (albumId, ids) => {
+    await api.albumRemove(albumId, ids);
+    set({ selected: new Set(), anchor: null });
+    await get().loadSnapshot();
+  },
+
+  renameAlbum: async (albumId, name) => {
+    await api.updateAlbum(albumId, { name });
+    await get().loadSnapshot();
+  },
+
+  deleteAlbum: async (albumId) => {
+    await api.deleteAlbum(albumId);
+    if (get().albumView === albumId) get().openAlbum(null);
+    await get().loadSnapshot();
+  },
 }));
+
+/** The grid section a photo belongs to: the open album, else its folder. */
+function homeFolder(s: State, photoId: number): number | null {
+  if (s.albumView != null) return -s.albumView;
+  return s.folderOfPhoto.get(photoId) ?? s.currentFolderId;
+}
+
+/** An album presented with the Folder shape so the grid can render it like a folder. */
+export function albumAsFolder(a: Album): Folder {
+  return { id: -a.id, name: a.name, path: "Album", description: a.description, dateMin: a.created, dateMax: a.created, updated: a.created, bytes: 0, photos: a.photos };
+}
+
+export function selectAlbum(s: State): Album | undefined {
+  return s.albumView != null ? s.snapshot?.albums.find((a) => a.id === s.albumView) : undefined;
+}
 
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
-  const folders = s.snapshot?.folders ?? [];
+  const album = selectAlbum(s);
+  const folders = album ? [albumAsFolder(album)] : s.snapshot?.folders ?? [];
   const ids = s.search?.ids;
   const value: VisibleFolder[] = [];
   for (const folder of folders) {
@@ -313,6 +394,7 @@ export function selectVisible(s: State): VisibleFolder[] {
 /** Photos the editor's prev/next and filmstrip walk through: the current folder, filtered. */
 export function selectEditorSequence(s: State): number[] {
   if (s.editId == null) return [];
+  if (s.albumView != null) return selectVisible(s)[0]?.photos ?? [];
   const fid = s.folderOfPhoto.get(s.editId);
   const vis = selectVisible(s).find((v) => v.folder.id === fid);
   return vis?.photos ?? (fid != null ? s.folderById.get(fid)?.photos ?? [] : []);

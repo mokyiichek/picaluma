@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { selectVisible, useStore } from "../store";
 import { fmtMonth } from "../format";
-import { CollapseIcon, FolderIcon, StarIcon } from "./Icons";
+import { CollapseIcon, FolderIcon, PicturesIcon, StarIcon } from "./Icons";
+import type { Album } from "../api";
+
+const NO_ALBUMS: Album[] = [];
 
 type Row = { kind: "group"; label: string } | { kind: "folder"; id: number; name: string; count: number };
 
@@ -19,6 +22,10 @@ export default function LeftPanel() {
   const setStarredOnly = useStore((s) => s.setStarredOnly);
   const currentName = useStore((s) => (s.currentFolderId != null ? s.folderById.get(s.currentFolderId)?.name : ""));
   const width = useStore((s) => s.leftWidth);
+  const albums = useStore((s) => s.snapshot?.albums ?? NO_ALBUMS);
+  const albumView = useStore((s) => s.albumView);
+  const openAlbum = useStore((s) => s.openAlbum);
+  const folderCount = useStore((s) => s.snapshot?.folders.length ?? 0);
 
   const head = (id: typeof section, label: string) => (
     <div className="section-head" onClick={() => setSection(id)}>
@@ -30,21 +37,45 @@ export default function LeftPanel() {
 
   return (
     <div className="left" style={{ width }}>
-      {head("albums", `Albums (${1 + (search ? 1 : 0)})`)}
+      {head("albums", `Albums (${albums.length + 1 + (search ? 1 : 0)})`)}
       {section === "albums" && (
         <div className="section-body">
           {search && (
-            <div className="tree-row sel">
+            <div className="tree-row sel dim">
               <FolderIcon />
               <span className="name">
                 Search results for "{query}" ({search.ids.size.toLocaleString()})
               </span>
             </div>
           )}
-          <div className={`tree-row${starredOnly ? " sel" : ""}`} onClick={() => setStarredOnly(!starredOnly)}>
+          <div
+            className={`tree-row${starredOnly && albumView == null ? " sel" : ""}`}
+            onClick={() => {
+              openAlbum(null);
+              setStarredOnly(!starredOnly);
+            }}
+          >
             <StarIcon size={15} />
             <span className="name">Starred Photos ({starredCount.toLocaleString()})</span>
           </div>
+          {albums.map((a) => (
+            <div
+              key={a.id}
+              className={`tree-row${albumView === a.id ? " sel" : ""}`}
+              onMouseDown={(e) => e.button === 0 && openAlbum(albumView === a.id ? null : a.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "album", albumId: a.id });
+              }}
+              title={albumView === a.id ? "Click again to return to all folders" : a.name}
+            >
+              <PicturesIcon size={15} />
+              <span className="name">
+                {a.name} ({a.photos.length.toLocaleString()})
+              </span>
+            </div>
+          ))}
+          {!albums.length && <div className="tree-hint">Right-click photos › Add to Album to make your first album.</div>}
         </div>
       )}
       {head("people", "People (0)")}
@@ -55,7 +86,7 @@ export default function LeftPanel() {
           Picaluma will detect faces locally — nothing is uploaded.
         </div>
       )}
-      {head("folders", `Folders (${visible.length.toLocaleString()})`)}
+      {head("folders", `Folders (${(albumView != null ? folderCount : visible.length).toLocaleString()})`)}
       {section === "folders" && <FolderTree />}
     </div>
   );
@@ -82,7 +113,14 @@ export function Splitter() {
 }
 
 function FolderTree() {
-  const visible = useStore(selectVisible);
+  const filtered = useStore(selectVisible);
+  const albumView = useStore((s) => s.albumView);
+  const allFolders = useStore((s) => s.snapshot?.folders);
+  // In album view the grid shows the album, but the tree still lists every folder.
+  const visible = useMemo(
+    () => (albumView != null ? (allFolders ?? []).map((folder) => ({ folder, photos: folder.photos })) : filtered),
+    [albumView, allFolders, filtered],
+  );
   const current = useStore((s) => s.currentFolderId);
   const selectFolder = useStore((s) => s.selectFolder);
   const scrollRef = useRef<HTMLDivElement>(null);

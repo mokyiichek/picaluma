@@ -34,7 +34,7 @@ function LibraryStatus() {
         {fmtDate(f.dateMin)}
         {f.dateMax && fmtDate(f.dateMax) !== fmtDate(f.dateMin) ? ` to ${fmtDate(f.dateMax)}` : ""}
       </span>
-      <span>{fmtBytes(f.bytes)} on disk</span>
+      {f.id >= 0 && <span>{fmtBytes(f.bytes)} on disk</span>}
     </>
   );
 }

@@ -44,7 +44,8 @@ export default function ContextMenu() {
   }, [menu]);
 
   if (!menu) return null;
-  const entries = menu.kind === "photo" ? photoEntries() : folderEntries(menu.folderId!);
+  const albumId = menu.kind === "album" ? menu.albumId! : menu.kind === "folder" && menu.folderId! < 0 ? -menu.folderId! : null;
+  const entries = menu.kind === "photo" ? photoEntries() : albumId != null ? albumEntries(albumId) : folderEntries(menu.folderId!);
 
   return (
     <div className="menu-drop context" ref={ref} style={{ left: pos.x, top: pos.y, position: "fixed" }}>
@@ -77,7 +78,10 @@ function photoEntries(): MenuEntry[] {
   const withPath = (fn: (path: string) => void) => (one != null ? () => api.getPhoto(one).then((p) => fn(p.path)) : undefined);
   return [
     { label: "View and Edit", shortcut: "Enter", action: one != null ? () => s.openEditor(one) : undefined },
-    { label: "Add to Album" },
+    { label: "Add to Album...", action: ids.length ? () => s.setAlbumPicker(ids) : undefined },
+    ...(s.albumView != null
+      ? [{ label: "Remove from Album", action: () => s.removeFromAlbum(s.albumView!, ids) } as MenuEntry]
+      : []),
     sep,
     { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: () => rotateSelected(90) },
     { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: () => rotateSelected(-90) },
@@ -99,6 +103,30 @@ function photoEntries(): MenuEntry[] {
     sep,
     { label: "Tags...", shortcut: "Ctrl+T", action: () => !(s.showProps && s.sidePanel === "tags") && s.toggleTags() },
     { label: "Properties", shortcut: "Alt+Enter", action: () => !(s.showProps && s.sidePanel === "props") && s.toggleProps() },
+  ];
+}
+
+function albumEntries(albumId: number): MenuEntry[] {
+  const s = useStore.getState();
+  const album = s.snapshot?.albums.find((a) => a.id === albumId);
+  if (!album) return [];
+  return [
+    { label: "View Album", action: () => s.openAlbum(albumId) },
+    { label: "View Slideshow", shortcut: "Ctrl+4", action: album.photos.length ? () => s.startSlideshow(album.photos) : undefined },
+    sep,
+    {
+      label: "Rename Album...",
+      action: () => {
+        const n = prompt("Album name:", album.name);
+        if (n && n.trim() && n.trim() !== album.name) s.renameAlbum(albumId, n.trim());
+      },
+    },
+    {
+      label: "Delete Album",
+      action: () => {
+        if (confirm(`Delete the album "${album.name}"?\n\nOnly the album is removed — the pictures stay in their folders.`)) s.deleteAlbum(albumId);
+      },
+    },
   ];
 }
 

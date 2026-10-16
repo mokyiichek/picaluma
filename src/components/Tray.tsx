@@ -23,7 +23,8 @@ export default function Tray() {
   const folderPhotos = visible.find((v) => v.folder.id === current)?.photos ?? [];
   const ids = selected.size ? [...selected] : [];
   const stack = (ids.length ? ids : folderPhotos).slice(0, 3);
-  const label = ids.length ? `${plural(ids.length, "photo")} selected` : folderPhotos.length ? `Folder Selected - ${plural(folderPhotos.length, "photo")}` : "";
+  const kind = current != null && current < 0 ? "Album" : "Folder";
+  const label = ids.length ? `${plural(ids.length, "photo")} selected` : folderPhotos.length ? `${kind} Selected - ${plural(folderPhotos.length, "photo")}` : "";
 
   const rotate = (deg: number) => {
     const s = useStore.getState();
@@ -51,7 +52,7 @@ export default function Tray() {
         <button className="tbtn" title="Clear selection" onClick={clearSelection} disabled={!ids.length}>
           <ClearSelIcon />
         </button>
-        <button className="tbtn" title="Add to album (coming soon)" disabled>
+        <button className="tbtn" title="Add selected pictures to an album" disabled={!ids.length} onClick={() => useStore.getState().setAlbumPicker(ids)}>
           <PicturesIcon size={14} />
         </button>
       </div>

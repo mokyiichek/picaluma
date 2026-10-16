@@ -33,8 +33,19 @@ pub struct FolderDto {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AlbumDto {
+  id: i64,
+  name: String,
+  description: String,
+  created: i64,
+  photos: Vec<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Snapshot {
   folders: Vec<FolderDto>,
+  albums: Vec<AlbumDto>,
   starred: Vec<i64>,
   geotagged: Vec<i64>,
   edits: Vec<(i64, String)>,
@@ -142,7 +153,87 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   drop(rows);
   drop(stmt);
   let library_id = db::library_id(&conn);
-  Ok(Snapshot { folders, starred, geotagged, edits, total_photos: total, library_id })
+  let albums = load_albums(&conn).map_err(err)?;
+  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id })
+}
+
+fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
+  let mut albums: Vec<AlbumDto> = {
+    let mut stmt = conn.prepare("SELECT id, name, description, created FROM albums ORDER BY created DESC, id DESC")?;
+    let rows = stmt.query_map([], |r| {
+      Ok(AlbumDto { id: r.get(0)?, name: r.get(1)?, description: r.get(2)?, created: r.get(3)?, photos: Vec::new() })
+    })?;
+    rows.filter_map(Result::ok).collect()
+  };
+  let index: HashMap<i64, usize> = albums.iter().enumerate().map(|(i, a)| (a.id, i)).collect();
+  let mut stmt = conn.prepare("SELECT album_id, photo_id FROM album_photos ORDER BY album_id, pos")?;
+  let mut rows = stmt.query([])?;
+  while let Some(r) = rows.next()? {
+    if let Some(&i) = index.get(&r.get::<_, i64>(0)?) {
+      albums[i].photos.push(r.get(1)?);
+    }
+  }
+  Ok(albums)
+}
+
+/// Creates an album, optionally seeded with photos; returns its id.
+#[tauri::command]
+pub fn create_album(state: State<'_, AppState>, name: String, ids: Vec<i64>) -> CmdResult<i64> {
+  let mut conn = state.db.lock().map_err(err)?;
+  let tx = conn.transaction().map_err(err)?;
+  tx.execute("INSERT INTO albums(name) VALUES (?1)", [name.trim()]).map_err(err)?;
+  let id = tx.last_insert_rowid();
+  append_to_album(&tx, id, &ids).map_err(err)?;
+  tx.commit().map_err(err)?;
+  Ok(id)
+}
+
+#[tauri::command]
+pub fn album_add(state: State<'_, AppState>, id: i64, ids: Vec<i64>) -> CmdResult<()> {
+  let mut conn = state.db.lock().map_err(err)?;
+  let tx = conn.transaction().map_err(err)?;
+  append_to_album(&tx, id, &ids).map_err(err)?;
+  tx.commit().map_err(err)
+}
+
+fn append_to_album(conn: &rusqlite::Connection, album: i64, ids: &[i64]) -> rusqlite::Result<()> {
+  let mut pos: i64 = conn.query_row("SELECT COALESCE(MAX(pos), 0) FROM album_photos WHERE album_id = ?1", [album], |r| r.get(0))?;
+  let mut stmt = conn.prepare_cached("INSERT OR IGNORE INTO album_photos(album_id, photo_id, pos) VALUES (?1, ?2, ?3)")?;
+  for id in ids {
+    pos += 1;
+    stmt.execute(params![album, id, pos])?;
+  }
+  Ok(())
+}
+
+#[tauri::command]
+pub fn album_remove(state: State<'_, AppState>, id: i64, ids: Vec<i64>) -> CmdResult<()> {
+  let mut conn = state.db.lock().map_err(err)?;
+  let tx = conn.transaction().map_err(err)?;
+  for p in ids {
+    tx.execute("DELETE FROM album_photos WHERE album_id = ?1 AND photo_id = ?2", params![id, p]).map_err(err)?;
+  }
+  tx.commit().map_err(err)
+}
+
+#[tauri::command]
+pub fn update_album(state: State<'_, AppState>, id: i64, name: Option<String>, description: Option<String>) -> CmdResult<()> {
+  let conn = state.db.lock().map_err(err)?;
+  if let Some(n) = name {
+    conn.execute("UPDATE albums SET name = ?1 WHERE id = ?2", params![n.trim(), id]).map_err(err)?;
+  }
+  if let Some(d) = description {
+    conn.execute("UPDATE albums SET description = ?1 WHERE id = ?2", params![d, id]).map_err(err)?;
+  }
+  Ok(())
+}
+
+/// Deletes the album only; the photos stay in their folders.
+#[tauri::command]
+pub fn delete_album(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+  let conn = state.db.lock().map_err(err)?;
+  conn.execute("DELETE FROM albums WHERE id = ?1", [id]).map_err(err)?;
+  Ok(())
 }
 
 #[tauri::command]

@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, Folder } from "../api";
 import { cropViewBox, render } from "../effects";
 import { fmtDate } from "../format";
-import { selectVisible, useStore } from "../store";
+import { selectAlbum, selectVisible, useStore } from "../store";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
 import { aspectCache } from "./EditView";
@@ -38,6 +38,7 @@ export default function LibraryGrid() {
   const topAnchor = useRef<{ photo: number; delta: number } | null>(null);
   const smooth = useRef<{ to: (y: number) => void } | null>(null);
   const effects = useStore((s) => s.effects);
+  const album = useStore(selectAlbum);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -262,6 +263,14 @@ export default function LibraryGrid() {
 
   return (
     <div className="gridwrap">
+      {album && (
+        <div className="album-banner">
+          <button onClick={() => useStore.getState().openAlbum(null)}>Back to Folders</button>
+          <span>
+            Album: {album.name} — {album.photos.length.toLocaleString()} pictures
+          </span>
+        </div>
+      )}
       {search && (
         <div className="search-banner">
           <button onClick={clearSearch}>Back to View All</button>
