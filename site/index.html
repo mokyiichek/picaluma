@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Picaluma — the fast photo organizer, in the spirit of Picasa</title>
+  <meta name="description" content="Picaluma is a free, open-source photo organizer and editor for Windows and macOS, in the spirit of Picasa 3: every folder on one page, instant search, one-click fixes, and edits that never touch your originals." />
+  <meta property="og:title" content="Picaluma — the fast photo organizer, in the spirit of Picasa" />
+  <meta property="og:description" content="Free and open source for Windows and macOS. Instant search, one-click fixes, non-destructive edits." />
+  <meta property="og:image" content="https://ahmok.com/picaluma/logo.png" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <style>
+    :root {
+      --ink: #1d2733;
+      --muted: #5b6672;
+      --line: #e3e7eb;
+      --bg: #ffffff;
+      --soft: #f4f6f8;
+      --green: #3b8f00;
+      --green-dark: #2c6b00;
+      --blue: #1a73e8;
+      --status: #568fb7;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.6 "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    }
+    a { color: var(--blue); }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    /* Header */
+    header { border-bottom: 1px solid var(--line); background: #fff; position: sticky; top: 0; z-index: 10; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-weight: 700; font-size: 19px; }
+    .brand img { width: 30px; height: 30px; }
+    nav a { margin-left: 22px; color: var(--muted); text-decoration: none; font-size: 15px; }
+    nav a:hover { color: var(--ink); }
+
+    /* Hero */
+    .hero { padding: 64px 0 40px; text-align: center; }
+    .hero img.logo { width: 112px; height: 112px; }
+    h1 {
+      font: 400 48px/1.15 Georgia, "Times New Roman", serif;
+      margin: 18px 0 12px;
+      letter-spacing: -0.5px;
+    }
+    .tagline { font-size: 20px; color: var(--muted); max-width: 640px; margin: 0 auto 30px; }
+    .downloads { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+    .dl {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 14px 24px; min-width: 240px; justify-content: center;
+      border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 17px;
+      border: 1px solid #c9d0d6; background: linear-gradient(#fff, #eef1f4); color: var(--ink);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .dl:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); }
+    .dl.primary { background: linear-gradient(#49a50a, var(--green)); border-color: var(--green-dark); color: #fff; }
+    .dl svg { width: 22px; height: 22px; flex: none; }
+    .dl small { display: block; font-weight: 400; font-size: 12.5px; opacity: 0.85; }
+    .dl span { text-align: left; line-height: 1.25; }
+    .meta { margin-top: 14px; color: var(--muted); font-size: 14px; }
+
+    /* App mock (illustration, no personal photos) */
+    .mock {
+      margin: 44px auto 0; max-width: 920px; border: 1px solid #c8ced4; border-radius: 8px; overflow: hidden;
+      box-shadow: 0 18px 50px rgba(20, 40, 60, 0.18); background: #f2f2f2; text-align: left;
+    }
+    .mock .bar { height: 34px; background: linear-gradient(#f6f6f6, #e6e6e6); border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+    .mock .search { margin-left: auto; width: 38%; height: 20px; background: #fff; border: 1px solid #a9b2bc; border-radius: 2px; font-size: 12px; color: #444; padding: 1px 6px; }
+    .mock .body { display: grid; grid-template-columns: 200px 1fr; height: 330px; }
+    .mock .tree { background: #f3f3f3; border-right: 1px solid #ccc; font-size: 12px; padding: 6px 0; overflow: hidden; }
+    .mock .tree div { padding: 3px 12px; white-space: nowrap; }
+    .mock .tree .grp { color: #666; border-bottom: 1px solid #ddd; margin-top: 4px; }
+    .mock .tree .sel { background: #2b5f8e; color: #fff; }
+    .mock .grid { padding: 14px 18px; overflow: hidden; }
+    .mock h4 { margin: 0 0 10px; font: 400 18px Georgia, serif; color: #333; }
+    .mock .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+    .mock .tile { aspect-ratio: 4 / 3; border-radius: 1px; box-shadow: 1px 2px 4px rgba(0,0,0,0.35); }
+    .mock .tile.sel { outline: 2px solid #1a8cff; outline-offset: 2px; }
+    .mock .status { height: 18px; background: var(--status); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; }
+
+    /* Sections */
+    section { padding: 64px 0; }
+    section.alt { background: var(--soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    h2 { font: 400 32px/1.2 Georgia, serif; margin: 0 0 10px; text-align: center; }
+    .lead { text-align: center; color: var(--muted); max-width: 680px; margin: 0 auto 36px; }
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .feature { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 22px; }
+    .feature .ico { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; font-size: 20px; margin-bottom: 10px; }
+    .feature h3 { margin: 0 0 6px; font-size: 17px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+    .stat { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; margin-top: 8px; }
+    .stat div { text-align: center; }
+    .stat b { display: block; font: 400 40px Georgia, serif; color: var(--green); }
+    .stat span { color: var(--muted); font-size: 14px; }
+
+    .install { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .install .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 24px; }
+    .install h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 10px; }
+    .install ol { margin: 0; padding-left: 20px; color: var(--muted); }
+    .install li { margin: 6px 0; }
+    kbd { background: #eef1f4; border: 1px solid #cfd5db; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 13px ui-monospace, Menlo, Consolas, monospace; color: var(--ink); }
+
+    footer { padding: 32px 0 44px; color: var(--muted); font-size: 14px; text-align: center; }
+    footer p { margin: 6px 0; }
+
+    @media (max-width: 820px) {
+      h1 { font-size: 36px; }
+      .features, .install { grid-template-columns: 1fr; }
+      .mock .body { grid-template-columns: 1fr; height: auto; }
+      .mock .tree { display: none; }
+      .mock .tiles { grid-template-columns: repeat(3, 1fr); }
+      nav a:not(.gh) { display: none; }
+      .dl { min-width: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a class="brand" href="#"><img src="logo.png" alt="" />Picaluma</a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a class="gh" href="https://github.com/mokyiichek/picaluma">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero wrap">
+      <img class="logo" src="logo.png" alt="Picaluma logo" />
+      <h1>Your photos, the Picasa way.</h1>
+      <p class="tagline">A free, open-source photo organizer and editor for Windows and Mac. Every folder on one page, instant search, one-click fixes — and your originals are never touched.</p>
+
+      <div class="downloads">
+        <a class="dl" id="dl-win" href="https://github.com/mokyiichek/picaluma/releases/latest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10.5 4.5v7H3zm8.5-1.1L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.4z"/></svg>
+          <span>Download for Windows<small id="dl-win-meta">Windows 10 / 11 · 64-bit</small></span>
+        </a>
+        <a class="dl" id="dl-mac" href="https://github.com/mokyiichek/picaluma/releases/latest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8C6.9 7.3 5.5 8.2 4.7 9.6c-1.6 2.8-.4 6.9 1.2 9.1.8 1.1 1.7 2.3 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.4 0 1.8.7 3 .7 1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.2-2.6 0 0-2.3-.9-2.2-3.6zM14.2 5.6c.6-.8 1.1-1.8.9-2.8-.9 0-2 .6-2.6 1.4-.6.7-1.1 1.7-1 2.7 1 .1 2-.5 2.7-1.3z"/></svg>
+          <span>Download for Mac<small id="dl-mac-meta">macOS 11+ · Apple Silicon &amp; Intel</small></span>
+        </a>
+      </div>
+      <p class="meta"><span id="version">Latest release</span> · Free &amp; open source · <a href="https://github.com/mokyiichek/picaluma/releases">All versions</a></p>
+
+      <div class="mock" aria-hidden="true">
+        <div class="bar">
+          <span style="font-size:12px;color:#333">File&nbsp;&nbsp; Edit&nbsp;&nbsp; View&nbsp;&nbsp; Folder&nbsp;&nbsp; Picture&nbsp;&nbsp; Create&nbsp;&nbsp; Tools</span>
+          <span class="search">🔍 beach</span>
+        </div>
+        <div class="body">
+          <div class="tree">
+            <div class="grp">Updated October 2026</div>
+            <div class="sel">📁 Summer Holiday (248)</div>
+            <div>📁 Family Dinner (36)</div>
+            <div class="grp">Updated September 2026</div>
+            <div>📁 Garden (91)</div>
+            <div>📁 Weekend Hike (127)</div>
+            <div>📁 Birthday (58)</div>
+            <div class="grp">Updated August 2026</div>
+            <div>📁 City Walk (73)</div>
+            <div>📁 Scanned Film (412)</div>
+          </div>
+          <div class="grid">
+            <h4>Summer Holiday</h4>
+            <div class="tiles" id="tiles"></div>
+          </div>
+        </div>
+        <div class="status">248 pictures &nbsp;&nbsp; Jul 2, 2026 to Jul 14, 2026 &nbsp;&nbsp; 1.2GB on disk</div>
+      </div>
+    </div>
+
+    <section id="features" class="alt">
+      <div class="wrap">
+        <h2>Everything you loved about Picasa</h2>
+        <p class="lead">Picasa was retired in 2016. Picaluma brings back its speed and simplicity — rebuilt from scratch, natively, for today's computers and Macs.</p>
+        <div class="features">
+          <div class="feature"><div class="ico" style="background:#e8f1fd">⚡</div><h3>Instant search</h3><p>Type and results appear as you go — file names, folders, captions, tags and cameras, across your whole library.</p></div>
+          <div class="feature"><div class="ico" style="background:#eaf6e4">📁</div><h3>Every folder, one page</h3><p>All your folders on one smooth, scrolling page, newest first — click a folder and glide straight to it.</p></div>
+          <div class="feature"><div class="ico" style="background:#fff3df">✨</div><h3>One-click fixes</h3><p>I'm Feeling Lucky, Auto Contrast, Crop, Straighten, Fill Light and 30+ effects with live previews.</p></div>
+          <div class="feature"><div class="ico" style="background:#fde8e7">🛡️</div><h3>Originals never touched</h3><p>Every edit is non-destructive and can be undone. Export a copy with your edits whenever you like.</p></div>
+          <div class="feature"><div class="ico" style="background:#f0e9fb">🏷️</div><h3>Albums, stars &amp; tags</h3><p>Gather pictures from any folders into albums, star your favourites and tag them for later.</p></div>
+          <div class="feature"><div class="ico" style="background:#e5f5f7">🔒</div><h3>Private &amp; offline</h3><p>Everything stays on your computer. No account, no upload, no subscription — just your photos.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Fast on real libraries</h2>
+        <p class="lead">Measured on a 23,000-photo library stored on a network drive.</p>
+        <div class="stat">
+          <div><b>0.003 s</b><span>to search 12,000+ photos</span></div>
+          <div><b>4.7 s</b><span>to list 23,588 photos from a network drive</span></div>
+          <div><b>4 MB</b><span>Windows installer</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install" class="alt">
+      <div class="wrap">
+        <h2>Install in a minute</h2>
+        <p class="lead">Picaluma is new and its installers aren't code-signed yet, so your computer may ask you to confirm once.</p>
+        <div class="install">
+          <div class="card">
+            <h3>Windows</h3>
+            <ol>
+              <li>Run <b>Picaluma_…_x64-setup.exe</b>. It installs just for you — no admin rights needed.</li>
+              <li>If you see <i>“Windows protected your PC”</i>, click <b>More info → Run anyway</b>.</li>
+              <li>Open Picaluma and choose the folders to watch. Coming from Picasa? Import your old folder list in one click.</li>
+            </ol>
+          </div>
+          <div class="card">
+            <h3>Mac</h3>
+            <ol>
+              <li>Open <b>Picaluma_…_universal.dmg</b> and drag Picaluma into <b>Applications</b>.</li>
+              <li>The first time, <b>right-click Picaluma → Open → Open</b>.</li>
+              <li>Choose <b>Watch my Pictures folder</b> or any folders you like. HEIC photos from your iPhone work too.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <p><img src="logo.png" alt="" width="18" height="18" style="vertical-align:-3px"> Picaluma — free and open source (Apache-2.0 / MIT) · <a href="https://github.com/mokyiichek/picaluma">Source on GitHub</a> · <a href="https://github.com/mokyiichek/picaluma/issues">Report a problem</a></p>
+    <p>Picaluma is an independent project, not affiliated with or endorsed by Google. “Picasa” is a trademark of Google LLC.</p>
+  </footer>
+
+  <script>
+    // Illustrative thumbnails for the app mock (gradients, not photos).
+    const palettes = [["#7fb3d5","#f6d38a"],["#2e86c1","#a9cce3"],["#f0b27a","#e74c3c"],["#58d68d","#1d8348"],["#f7dc6f","#e67e22"],["#85c1e9","#fdfefe"],["#a569bd","#f5b7b1"],["#48c9b0","#117864"],["#f5cba7","#ba4a00"],["#aed6f1","#2874a6"]];
+    const tiles = document.getElementById("tiles");
+    palettes.forEach(([a, b], i) => {
+      const t = document.createElement("div");
+      t.className = "tile" + (i === 6 ? " sel" : "");
+      t.style.background = `linear-gradient(${150 + i * 17}deg, ${a}, ${b})`;
+      tiles.appendChild(t);
+    });
+
+    // Highlight the visitor's platform.
+    const isMac = /Mac/.test(navigator.userAgent) && !/iPhone|iPad/.test(navigator.userAgent);
+    document.getElementById(isMac ? "dl-mac" : "dl-win").classList.add("primary");
+    if (isMac) document.querySelector(".downloads").prepend(document.getElementById("dl-mac"));
+
+    // Point the buttons straight at the newest release's files.
+    fetch("https://api.github.com/repos/mokyiichek/picaluma/releases/latest")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((rel) => {
+        const find = (re) => rel.assets.find((a) => re.test(a.name));
+        const mb = (a) => (a.size / 1048576).toFixed(1) + " MB";
+        const win = find(/x64-setup\.exe$/i);
+        const mac = find(/\.dmg$/i);
+        if (win) {
+          document.getElementById("dl-win").href = win.browser_download_url;
+          document.getElementById("dl-win-meta").textContent = `Windows 10 / 11 · 64-bit · ${mb(win)}`;
+        }
+        if (mac) {
+          document.getElementById("dl-mac").href = mac.browser_download_url;
+          document.getElementById("dl-mac-meta").textContent = `macOS 11+ · Apple Silicon & Intel · ${mb(mac)}`;
+        }
+        document.getElementById("version").textContent = `Version ${rel.tag_name.replace(/^v/, "")}`;
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>
