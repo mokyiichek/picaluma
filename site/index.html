@@ -135,7 +135,7 @@
     <div class="hero wrap">
       <img class="logo" src="logo.png" alt="Picaluma logo" />
       <h1>Your photos, the Picasa way.</h1>
-      <p class="tagline">A free, open-source photo organizer and editor for Windows and Mac. Every folder on one page, instant search, one-click fixes — and your originals are never touched.</p>
+      <p class="tagline">A free, open-source photo organizer and editor for Windows, Mac and Linux. Every folder on one page, instant search, one-click fixes — and your originals are never touched.</p>
 
       <div class="downloads">
         <a class="dl" id="dl-win" href="https://github.com/mokyiichek/picaluma/releases/latest">
@@ -147,7 +147,7 @@
           <span>Download for Mac<small id="dl-mac-meta">macOS 11+ · Apple Silicon &amp; Intel</small></span>
         </a>
       </div>
-      <p class="meta"><span id="version">Latest release</span> · Free &amp; open source · <a href="https://github.com/mokyiichek/picaluma/releases">All versions</a></p>
+      <p class="meta"><span id="version">Latest release</span> · Free &amp; open source · Also for <a id="dl-linux" href="https://github.com/mokyiichek/picaluma/releases/latest">Linux</a> (<a id="dl-deb" href="https://github.com/mokyiichek/picaluma/releases/latest">.deb</a>) · <a href="https://github.com/mokyiichek/picaluma/releases">All versions</a></p>
 
       <div class="mock" aria-hidden="true">
         <div class="bar">
@@ -258,6 +258,10 @@
         const mb = (a) => (a.size / 1048576).toFixed(1) + " MB";
         const win = find(/x64-setup\.exe$/i);
         const mac = find(/\.dmg$/i);
+        const appimage = find(/\.AppImage$/i);
+        const deb = find(/\.deb$/i);
+        if (appimage) document.getElementById("dl-linux").href = appimage.browser_download_url;
+        if (deb) document.getElementById("dl-deb").href = deb.browser_download_url;
         if (win) {
           document.getElementById("dl-win").href = win.browser_download_url;
           document.getElementById("dl-win-meta").textContent = `Windows 10 / 11 · 64-bit · ${mb(win)}`;
