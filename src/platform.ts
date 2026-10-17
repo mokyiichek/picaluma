@@ -27,3 +27,25 @@ export function fmtShortcut(s: string): string {
   const keyName: Record<string, string> = { Delete: "⌫", Enter: "↩" };
   return mods + (keyName[key] ?? key);
 }
+
+/**
+ * Picasa for Mac's own wording for commands that differ from Windows
+ * (taken from Picasa 3.9 Mac's menu tables — see docs/PICASA_MAC_SPEC.md).
+ */
+const MAC_LABELS: Record<string, string> = {
+  "Locate on Disk": "Show in Finder",
+  Properties: "Get Info",
+  "Options...": "Preferences...",
+  Exit: "Close Window",
+};
+const MAC_SHORTCUTS: Record<string, string> = {
+  "Get Info": "Ctrl+I",
+  "Preferences...": "Ctrl+,",
+};
+
+/** Menu label/shortcut as Picasa showed it on this platform. */
+export function platformItem(label: string, shortcut?: string): { label: string; shortcut?: string } {
+  if (!isMac) return { label, shortcut };
+  const l = MAC_LABELS[label] ?? label;
+  return { label: l, shortcut: MAC_SHORTCUTS[l] ?? shortcut };
+}

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { api, ScanProgress } from "./api";
 import { selectEditorSequence, useStore } from "./store";
 import { deletePhotos } from "./actions";
-import { isDeleteKey, isPermanentDelete, mod } from "./platform";
+import { isDeleteKey, isMac, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
 import LibraryToolbar from "./components/LibraryToolbar";
 import LeftPanel, { Splitter } from "./components/LeftPanel";
@@ -68,6 +68,12 @@ export default function App() {
       } else if (e.altKey && e.key === "Enter") {
         e.preventDefault();
         st.toggleProps();
+      } else if (isMac && e.metaKey && e.key.toLowerCase() === "i") {
+        e.preventDefault(); // Picasa for Mac: Get Info
+        st.toggleProps();
+      } else if (isMac && e.metaKey && e.key === ",") {
+        e.preventDefault(); // Mac convention: Preferences
+        st.setOptionsOpen(true);
       } else if (isDeleteKey(e) && sel.length) {
         e.preventDefault();
         const permanent = isPermanentDelete(e);

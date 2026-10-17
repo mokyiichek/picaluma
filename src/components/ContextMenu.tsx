@@ -1,4 +1,4 @@
-import { fmtShortcut, isMac } from "../platform";
+import { fmtShortcut, isMac, platformItem } from "../platform";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
@@ -64,8 +64,8 @@ export default function ContextMenu() {
               e.action();
             }}
           >
-            <span>{e.label}</span>
-            {e.shortcut && <span className="shortcut">{fmtShortcut(e.shortcut)}</span>}
+            <span>{platformItem(e.label).label}</span>
+            {platformItem(e.label, e.shortcut).shortcut && <span className="shortcut">{fmtShortcut(platformItem(e.label, e.shortcut).shortcut!)}</span>}
           </div>
         ),
       )}

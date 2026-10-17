@@ -1,4 +1,4 @@
-import { fmtShortcut } from "../platform";
+import { fmtShortcut, platformItem } from "../platform";
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -215,8 +215,8 @@ export default function MenuBar() {
                   e.action();
                 }}
               >
-                <span>{e.label}</span>
-                {e.shortcut && <span className="shortcut">{fmtShortcut(e.shortcut)}</span>}
+                <span>{platformItem(e.label).label}</span>
+                {platformItem(e.label, e.shortcut).shortcut && <span className="shortcut">{fmtShortcut(platformItem(e.label, e.shortcut).shortcut!)}</span>}
               </div>
             ),
           )}
