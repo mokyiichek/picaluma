@@ -1,7 +1,7 @@
 # Publish the landing page to https://ahmok.com/picaluma/ (TO server, nginx webroot /var/www/ahmok).
 # Needs the deploy key (~/.ssh/picaluma_deploy) authorised for root on the server.
 param(
-  [string]$ServerHost = '43.134.94.254',
+  [string]$ServerHost = $(if ($env:PICALUMA_DEPLOY_HOST) { $env:PICALUMA_DEPLOY_HOST } else { 'ahmok.com' }),
   [string]$Key = "$env:USERPROFILE\.ssh\picaluma_deploy",
   [string]$Remote = '/var/www/ahmok/picaluma'
 )
