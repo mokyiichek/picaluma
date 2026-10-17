@@ -26,7 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": "all",
     "publisher": "mokyiichek",
     "shortDescription": "Fast open-source photo organizer",
     "longDescription": "Picaluma is a fast, open-source photo organizer and editor inspired by the workflow of Picasa 3.",
