@@ -27,14 +27,17 @@ pub struct OpResult {
   failed: Vec<String>,
 }
 
-/// Move pictures to the Recycle Bin and drop them from the library.
+/// Move pictures to the Recycle Bin / Trash (or, with `permanent`, delete them outright —
+/// Shift+Delete) and drop them from the library.
 #[tauri::command]
-pub fn delete_photos(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<OpResult> {
+pub fn delete_photos(state: State<'_, AppState>, ids: Vec<i64>, permanent: Option<bool>) -> CmdResult<OpResult> {
+  let permanent = permanent.unwrap_or(false);
   let photos = photo_paths(&state, &ids)?;
   let mut res = OpResult::default();
   let mut gone = Vec::new();
   for (id, path) in photos {
-    if !Path::new(&path).exists() || trash::delete(&path).is_ok() {
+    let removed = if permanent { std::fs::remove_file(&path).is_ok() } else { move_to_trash(Path::new(&path)).is_ok() };
+    if !Path::new(&path).exists() || removed {
       gone.push(id);
       res.done += 1;
     } else {
@@ -160,7 +163,7 @@ pub fn delete_folder(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
     conn.query_row("SELECT path FROM folders WHERE id = ?1", [id], |r| r.get(0)).map_err(err)?
   };
   if Path::new(&path).exists() {
-    trash::delete(&path).map_err(err)?;
+    move_to_trash(Path::new(&path)).map_err(err)?;
   }
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -176,6 +179,22 @@ pub fn delete_folder(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
 }
 
 // ---------------------------------------------------------------------------------------------
+
+/// Recycle Bin on Windows; Trash on macOS via NSFileManager, which needs no Finder automation
+/// permission (the trash crate's default asks Finder and triggers a permission prompt).
+fn move_to_trash(path: &Path) -> Result<(), trash::Error> {
+  #[cfg(target_os = "macos")]
+  {
+    use trash::macos::{DeleteMethod, TrashContextExtMacos};
+    let mut ctx = trash::TrashContext::default();
+    ctx.set_delete_method(DeleteMethod::NsFileManager);
+    ctx.delete(path)
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    trash::delete(path)
+  }
+}
 
 fn photo_paths(state: &State<'_, AppState>, ids: &[i64]) -> CmdResult<Vec<(i64, String)>> {
   let conn = state.db.lock().map_err(err)?;

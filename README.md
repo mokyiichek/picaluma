@@ -39,8 +39,12 @@ import your old Picasa folder list in one click.
   Ctrl+N). Albums never move or copy your files.
 - **Tags, stars and captions** — Tags panel (Ctrl+T) with one-click Quick Tags.
 - **File management** — Move to Folder, Copy to Folder, Move to New Folder, Delete from
-  Disk (Del key), Rename / Move / Delete Folder. Deletes always go to the Recycle Bin /
-  Trash, and moved pictures keep their stars, tags, captions, edits and albums.
+  Disk, Rename / Move / Delete Folder. Delete sends pictures to the Recycle Bin / Trash;
+  Shift+Delete (⌥⌘⌫ on Mac) deletes permanently. Moved pictures keep their stars, tags,
+  captions, edits and albums.
+- **Mac-native** — HEIC photos, ⌘ shortcuts, skips system folders and app libraries when you
+  watch your whole home folder or disk. (The Photos app library itself isn't scanned — point
+  Picaluma at the folders where you keep your pictures.)
 
 **Editing** — non-destructive; originals are never modified
 - Crop (with print and screen aspect presets) and Straighten.

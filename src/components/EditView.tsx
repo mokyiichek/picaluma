@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { mod } from "../platform";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo } from "../api";
 import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, render, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
@@ -109,8 +110,8 @@ export default function EditView({ active }: { active: boolean }) {
       if (e.key === "Escape") backToLibrary();
       else if (e.key === "ArrowRight" && i < seq.length - 1) s.setEditId(seq[i + 1]);
       else if (e.key === "ArrowLeft" && i > 0) s.setEditId(seq[i - 1]);
-      else if (e.ctrlKey && e.key.toLowerCase() === "z") stack.undo();
-      else if (e.ctrlKey && e.key.toLowerCase() === "y") stack.redo();
+      else if (mod(e) && e.key.toLowerCase() === "z") stack.undo();
+      else if (mod(e) && e.key.toLowerCase() === "y") stack.redo();
       else return;
       e.preventDefault();
     };

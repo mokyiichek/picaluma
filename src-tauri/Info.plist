@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the macOS app's Info.plist by Tauri. Explains macOS privacy prompts. -->
+<plist version="1.0">
+<dict>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Picaluma shows the pictures in folders you choose to watch on your Desktop.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Picaluma shows the pictures in folders you choose to watch in Documents.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Picaluma shows the pictures in folders you choose to watch in Downloads.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>Picaluma shows the pictures on memory cards and external drives you choose to watch.</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>Picaluma shows the pictures on network drives you choose to watch.</string>
+</dict>
+</plist>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, TagCount } from "../api";
+import { mod } from "../platform";
 import { useStore } from "../store";
 import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, MovieIcon, PicturesIcon, TagIcon } from "./Icons";
 
@@ -35,7 +36,7 @@ export default function LibraryToolbar() {
 
   useEffect(() => {
     const focus = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "f") {
+      if (mod(e) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         input.current?.focus();
         input.current?.select();

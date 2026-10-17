@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.1 — 2026-10-17
+
+- **Delete permanently** — Shift+Delete or Ctrl+Delete on Windows (as in Picasa), ⌥⌘⌫ on Mac
+  (as in Finder), with a clear warning. Plain Delete still uses the Recycle Bin / Trash. Also
+  in the right-click menu.
+- **macOS**
+  - HEIC/HEIF pictures (iPhone, Mac camera) are scanned, thumbnailed and shown, using macOS's
+    own image converter.
+  - ⌘ replaces Ctrl for every shortcut, and menus show Mac key symbols.
+  - Watching your home folder or a whole disk skips system folders (~/Library, /System …) and
+    app packages (Photos / Lightroom libraries, .app).
+  - Delete to Trash without the extra Finder permission prompt.
+  - Clear explanations on the macOS prompts for Desktop, Documents, Downloads, external and
+    network drives.
+  - Accented folder names (stored differently by macOS) and CJK names are found by search.
+- **Watch my Pictures folder** — one-click button on first launch (Windows and Mac).
+- TIFF pictures now open in the editor on Windows.
+- Automated tests run on both Windows and a real Mac in CI.
+
 ## 0.6.0 — 2026-10-17
 
 First public-ready release, for **Windows and macOS**.

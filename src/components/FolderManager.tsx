@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { pictureDir } from "@tauri-apps/api/path";
 import { api, PicasaScanlist, Root } from "../api";
 import { useStore } from "../store";
 import { FolderIcon } from "./Icons";
@@ -10,12 +11,14 @@ export default function FolderManager() {
   const setOpen = useStore((s) => s.setFolderManager);
   const [roots, setRoots] = useState<Root[]>([]);
   const [picasa, setPicasa] = useState<PicasaScanlist | null>(null);
+  const [pictures, setPictures] = useState<string | null>(null);
 
   const refresh = () => api.listRoots().then(setRoots);
   useEffect(() => {
     if (!openState) return;
     refresh();
     api.picasaScanlist().then(setPicasa);
+    pictureDir().then(setPictures).catch(() => setPictures(null));
   }, [openState]);
 
   if (!openState) return null;
@@ -49,6 +52,11 @@ export default function FolderManager() {
             {picasa?.found && (
               <button className="tbtn" onClick={importPicasa}>
                 <FolderIcon size={18} /> Import my Picasa folder list ({picasa.include.length} watched, {picasa.exclude.length} excluded)
+              </button>
+            )}
+            {pictures && !roots.some((r) => r.path === pictures) && (
+              <button className="tbtn" onClick={() => api.addRoot(pictures, false).then(refresh)}>
+                <FolderIcon size={18} /> Watch my Pictures folder ({pictures})
               </button>
             )}
             <button className="tbtn" onClick={() => add(false)}>

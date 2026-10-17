@@ -2,6 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { api, photoUrl } from "./api";
 import { renderToCanvas } from "./effects";
 import { useStore } from "./store";
+import { binName } from "./platform";
 
 /** Export Picture to Folder: renders each photo with its edits applied and writes a JPEG copy. */
 export async function exportPhotos(ids: number[]) {
@@ -32,13 +33,18 @@ function reportFailures(failed: string[]) {
   if (failed.length) alert(`${plural(failed.length)} could not be processed:\n\n${failed.slice(0, 10).join("\n")}${failed.length > 10 ? "\n…" : ""}`);
 }
 
-/** Delete key / "Delete from Disk": pictures go to the Recycle Bin (Trash on macOS). */
-export async function deletePhotos(ids: number[]) {
+/**
+ * Delete key / "Delete from Disk": pictures go to the Recycle Bin (Trash on macOS).
+ * With `permanent` (Shift+Del / Ctrl+Del, ⌥⌘⌫ on Mac) they are deleted outright.
+ */
+export async function deletePhotos(ids: number[], permanent = false) {
   if (!ids.length) return;
-  const bin = navigator.userAgent.includes("Mac") ? "Trash" : "Recycle Bin";
-  if (!confirm(`Delete ${plural(ids.length)} from disk?\n\nThey will be moved to the ${bin}.`)) return;
+  const question = permanent
+    ? `Permanently delete ${plural(ids.length)}?\n\nThey will NOT go to the ${binName} and can't be recovered.`
+    : `Delete ${plural(ids.length)} from disk?\n\nThey will be moved to the ${binName}.`;
+  if (!confirm(question)) return;
   const s = useStore.getState();
-  const res = await api.deletePhotos(ids);
+  const res = await api.deletePhotos(ids, permanent);
   s.clearSelection();
   await s.loadSnapshot();
   reportFailures(res.failed);
@@ -95,8 +101,7 @@ export async function moveFolder(folderId: number) {
 export async function deleteFolder(folderId: number) {
   const f = useStore.getState().folderById.get(folderId);
   if (!f) return;
-  const bin = navigator.userAgent.includes("Mac") ? "Trash" : "Recycle Bin";
-  if (!confirm(`Delete the folder "${f.name}" and everything in it?\n\n${f.path}\n\nIt will be moved to the ${bin}.`)) return;
+  if (!confirm(`Delete the folder "${f.name}" and everything in it?\n\n${f.path}\n\nIt will be moved to the ${binName}.`)) return;
   try {
     await api.deleteFolder(folderId);
     await useStore.getState().loadSnapshot();

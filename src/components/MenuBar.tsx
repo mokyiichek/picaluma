@@ -1,3 +1,4 @@
+import { fmtShortcut } from "../platform";
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -148,7 +149,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Help",
       [
-        { label: "About Picaluma", action: () => alert("Picaluma 0.6.0\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
+        { label: "About Picaluma", action: () => alert("Picaluma 0.6.1\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
       ],
     ],
   ];
@@ -215,7 +216,7 @@ export default function MenuBar() {
                 }}
               >
                 <span>{e.label}</span>
-                {e.shortcut && <span className="shortcut">{e.shortcut}</span>}
+                {e.shortcut && <span className="shortcut">{fmtShortcut(e.shortcut)}</span>}
               </div>
             ),
           )}

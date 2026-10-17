@@ -1,3 +1,4 @@
+import { mod } from "../platform";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { thumbUrl, Folder } from "../api";
@@ -246,7 +247,7 @@ export default function LibraryGrid() {
     else if (e.key === "Enter" && s.anchor != null) openWithFlight(s.anchor);
     else if (e.key === "Home" && scrollRef.current) scrollRef.current.scrollTop = 0;
     else if (e.key === "End" && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    else if (e.ctrlKey && e.key.toLowerCase() === "a") {
+    else if (mod(e) && e.key.toLowerCase() === "a") {
       e.preventDefault();
       const f = visible.find((x) => x.folder.id === s.currentFolderId);
       if (f) s.selectOnly(f.photos);

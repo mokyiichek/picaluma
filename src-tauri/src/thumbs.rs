@@ -165,6 +165,16 @@ pub fn spawn_warmer(app: AppHandle) {
 pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
   let Some(id) = parse_id(req) else { return not_found() };
   let Some(photo) = lookup(app, id) else { return not_found() };
+  if needs_display_conversion(&photo.path) {
+    let dir = app.state::<AppState>().thumb_dir.clone();
+    return match display_jpeg(&dir, &photo.path, photo.mtime) {
+      Ok(bytes) => image_response(bytes, "image/jpeg"),
+      Err(e) => {
+        log::warn!("display {}: {e}", photo.path);
+        not_found()
+      }
+    };
+  }
   match std::fs::read(&photo.path) {
     Ok(bytes) => image_response(bytes, mime_for(&photo.path)),
     Err(_) => not_found(),
@@ -197,7 +207,19 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 fn build_thumb(src: &[u8], path: &str, orientation: i64) -> Result<Vec<u8>, String> {
+  // HEIC/HEIF (iPhone, Mac) goes through the system converter; trust the converted JPEG's own
+  // orientation tag, since the converter may or may not have rotated the pixels already.
+  if is_heif(path) {
+    let jpeg = system_jpeg(path, THUMB_EDGE * 2)?;
+    let orientation = exif_orientation(&jpeg).unwrap_or(1);
+    let img = decode_scaled(&jpeg, "x.jpg")?;
+    return encode_thumb(img, orientation);
+  }
   let img = decode_scaled(src, path)?;
+  encode_thumb(img, orientation)
+}
+
+fn encode_thumb(img: DynamicImage, orientation: i64) -> Result<Vec<u8>, String> {
   let thumb = img.thumbnail(THUMB_EDGE, THUMB_EDGE);
   let thumb = apply_orientation(thumb, orientation);
   let mut out = Vec::new();
@@ -249,6 +271,63 @@ fn apply_orientation(img: DynamicImage, orientation: i64) -> DynamicImage {
     8 => img.rotate270(),
     _ => img,
   }
+}
+
+pub fn is_heif(path: &str) -> bool {
+  let lower = path.to_lowercase();
+  lower.ends_with(".heic") || lower.ends_with(".heif")
+}
+
+/// Formats the webview can't display natively: HEIC everywhere, TIFF in WebView2 (Windows).
+fn needs_display_conversion(path: &str) -> bool {
+  let lower = path.to_lowercase();
+  is_heif(path) || (!cfg!(target_os = "macos") && (lower.ends_with(".tif") || lower.ends_with(".tiff")))
+}
+
+/// Largest edge of converted full-size photos (HEIC/TIFF shown in the editor and slideshow).
+const DISPLAY_EDGE: u32 = 3200;
+
+/// A cached, webview-friendly JPEG for a photo the webview can't decode itself.
+fn display_jpeg(thumb_dir: &Path, path: &str, mtime: i64) -> Result<Vec<u8>, String> {
+  let cache = thumb_dir.join("full").join(cache_path(Path::new(""), path, mtime));
+  if let Ok(b) = std::fs::read(&cache) {
+    return Ok(b);
+  }
+  let bytes = if is_heif(path) {
+    system_jpeg(path, DISPLAY_EDGE)?
+  } else {
+    let img = image::open(path).map_err(|e| e.to_string())?;
+    let img = if img.width().max(img.height()) > DISPLAY_EDGE { img.resize(DISPLAY_EDGE, DISPLAY_EDGE, imageops::FilterType::Triangle) } else { img };
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 90).encode_image(&img.to_rgb8()).map_err(|e| e.to_string())?;
+    out
+  };
+  store(&cache, &bytes);
+  Ok(bytes)
+}
+
+/// Convert an image to JPEG with the OS's own codecs (`sips`/ImageIO on macOS, which handles
+/// HEIC). Other platforms report HEIC as unsupported rather than failing silently.
+#[cfg(target_os = "macos")]
+pub fn system_jpeg(path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
+  use std::sync::atomic::AtomicU64;
+  static SEQ: AtomicU64 = AtomicU64::new(0);
+  let out = std::env::temp_dir().join(format!("picaluma-{}-{}.jpg", std::process::id(), SEQ.fetch_add(1, Ordering::Relaxed)));
+  let status = std::process::Command::new("sips")
+    .args(["-s", "format", "jpeg", "-s", "formatOptions", "85", "-Z", &max_edge.to_string(), path, "--out"])
+    .arg(&out)
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status()
+    .map_err(|e| format!("sips: {e}"))?;
+  let bytes = std::fs::read(&out).map_err(|e| format!("sips produced no output ({status}): {e}"));
+  let _ = std::fs::remove_file(&out);
+  bytes
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn system_jpeg(_path: &str, _max_edge: u32) -> Result<Vec<u8>, String> {
+  Err("HEIC pictures are supported on macOS only".into())
 }
 
 fn mime_for(path: &str) -> &'static str {

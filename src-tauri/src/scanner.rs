@@ -24,6 +24,9 @@ use crate::db;
 use crate::thumbs;
 use crate::AppState;
 
+#[cfg(target_os = "macos")]
+const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "png", "gif", "bmp", "webp", "tif", "tiff", "heic", "heif"];
+#[cfg(not(target_os = "macos"))]
 const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "png", "gif", "bmp", "webp", "tif", "tiff"];
 
 /// Directory names never worth descending into, even when a whole drive is watched.
@@ -31,6 +34,42 @@ const SKIP_DIRS: &[&str] = &[
   "$recycle.bin", "system volume information", "windows", "program files", "program files (x86)",
   "programdata", "appdata", "node_modules", "recovery", "msocache", "$windows.~bt", "$windows.~ws",
 ];
+
+/// macOS packages that look like folders but belong to an app (Photos/Lightroom libraries
+/// contain previews and caches that would flood the library with duplicates).
+const SKIP_BUNDLE_EXTS: &[&str] = &[
+  "app", "photoslibrary", "photolibrary", "aplibrary", "migratedphotolibrary", "lrdata", "bundle", "framework",
+  "plugin", "kext", "xcarchive", "pkg",
+];
+
+/// Top-level macOS system locations skipped when a whole disk or the home folder is watched.
+#[cfg(target_os = "macos")]
+fn is_system_dir(path: &Path) -> bool {
+  const ROOTS: &[&str] = &["/System", "/Library", "/Applications", "/private", "/usr", "/bin", "/sbin", "/opt", "/cores", "/dev"];
+  if ROOTS.iter().any(|r| path == Path::new(r)) {
+    return true;
+  }
+  std::env::var_os("HOME").map(|h| path == Path::new(&h).join("Library")).unwrap_or(false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_system_dir(_path: &Path) -> bool {
+  false
+}
+
+/// Whether the walker should skip a directory (below the watched root itself).
+pub fn skip_dir(path: &Path) -> bool {
+  let name = path.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+  if name.starts_with('.') || name.starts_with('$') || SKIP_DIRS.contains(&name.as_str()) {
+    return true;
+  }
+  if let Some(ext) = Path::new(&name).extension() {
+    if SKIP_BUNDLE_EXTS.contains(&ext.to_string_lossy().as_ref()) {
+      return true;
+    }
+  }
+  is_system_dir(path)
+}
 
 /// How often the UI is told to reload while folders stream in.
 const EVENT_THROTTLE: Duration = Duration::from_millis(400);
@@ -149,11 +188,7 @@ fn list_root(
     if e.depth() == 0 {
       return true;
     }
-    let name = e.file_name().to_string_lossy().to_lowercase();
-    if name.starts_with('.') || name.starts_with('$') || SKIP_DIRS.contains(&name.as_str()) {
-      return false;
-    }
-    !is_excluded(e.path(), excluded)
+    !skip_dir(e.path()) && !is_excluded(e.path(), excluded)
   });
 
   for entry in walker.filter_map(Result::ok) {
@@ -479,4 +514,99 @@ fn normalize(p: &str) -> String {
 fn is_excluded(path: &Path, excluded: &[String]) -> bool {
   let p = normalize(&path.to_string_lossy());
   excluded.iter().any(|x| p.starts_with(x.as_str()))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn temp_dir(tag: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("picaluma-scan-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    d
+  }
+
+  fn write_jpeg(path: &Path) {
+    let img = image::RgbImage::from_fn(640, 480, |x, y| image::Rgb([(x % 256) as u8, (y % 256) as u8, 128]));
+    img.save(path).unwrap();
+  }
+
+  #[test]
+  fn skips_hidden_system_and_bundle_folders() {
+    let d = temp_dir("skip");
+    for name in [".hidden", "$RECYCLE.BIN", "Photos Library.photoslibrary", "Lightroom Previews.lrdata", "Some.app", "node_modules"] {
+      assert!(skip_dir(&d.join(name)), "{name} should be skipped");
+    }
+    for name in ["Holiday 2024", "Café Photos", "日本旅行", "My.Trip"] {
+      assert!(!skip_dir(&d.join(name)), "{name} should be scanned");
+    }
+    #[cfg(target_os = "macos")]
+    {
+      let home = std::env::var("HOME").unwrap();
+      assert!(skip_dir(&Path::new(&home).join("Library")));
+      assert!(skip_dir(Path::new("/System")));
+      assert!(!skip_dir(&Path::new(&home).join("Pictures")));
+    }
+  }
+
+  #[test]
+  fn lists_unicode_folders_and_searches_them() {
+    let d = temp_dir("unicode");
+    let conn = Arc::new(Mutex::new(db::open(&d.join("library.db")).unwrap()));
+    // Precomposed é, decomposed e + U+0301 (how macOS often stores names), and CJK.
+    let dirs = [d.join("Caf\u{e9} Photos"), d.join("Cafe\u{301} Trip"), d.join("日本旅行")];
+    for dir in &dirs {
+      std::fs::create_dir_all(dir).unwrap();
+      write_jpeg(&dir.join("IMG_0001.JPG"));
+      write_jpeg(&dir.join("img_0002.jpeg"));
+      std::fs::write(dir.join("notes.txt"), b"not a picture").unwrap();
+    }
+    for dir in &dirs {
+      let (count, changed) = list_dir(&conn, dir).unwrap().expect("folder with pictures");
+      assert_eq!((count, changed), (2, true), "{}", dir.display());
+    }
+    let c = conn.lock().unwrap();
+    let hits = |q: &str| -> i64 { c.query_row("SELECT COUNT(*) FROM photos_fts WHERE photos_fts MATCH ?1", [q], |r| r.get(0)).unwrap() };
+    assert_eq!(hits("\"cafe\"*"), 4, "accented folder names match plain typing, precomposed or not");
+    assert_eq!(hits("\"café\"*"), 4);
+    assert_eq!(hits("\"日本\"*"), 2, "CJK prefix search");
+    assert_eq!(hits("\"img\"*"), 6, "file names are case-insensitive");
+  }
+
+  #[test]
+  fn indexes_dimensions_and_writes_thumbnails() {
+    let d = temp_dir("index");
+    let file = d.join("photo.jpg");
+    write_jpeg(&file);
+    let thumbs_dir = d.join("thumbs");
+    let p = Pending { id: 1, folder_id: 1, path: file.to_string_lossy().into_owned(), mtime: 1 };
+    let meta = index_file(&thumbs_dir, &p);
+    assert_eq!((meta.width, meta.height), (640, 480));
+    let written = walkdir::WalkDir::new(&thumbs_dir).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file()).count();
+    assert_eq!(written, 1, "indexing writes the thumbnail from the same read");
+  }
+
+  #[cfg(target_os = "macos")]
+  #[test]
+  fn heic_is_listed_indexed_and_thumbnailed() {
+    let d = temp_dir("heic");
+    let jpg = d.join("src.jpg");
+    write_jpeg(&jpg);
+    let heic = d.join("IMG_1234.HEIC");
+    let ok = std::process::Command::new("sips").args(["-s", "format", "heic"]).arg(&jpg).arg("--out").arg(&heic).status().unwrap();
+    assert!(ok.success() && heic.exists(), "sips should create a HEIC test file");
+    std::fs::remove_file(&jpg).unwrap();
+
+    let files = list_images(&d);
+    assert_eq!(files.len(), 1, "HEIC files are picked up on macOS");
+
+    let p = Pending { id: 7, folder_id: 1, path: heic.to_string_lossy().into_owned(), mtime: 1 };
+    let meta = index_file(&d.join("thumbs"), &p);
+    assert_eq!((meta.width, meta.height), (640, 480), "HEIC dimensions are read");
+    let thumb = walkdir::WalkDir::new(d.join("thumbs")).into_iter().filter_map(Result::ok).find(|e| e.file_type().is_file()).expect("thumbnail written");
+    let img = image::open(thumb.path()).unwrap();
+    assert!(img.width() <= 360 && img.height() <= 360 && img.width() > 0);
+    assert!(thumbs::system_jpeg(&p.path, 1200).unwrap().starts_with(&[0xFF, 0xD8]), "HEIC converts to JPEG for display");
+  }
 }

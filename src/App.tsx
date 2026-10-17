@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { api, ScanProgress } from "./api";
 import { selectEditorSequence, useStore } from "./store";
 import { deletePhotos } from "./actions";
+import { isDeleteKey, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
 import LibraryToolbar from "./components/LibraryToolbar";
 import LeftPanel, { Splitter } from "./components/LeftPanel";
@@ -45,59 +46,60 @@ export default function App() {
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
       if (typing || st.slideshow) return;
       const sel = [...st.selected];
-      if (e.ctrlKey && e.shiftKey && (e.key === "8" || e.key === "*")) {
+      if (mod(e) && e.shiftKey && (e.key === "8" || e.key === "*")) {
         e.preventDefault();
         st.toggleStar(sel);
-      } else if (e.ctrlKey && e.key === "3" && sel.length === 1) {
+      } else if (mod(e) && e.key === "3" && sel.length === 1) {
         e.preventDefault();
         st.openEditor(sel[0]);
-      } else if (e.ctrlKey && e.key === "4") {
+      } else if (mod(e) && e.key === "4") {
         e.preventDefault();
         const f = st.currentFolderId != null ? st.folderById.get(st.currentFolderId) : undefined;
         if (f) st.startSlideshow(f.photos);
-      } else if (e.ctrlKey && e.key === "1") {
+      } else if (mod(e) && e.key === "1") {
         e.preventDefault();
         st.setThumbSize(100);
-      } else if (e.ctrlKey && e.key === "2") {
+      } else if (mod(e) && e.key === "2") {
         e.preventDefault();
         st.setThumbSize(150);
-      } else if (e.ctrlKey && e.key.toLowerCase() === "d") {
+      } else if (mod(e) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         st.clearSelection();
       } else if (e.altKey && e.key === "Enter") {
         e.preventDefault();
         st.toggleProps();
-      } else if (e.key === "Delete" && sel.length) {
+      } else if (isDeleteKey(e) && sel.length) {
         e.preventDefault();
-        // In an album, Delete takes pictures out of the album; elsewhere it deletes from disk.
-        if (st.albumView != null && st.view === "library") {
+        const permanent = isPermanentDelete(e);
+        // In an album, plain Delete takes pictures out of the album; elsewhere it deletes from disk.
+        if (st.albumView != null && st.view === "library" && !permanent) {
           st.removeFromAlbum(st.albumView, sel);
         } else if (st.view === "edit" && st.editId != null) {
           const seq = selectEditorSequence(st);
           const i = seq.indexOf(st.editId);
           const next = seq[i + 1] ?? seq[i - 1];
-          deletePhotos([st.editId]).then(() => {
+          deletePhotos([st.editId], permanent).then(() => {
             const now = useStore.getState();
             if (now.folderOfPhoto.has(st.editId!)) return; // cancelled
             if (next != null) now.setEditId(next);
             else now.closeEditor();
           });
         } else {
-          deletePhotos(sel);
+          deletePhotos(sel, permanent);
         }
-      } else if (e.ctrlKey && e.key.toLowerCase() === "n") {
+      } else if (mod(e) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         st.setAlbumPicker(sel);
-      } else if (e.ctrlKey && e.key.toLowerCase() === "t") {
+      } else if (mod(e) && e.key.toLowerCase() === "t") {
         e.preventDefault();
         st.toggleTags();
-      } else if (e.ctrlKey && e.key.toLowerCase() === "r" && sel.length) {
+      } else if (mod(e) && e.key.toLowerCase() === "r" && sel.length) {
         e.preventDefault();
         rotateSelected(e.shiftKey ? -90 : 90);
-      } else if (e.ctrlKey && !e.shiftKey && e.key === "Enter" && sel.length === 1) {
+      } else if (mod(e) && !e.shiftKey && e.key === "Enter" && sel.length === 1) {
         e.preventDefault();
         api.getPhoto(sel[0]).then((p) => revealItemInDir(p.path));
-      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o" && sel.length === 1) {
+      } else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "o" && sel.length === 1) {
         e.preventDefault();
         api.getPhoto(sel[0]).then((p) => api.openInDefaultApp(p.path));
       }

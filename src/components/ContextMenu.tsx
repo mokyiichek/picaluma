@@ -1,3 +1,4 @@
+import { fmtShortcut, isMac } from "../platform";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
@@ -64,7 +65,7 @@ export default function ContextMenu() {
             }}
           >
             <span>{e.label}</span>
-            {e.shortcut && <span className="shortcut">{e.shortcut}</span>}
+            {e.shortcut && <span className="shortcut">{fmtShortcut(e.shortcut)}</span>}
           </div>
         ),
       )}
@@ -100,7 +101,8 @@ function photoEntries(): MenuEntry[] {
     { label: "Open With" },
     sep,
     { label: "Locate on Disk", shortcut: "Ctrl+Enter", action: withPath((p) => revealItemInDir(p)) },
-    { label: "Delete from Disk", shortcut: "Delete", action: ids.length ? () => deletePhotos(ids) : undefined },
+    { label: "Delete from Disk", shortcut: isMac ? "Ctrl+Delete" : "Delete", action: ids.length ? () => deletePhotos(ids) : undefined },
+    { label: "Delete Permanently", shortcut: isMac ? "Alt+Ctrl+Delete" : "Shift+Delete", action: ids.length ? () => deletePhotos(ids, true) : undefined },
     { label: "Copy Full Path", action: withPath((p) => navigator.clipboard.writeText(p)) },
     sep,
     { label: "Tags...", shortcut: "Ctrl+T", action: () => !(s.showProps && s.sidePanel === "tags") && s.toggleTags() },
