@@ -14,7 +14,7 @@ export const isDeleteKey = (e: KeyboardEvent) => e.key === "Delete" || (isMac &&
  */
 export const isPermanentDelete = (e: KeyboardEvent) => (isMac ? e.metaKey && e.altKey : e.shiftKey || e.ctrlKey);
 
-export const binName = isMac ? "Trash" : "Recycle Bin";
+export const binName = navigator.userAgent.includes("Windows") ? "Recycle Bin" : "Trash";
 
 /** "Ctrl+Shift+S" → "⇧⌘S" on Mac; unchanged elsewhere. */
 export function fmtShortcut(s: string): string {

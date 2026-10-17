@@ -1,6 +1,6 @@
 # Picaluma
 
-**A fast, open-source photo organizer and editor in the spirit of Picasa 3 — for Windows and macOS.**
+**A fast, open-source photo organizer and editor in the spirit of Picasa 3 — for Windows, macOS and Linux.**
 
 Picasa 3 was the best desktop photo manager ever made — instant search, every folder
 on one scrolling page, one-click fixes, and edits that never touched your originals.
@@ -8,7 +8,8 @@ Google retired it in 2016. Picaluma rebuilds that experience with a modern, nati
 cross-platform stack.
 
 > Picaluma is an independent clean-room project. It is not affiliated with or endorsed
-> by Google. "Picasa" is a trademark of Google LLC.
+> by Google. "Picasa" is a trademark of Google LLC. Like Picasa — which had Windows, Mac (2009) and Linux
+> (2006) versions — Picaluma runs on all three, natively.
 
 ## Download
 
@@ -17,6 +18,7 @@ Get the latest version from **[Releases](https://github.com/mokyiichek/picaluma/
 | Platform | File | Notes |
 |----------|------|-------|
 | **Windows 10/11** (64-bit) | `Picaluma_x.y.z_x64-setup.exe` | Installs for your user only — no admin rights needed. If SmartScreen says *"Windows protected your PC"*, click **More info → Run anyway** (the installer isn't code-signed yet). |
+| **Linux** (x86-64) | `Picaluma_x.y.z_amd64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Debian/Ubuntu: `sudo apt install ./Picaluma_x.y.z_amd64.deb`. |
 | **macOS 11+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. The first time, **right-click Picaluma → Open → Open** (the app isn't notarized yet). |
 
 On first launch, add the folders you want Picaluma to watch. On Windows it can also
@@ -58,13 +60,14 @@ import your old Picasa folder list in one click.
 - The library database checks itself on start and repairs itself if it was damaged.
 
 Planned: People (local face grouping), Places map, timeline, collage, red-eye/retouch,
-`.picasa.ini` import, Folder Manager redesign, flat/tree folder views, Linux.
+`.picasa.ini` import, Folder Manager redesign, flat/tree folder views.
 
 ## Build from source
 
 Requirements: [Rust](https://rustup.rs) (stable) and Node.js 20+.
 - **Windows:** Visual Studio C++ build tools; WebView2 is preinstalled on Windows 10/11.
 - **macOS:** Xcode Command Line Tools (`xcode-select --install`).
+- **Linux:** `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf`.
 
 ```bash
 npm install

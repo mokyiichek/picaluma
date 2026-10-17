@@ -52,7 +52,18 @@ fn is_system_dir(path: &Path) -> bool {
   std::env::var_os("HOME").map(|h| path == Path::new(&h).join("Library")).unwrap_or(false)
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Linux pseudo-filesystems and system trees, skipped when `/` or a whole disk is watched.
+#[cfg(target_os = "linux")]
+fn is_system_dir(path: &Path) -> bool {
+  const ROOTS: &[&str] = &["/proc", "/sys", "/dev", "/run", "/tmp", "/var/lib", "/var/cache", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/boot", "/etc", "/snap", "/opt"];
+  if ROOTS.iter().any(|r| path == Path::new(r)) {
+    return true;
+  }
+  // ~/.cache etc. are already skipped as hidden; Flatpak/Snap app data is not photos.
+  std::env::var_os("HOME").map(|h| path == Path::new(&h).join("snap")).unwrap_or(false)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn is_system_dir(_path: &Path) -> bool {
   false
 }
@@ -540,6 +551,12 @@ mod tests {
     }
     for name in ["Holiday 2024", "Café Photos", "日本旅行", "My.Trip"] {
       assert!(!skip_dir(&d.join(name)), "{name} should be scanned");
+    }
+    #[cfg(target_os = "linux")]
+    {
+      assert!(skip_dir(Path::new("/proc")));
+      assert!(skip_dir(Path::new("/sys")));
+      assert!(!skip_dir(Path::new("/home/someone/Pictures")));
     }
     #[cfg(target_os = "macos")]
     {

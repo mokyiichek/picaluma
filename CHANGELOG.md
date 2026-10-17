@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Linux build** — AppImage and .deb (x86-64). Watching / or a whole disk skips /proc, /sys and
+  other system trees.
+
 ## 0.6.1 — 2026-10-17
 
 - **Delete permanently** — Shift+Delete or Ctrl+Delete on Windows (as in Picasa), ⌥⌘⌫ on Mac
