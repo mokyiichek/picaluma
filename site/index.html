@@ -49,6 +49,9 @@
       letter-spacing: -0.5px;
     }
     .tagline { font-size: 20px; color: var(--muted); max-width: 640px; margin: 0 auto 30px; }
+    .badges { list-style: none; padding: 0; margin: -10px auto 28px; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 10px; max-width: 760px; }
+    .badges li { background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; font-size: 14px; color: var(--muted); }
+    .badges b { color: var(--ink); margin-right: 4px; }
     .downloads { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
     .dl {
       display: inline-flex; align-items: center; gap: 12px;
@@ -79,7 +82,7 @@
     .mock .grid { padding: 14px 18px; overflow: hidden; }
     .mock h4 { margin: 0 0 10px; font: 400 18px Georgia, serif; color: #333; }
     .mock .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
-    .mock .tile { aspect-ratio: 4 / 3; border-radius: 1px; box-shadow: 1px 2px 4px rgba(0,0,0,0.35); }
+    .mock .tile { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #ddd; border-radius: 1px; box-shadow: 1px 2px 4px rgba(0,0,0,0.35); }
     .mock .tile.sel { outline: 2px solid #1a8cff; outline-offset: 2px; }
     .mock .status { height: 18px; background: var(--status); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px; }
 
@@ -136,6 +139,12 @@
       <img class="logo" src="logo.png" alt="Picaluma logo" />
       <h1>Your photos, the Picasa way.</h1>
       <p class="tagline">A free, open-source photo organizer and editor for Windows, Mac and Linux. Every folder on one page, instant search, one-click fixes — and your originals are never touched.</p>
+      <ul class="badges">
+        <li><b>⚡ Fast</b> searches 12,000 photos in 0.003 s</li>
+        <li><b>🪶 Tiny</b> 4 MB download</li>
+        <li><b>💻 Everywhere</b> Windows · Mac · Linux</li>
+        <li><b>🔒 Private</b> offline, no account</li>
+      </ul>
 
       <div class="downloads">
         <a class="dl" id="dl-win" href="https://github.com/mokyiichek/picaluma/releases/latest">
@@ -232,16 +241,19 @@
   <footer class="wrap">
     <p><img src="logo.png" alt="" width="18" height="18" style="vertical-align:-3px"> Picaluma — free and open source (Apache-2.0 / MIT) · <a href="https://github.com/mokyiichek/picaluma">Source on GitHub</a> · <a href="https://github.com/mokyiichek/picaluma/issues">Report a problem</a></p>
     <p>Picaluma is an independent project, not affiliated with or endorsed by Google. “Picasa” is a trademark of Google LLC.</p>
+    <p style="font-size:12px">Sample photos in the preview: <a href="https://unsplash.com">Unsplash</a> via <a href="https://picsum.photos">Lorem Picsum</a>.</p>
   </footer>
 
   <script>
-    // Illustrative thumbnails for the app mock (gradients, not photos).
-    const palettes = [["#7fb3d5","#f6d38a"],["#2e86c1","#a9cce3"],["#f0b27a","#e74c3c"],["#58d68d","#1d8348"],["#f7dc6f","#e67e22"],["#85c1e9","#fdfefe"],["#a569bd","#f5b7b1"],["#48c9b0","#117864"],["#f5cba7","#ba4a00"],["#aed6f1","#2874a6"]];
+    // Sample holiday photos for the app mock — free Unsplash photos served by Lorem Picsum.
+    const photos = [1015, 1011, 1040, 1043, 1050, 1039, 1047, 1067, 129, 1016];
     const tiles = document.getElementById("tiles");
-    palettes.forEach(([a, b], i) => {
-      const t = document.createElement("div");
+    photos.forEach((id, i) => {
+      const t = document.createElement("img");
       t.className = "tile" + (i === 6 ? " sel" : "");
-      t.style.background = `linear-gradient(${150 + i * 17}deg, ${a}, ${b})`;
+      t.src = `https://picsum.photos/id/${id}/320/240`;
+      t.alt = "";
+      t.loading = "lazy";
       tiles.appendChild(t);
     });
 
