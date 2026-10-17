@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, ScanProgress } from "./api";
-import { useStore } from "./store";
+import { selectEditorSequence, useStore } from "./store";
+import { deletePhotos } from "./actions";
 import MenuBar from "./components/MenuBar";
 import LibraryToolbar from "./components/LibraryToolbar";
 import LeftPanel, { Splitter } from "./components/LeftPanel";
@@ -66,6 +67,24 @@ export default function App() {
       } else if (e.altKey && e.key === "Enter") {
         e.preventDefault();
         st.toggleProps();
+      } else if (e.key === "Delete" && sel.length) {
+        e.preventDefault();
+        // In an album, Delete takes pictures out of the album; elsewhere it deletes from disk.
+        if (st.albumView != null && st.view === "library") {
+          st.removeFromAlbum(st.albumView, sel);
+        } else if (st.view === "edit" && st.editId != null) {
+          const seq = selectEditorSequence(st);
+          const i = seq.indexOf(st.editId);
+          const next = seq[i + 1] ?? seq[i - 1];
+          deletePhotos([st.editId]).then(() => {
+            const now = useStore.getState();
+            if (now.folderOfPhoto.has(st.editId!)) return; // cancelled
+            if (next != null) now.setEditId(next);
+            else now.closeEditor();
+          });
+        } else {
+          deletePhotos(sel);
+        }
       } else if (e.ctrlKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         st.setAlbumPicker(sel);

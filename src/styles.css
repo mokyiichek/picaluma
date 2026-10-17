@@ -323,6 +323,11 @@ textarea {
   min-height: 0;
   overflow: auto;
 }
+/* Albums / People size to their content; Folders takes the rest. */
+.section-body.auto {
+  flex: none;
+  max-height: 38%;
+}
 .tree-row {
   display: flex;
   align-items: center;

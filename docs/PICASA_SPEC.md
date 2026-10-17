@@ -34,13 +34,14 @@ Top to bottom:
 
 ## 2. Left tree
 
-- Accordion sections: **Albums (n)**, **People (n)**, **Folders (n)**. Opening one collapses
-  the others to header bars; a collapsed Folders header shows the current folder name in grey. ✅
+- Collapsible sections: **Albums (n)**, **People (n)**, **Projects (n)**, **Folders (n)**. Each header
+  toggles its own section open/closed independently; a collapsed Folders header shows the current
+  folder name in grey. ✅ (Projects ⬜)
 - Folders sorted newest-first and grouped under headings `Updated <Month Year>` (by the
   folder's most recent file modification). ✅
 - Row: folder icon · `Name (count)`. Selected row: dark-blue fill, white text. ✅
 - Scrolling the grid moves the tree highlight to the folder at the top of the grid. ✅
-- Albums include "Starred Photos", "Recently Updated", "Search results for 'x'". 🟡
+- Albums include "Starred Photos", "Recently Updated", "Search results for 'x'" and user albums. ✅ (Recently Updated ⬜)
 - People rows: face crop · `<Unknown Person> (0)` · orange "?" badge. ⬜
 
 ## 3. Thumbnail grid
@@ -154,12 +155,12 @@ Picaluma keeps the same menu structure; unimplemented entries are shown disabled
 Ctrl+R · Rotate Counterclockwise Ctrl+Shift+R · Undo all Edits · Hide · Move to New Folder… ·
 Split Folder Here… · Open File Ctrl+Shift+O · Open With ▸ · Save Ctrl+S · Revert · Locate on Disk
 Ctrl+Enter · Delete from Disk Ctrl+Delete · Copy Full Path · Upload… · Block from Uploading ·
-Reset Faces · Properties Alt+Enter. ✅ (Picaluma adds Add/Remove Star and Tags…)
+Reset Faces · Properties Alt+Enter. ✅ Move/Copy to Folder, Move to New Folder, Delete from Disk (Recycle Bin) ✅; Picaluma adds Add/Remove Star and Tags…
 
 **Folder** (right-click tree row or folder header): Edit Folder Description… · Select All
 Pictures Ctrl+A · Clear Selection Ctrl+D · Invert Selection Ctrl+I · Move to Collection ▸ ·
 Refresh Thumbnails · Sort Folder By ▸ · Hide Folder · Locate on Disk Ctrl+Enter · Remove from
-Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML Page… · Add name tags. ✅
+Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML Page… · Add name tags. ✅ (Rename/Move/Delete Folder ✅; HTML export, Sort By, Hide ⬜)
 
 ## 11. Crop and Straighten
 

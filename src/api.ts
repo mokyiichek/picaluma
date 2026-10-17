@@ -109,7 +109,17 @@ export const api = {
   updateAlbum: (id: number, patch: { name?: string; description?: string }) =>
     invoke<void>("update_album", { id, name: patch.name ?? null, description: patch.description ?? null }),
   deleteAlbum: (id: number) => invoke<void>("delete_album", { id }),
+  deletePhotos: (ids: number[]) => invoke<OpResult>("delete_photos", { ids }),
+  transferPhotos: (ids: number[], dest: string, copy: boolean) => invoke<OpResult>("transfer_photos", { ids, dest, copy }),
+  renameFolder: (id: number, name: string) => invoke<string>("rename_folder", { id, name }),
+  moveFolder: (id: number, destParent: string) => invoke<string>("move_folder", { id, destParent }),
+  deleteFolder: (id: number) => invoke<void>("delete_folder", { id }),
 };
+
+export interface OpResult {
+  done: number;
+  failed: string[];
+}
 
 export interface TagCount {
   tag: string;

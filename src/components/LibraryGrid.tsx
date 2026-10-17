@@ -37,6 +37,8 @@ export default function LibraryGrid() {
   const [resizing, setResizing] = useState(false);
   const topAnchor = useRef<{ photo: number; delta: number } | null>(null);
   const smooth = useRef<{ to: (y: number) => void } | null>(null);
+  /** True while gliding to a clicked folder: the tree keeps that folder highlighted meanwhile. */
+  const gliding = useRef(false);
   const effects = useStore((s) => s.effects);
   const album = useStore(selectAlbum);
 
@@ -113,6 +115,7 @@ export default function LibraryGrid() {
     smooth.current = {
       to: (dest: number) => {
         sync();
+        gliding.current = true;
         dest = Math.max(0, Math.min(maxTop(), dest));
         // Long hops pre-jump so the glide only ever covers about two screens, like Picasa's
         // fast scroll: you see motion and direction without waiting through every folder.
@@ -136,6 +139,7 @@ export default function LibraryGrid() {
         el.scrollTop = target;
         raf = 0;
         vel = 0;
+        gliding.current = false;
         return;
       }
       el.scrollTop = pos;
@@ -146,6 +150,7 @@ export default function LibraryGrid() {
       e.preventDefault();
       const unit = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? el.clientHeight : 1;
       sync();
+      gliding.current = false; // the user took over; let the tree follow again
       target = Math.max(0, Math.min(maxTop(), target + e.deltaY * unit * WHEEL_PX_PER_DELTA));
       if (!raf) raf = requestAnimationFrame(step);
     };
@@ -210,7 +215,7 @@ export default function LibraryGrid() {
     const firstThumbRow = r.kind === "thumbs" ? lo : lo + 1 < rows.length ? lo + 1 : lo;
     const tr = rows[firstThumbRow];
     if (tr?.kind === "thumbs") topAnchor.current = { photo: tr.photos[0], delta: offsets[firstThumbRow] - el.scrollTop };
-    useStore.getState().setCurrentFolder(r.kind === "head" ? r.folder.id : r.folderId);
+    if (!gliding.current) useStore.getState().setCurrentFolder(r.kind === "head" ? r.folder.id : r.folderId);
   }, [rows, offsets]);
 
   useEffect(() => {

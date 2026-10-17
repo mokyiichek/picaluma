@@ -4,6 +4,7 @@ import { api } from "../api";
 import { Edit } from "../effects";
 import { selectVisible, useStore } from "../store";
 import { MenuEntry } from "./MenuBar";
+import { deleteFolder, deletePhotos, moveFolder, moveToNewFolder, renameFolder, transferPhotos } from "../actions";
 
 const sep: MenuEntry = { label: "", sep: true };
 
@@ -91,14 +92,15 @@ function photoEntries(): MenuEntry[] {
     { label: ids.every((id) => s.starred.has(id)) ? "Remove Star" : "Add Star", shortcut: "Ctrl+Shift+8", action: () => s.toggleStar(ids) },
     { label: "Hide" },
     sep,
-    { label: "Move to New Folder..." },
-    { label: "Split Folder Here..." },
+    { label: "Move to Folder...", action: ids.length ? () => transferPhotos(ids, false) : undefined },
+    { label: "Copy to Folder...", action: ids.length ? () => transferPhotos(ids, true) : undefined },
+    { label: "Move to New Folder...", action: ids.length ? () => moveToNewFolder(ids) : undefined },
     sep,
     { label: "Open File", shortcut: "Ctrl+Shift+O", action: withPath((p) => api.openInDefaultApp(p)) },
     { label: "Open With" },
     sep,
     { label: "Locate on Disk", shortcut: "Ctrl+Enter", action: withPath((p) => revealItemInDir(p)) },
-    { label: "Delete from Disk", shortcut: "Ctrl+Delete" },
+    { label: "Delete from Disk", shortcut: "Delete", action: ids.length ? () => deletePhotos(ids) : undefined },
     { label: "Copy Full Path", action: withPath((p) => navigator.clipboard.writeText(p)) },
     sep,
     { label: "Tags...", shortcut: "Ctrl+T", action: () => !(s.showProps && s.sidePanel === "tags") && s.toggleTags() },
@@ -163,8 +165,9 @@ function folderEntries(folderId: number): MenuEntry[] {
         : undefined,
     },
     sep,
-    { label: "Move Folder..." },
-    { label: "Delete Folder..." },
+    { label: "Rename Folder...", action: folder ? () => renameFolder(folderId) : undefined },
+    { label: "Move Folder...", action: folder ? () => moveFolder(folderId) : undefined },
+    { label: "Delete Folder...", action: folder ? () => deleteFolder(folderId) : undefined },
     sep,
     { label: "Export as HTML Page..." },
   ];

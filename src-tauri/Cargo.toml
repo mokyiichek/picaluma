@@ -1,6 +1,6 @@
 [package]
 name = "picaluma"
-version = "0.5.0"
+version = "0.6.0"
 description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
 authors = ["mokyiichek"]
 license = "Apache-2.0 OR MIT"
@@ -28,6 +28,7 @@ jpeg-decoder = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp", "tiff"] }
 chrono = "0.4"
 base64 = "0.22"
+trash = "5"
 log = "0.4"
 env_logger = "0.11"
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { selectVisible, useStore } from "../store";
+import { Section, selectVisible, useStore } from "../store";
 import { fmtMonth } from "../format";
 import { CollapseIcon, FolderIcon, PicturesIcon, StarIcon } from "./Icons";
 import type { Album } from "../api";
@@ -12,8 +12,8 @@ type Row = { kind: "group"; label: string } | { kind: "folder"; id: number; name
 const ROW_H = 22;
 
 export default function LeftPanel() {
-  const section = useStore((s) => s.leftSection);
-  const setSection = useStore((s) => s.setLeftSection);
+  const open = useStore((s) => s.openSections);
+  const toggleSection = useStore((s) => s.toggleSection);
   const visible = useStore(selectVisible);
   const starredCount = useStore((s) => s.starred.size);
   const query = useStore((s) => s.query);
@@ -27,19 +27,20 @@ export default function LeftPanel() {
   const openAlbum = useStore((s) => s.openAlbum);
   const folderCount = useStore((s) => s.snapshot?.folders.length ?? 0);
 
-  const head = (id: typeof section, label: string) => (
-    <div className="section-head" onClick={() => setSection(id)}>
-      <CollapseIcon open={section === id} />
+  // Picasa: clicking a header toggles just that section; any combination can be open.
+  const head = (id: Section, label: string) => (
+    <div className="section-head" onClick={() => toggleSection(id)} title={open[id] ? "Collapse" : "Expand"}>
+      <CollapseIcon open={open[id]} />
       <span>{label}</span>
-      {section !== id && id === "folders" && <span className="ghost">{currentName}</span>}
+      {!open[id] && id === "folders" && <span className="ghost">{currentName}</span>}
     </div>
   );
 
   return (
     <div className="left" style={{ width }}>
       {head("albums", `Albums (${albums.length + 1 + (search ? 1 : 0)})`)}
-      {section === "albums" && (
-        <div className="section-body">
+      {open.albums && (
+        <div className="section-body auto">
           {search && (
             <div className="tree-row sel dim">
               <FolderIcon />
@@ -79,15 +80,15 @@ export default function LeftPanel() {
         </div>
       )}
       {head("people", "People (0)")}
-      {section === "people" && (
-        <div className="section-body people-empty">
+      {open.people && (
+        <div className="section-body auto people-empty">
           Face grouping is planned for a later release.
           <br />
           Picaluma will detect faces locally — nothing is uploaded.
         </div>
       )}
       {head("folders", `Folders (${(albumView != null ? folderCount : visible.length).toLocaleString()})`)}
-      {section === "folders" && <FolderTree />}
+      {open.folders && <FolderTree />}
     </div>
   );
 }

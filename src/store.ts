@@ -24,6 +24,8 @@ export interface VisibleFolder {
   photos: number[];
 }
 
+export type Section = "albums" | "people" | "folders";
+
 interface State {
   snapshot: Snapshot | null;
   folderById: Map<number, Folder>;
@@ -45,7 +47,8 @@ interface State {
   sidePanel: "props" | "tags";
   contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album"; folderId?: number; albumId?: number } | null;
   leftWidth: number;
-  leftSection: "albums" | "people" | "folders";
+  /** Left-panel sections, each opened/closed independently like Picasa's. */
+  openSections: Record<Section, boolean>;
   query: string;
   search: { ids: Set<number>; seconds: number } | null;
   starredOnly: boolean;
@@ -77,7 +80,9 @@ interface State {
   setOptionsOpen: (open: boolean) => void;
   openContextMenu: (m: State["contextMenu"]) => void;
   setLeftWidth: (w: number) => void;
-  setLeftSection: (s: State["leftSection"]) => void;
+  toggleSection: (s: Section) => void;
+  /** Opens a section (no-op if already open). */
+  setLeftSection: (s: Section) => void;
   runSearch: (q: string) => Promise<void>;
   clearSearch: () => void;
   setStarredOnly: (on: boolean) => void;
@@ -120,7 +125,7 @@ export const useStore = create<State>((set, get) => ({
   sidePanel: "props",
   contextMenu: null,
   leftWidth: Number(localStorageGet("leftWidth")) || 420,
-  leftSection: "folders",
+  openSections: loadSections(),
   query: "",
   search: null,
   starredOnly: false,
@@ -254,7 +259,15 @@ export const useStore = create<State>((set, get) => ({
     set({ leftWidth });
   },
 
-  setLeftSection: (leftSection) => set({ leftSection }),
+  toggleSection: (id) => {
+    const openSections = { ...get().openSections, [id]: !get().openSections[id] };
+    localStorageSet("sections", JSON.stringify(openSections));
+    set({ openSections });
+  },
+
+  setLeftSection: (id) => {
+    if (!get().openSections[id]) get().toggleSection(id);
+  },
 
   runSearch: async (q) => {
     set({ query: q });
@@ -316,7 +329,7 @@ export const useStore = create<State>((set, get) => ({
   openAlbum: (id) =>
     set({
       albumView: id,
-      leftSection: id != null ? "albums" : get().leftSection,
+      openSections: id != null ? { ...get().openSections, albums: true } : get().openSections,
       starredOnly: false,
       selected: new Set(),
       anchor: null,
@@ -404,6 +417,15 @@ export function selectEditorSequence(s: State): number[] {
 function applyEffectsClass(on: boolean): boolean {
   document.documentElement.classList.toggle("no-effects", !on);
   return on;
+}
+
+function loadSections(): Record<Section, boolean> {
+  const fallback = { albums: true, people: false, folders: true };
+  try {
+    return { ...fallback, ...JSON.parse(localStorageGet("sections") ?? "{}") };
+  } catch {
+    return fallback;
+  }
 }
 
 function localStorageGet(k: string): string | null {

@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod fileops;
 mod scanner;
 mod thumbs;
 
@@ -90,6 +91,11 @@ pub fn run() {
       commands::album_remove,
       commands::update_album,
       commands::delete_album,
+      fileops::delete_photos,
+      fileops::transfer_photos,
+      fileops::rename_folder,
+      fileops::move_folder,
+      fileops::delete_folder,
     ])
     .run(tauri::generate_context!())
     .expect("error while running Picaluma");
