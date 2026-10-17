@@ -1,6 +1,6 @@
 [package]
 name = "picaluma"
-version = "0.6.1"
+version = "0.6.2"
 description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
 authors = ["mokyiichek"]
 license = "Apache-2.0 OR MIT"

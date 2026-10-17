@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.6.2 — 2026-10-18
+
+- **macOS** — the app is now signed (ad-hoc), so macOS no longer reports it as *damaged*;
+  first launch needs one *Open Anyway* in System Settings › Privacy & Security. Build pipeline
+  ready for Developer ID signing + Apple notarization (no prompt at all) once the Apple
+  certificate is added. Minimum macOS 11.
 
 - **Linux build** — AppImage and .deb (x86-64). Watching / or a whole disk skips /proc, /sys and
   other system trees.

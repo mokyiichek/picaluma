@@ -149,7 +149,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Help",
       [
-        { label: "About Picaluma", action: () => alert("Picaluma 0.6.1\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
+        { label: "About Picaluma", action: () => alert("Picaluma 0.6.2\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
       ],
     ],
   ];

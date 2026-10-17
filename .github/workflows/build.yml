@@ -60,6 +60,41 @@ jobs:
           workspaces: src-tauri -> target
           key: ${{ matrix.name }}
 
+      # macOS signing. With the Apple secrets set, builds are signed with the Developer ID and
+      # notarized by Apple (no Gatekeeper warnings). Without them, tauri.conf.json's ad-hoc
+      # identity ("-") is used, so the app still opens after "Open Anyway" instead of being
+      # reported as damaged.
+      - name: Configure Apple signing
+        if: matrix.name == 'macos'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            {
+              echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE"
+              echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
+              echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            } >> "$GITHUB_ENV"
+            echo "Developer ID signing: enabled"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              {
+                echo "APPLE_ID=$APPLE_ID"
+                echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+                echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+              } >> "$GITHUB_ENV"
+              echo "Notarization: enabled"
+            else
+              echo "Notarization: skipped (APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID not set)"
+            fi
+          else
+            echo "Developer ID signing: not configured — using ad-hoc signature"
+          fi
+
       - name: Install frontend dependencies
         run: npm ci
 
@@ -86,6 +121,14 @@ jobs:
       - name: Build installers
         if: "!startsWith(github.ref, 'refs/tags/v')"
         run: npx tauri build ${{ matrix.args }}
+
+      - name: Check macOS signature
+        if: matrix.name == 'macos' && !startsWith(github.ref, 'refs/tags/v')
+        run: |
+          APP=src-tauri/target/universal-apple-darwin/release/bundle/macos/Picaluma.app
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority|Signature|TeamIdentifier|Identifier"
+          spctl -a -t exec -vv "$APP" || echo "Gatekeeper: not notarized (expected until Apple secrets are set)"
 
       - name: Upload installers
         if: "!startsWith(github.ref, 'refs/tags/v')"
