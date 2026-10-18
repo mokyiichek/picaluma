@@ -106,6 +106,7 @@
     .install h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 10px; }
     .install ol { margin: 0; padding-left: 20px; color: var(--muted); }
     .install li { margin: 6px 0; }
+    .install .cmd { margin: 8px 0 4px; padding: 10px 12px; background: #1e2430; color: #e8ecf3; border-radius: 6px; font-size: 12.5px; overflow-x: auto; user-select: all; }
     kbd { background: #eef1f4; border: 1px solid #cfd5db; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 13px ui-monospace, Menlo, Consolas, monospace; color: var(--ink); }
 
     footer { padding: 32px 0 44px; color: var(--muted); font-size: 14px; text-align: center; }
@@ -228,8 +229,9 @@
           <div class="card">
             <h3>Mac</h3>
             <ol>
-              <li>Open <b>Picaluma_…_universal.dmg</b> and drag Picaluma into <b>Applications</b>.</li>
-              <li>The first time, if macOS says it can't verify Picaluma: open <b> → System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.</li>
+              <li>Easiest: open <b>Terminal</b>, paste this line and press Return. It downloads, installs and opens Picaluma with no security prompts.
+                <pre class="cmd"><code>curl -fsSL https://ahmok.com/picaluma/install.sh | bash</code></pre></li>
+              <li>Or open <b>Picaluma_…_universal.dmg</b> and drag Picaluma into <b>Applications</b>. If macOS says it can't verify Picaluma: <b> → System Settings → Privacy &amp; Security → Open Anyway</b>.</li>
               <li>Choose <b>Watch my Pictures folder</b> or any folders you like. HEIC photos from your iPhone work too.</li>
             </ol>
           </div>
