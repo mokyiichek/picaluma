@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3 — 2026-10-18
+
+- **macOS** — signed with an Apple Developer ID and notarized by Apple: download the .dmg, drag
+  Picaluma to Applications and open it, with no security warning or *Open Anyway* step.
+- **One-line Mac install** — `curl -fsSL https://ahmok.com/picaluma/install.sh | bash` downloads,
+  installs and opens the latest version, and saves a report if it can't start.
+
 ## 0.6.2 — 2026-10-18
 
 - **macOS** — the app is now signed (ad-hoc), so macOS no longer reports it as *damaged*;

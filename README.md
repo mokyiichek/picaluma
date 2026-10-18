@@ -19,7 +19,7 @@ Get the latest version from **[Releases](https://github.com/mokyiichek/picaluma/
 |----------|------|-------|
 | **Windows 10/11** (64-bit) | `Picaluma_x.y.z_x64-setup.exe` | Installs for your user only — no admin rights needed. If SmartScreen says *"Windows protected your PC"*, click **More info → Run anyway** (the installer isn't code-signed yet). |
 | **Linux** (x86-64) | `Picaluma_x.y.z_amd64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Debian/Ubuntu: `sudo apt install ./Picaluma_x.y.z_amd64.deb`. |
-| **macOS 11+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. If macOS says it can't verify Picaluma, open ** → System Settings → Privacy & Security** and click **Open Anyway** (once). If it says the app is *damaged*, run `xattr -cr /Applications/Picaluma.app` in Terminal. (Notarized builds that open without any prompt are coming.) |
+| **macOS 11+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. Signed with a Developer ID and notarized by Apple, so it opens like any other Mac app. Or install from Terminal: `curl -fsSL https://ahmok.com/picaluma/install.sh \| bash` |
 
 On first launch, add the folders you want Picaluma to watch. On Windows it can also
 import your old Picasa folder list in one click.

@@ -113,7 +113,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Picaluma ${{ github.ref_name }}
-          releaseBody: See CHANGELOG.md for what's new. Windows - run the setup .exe. macOS - open the .dmg and drag Picaluma to Applications (first launch - right-click > Open).
+          releaseBody: See CHANGELOG.md for what's new. Windows - run the setup .exe. macOS - open the .dmg and drag Picaluma to Applications. Linux - AppImage or .deb.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -122,13 +122,20 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/v')"
         run: npx tauri build ${{ matrix.args }}
 
+      # With Developer ID configured, fail the build unless Gatekeeper accepts the notarized app,
+      # so an unapproved Mac build is never released.
       - name: Check macOS signature
-        if: matrix.name == 'macos' && !startsWith(github.ref, 'refs/tags/v')
+        if: matrix.name == 'macos'
         run: |
           APP=src-tauri/target/universal-apple-darwin/release/bundle/macos/Picaluma.app
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority|Signature|TeamIdentifier|Identifier"
-          spctl -a -t exec -vv "$APP" || echo "Gatekeeper: not notarized (expected until Apple secrets are set)"
+          if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            spctl -a -t exec -vv "$APP"
+            xcrun stapler validate "$APP"
+          else
+            spctl -a -t exec -vv "$APP" || echo "Gatekeeper: not notarized (Apple secrets not set)"
+          fi
 
       - name: Upload installers
         if: "!startsWith(github.ref, 'refs/tags/v')"
