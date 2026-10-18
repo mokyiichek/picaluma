@@ -35,14 +35,14 @@ fi
 
 banner "Step 3 of 5 — Export the certificate (.p12)"
 P12="$HOME/Desktop/picaluma-developer-id.p12"
-echo "  macOS will ask you to choose an export password (remember it) and may ask for your login"
-echo "  keychain password to allow the export."
-if ! security export -k login.keychain-db -t identities -f pkcs12 -o "$P12" >/dev/null 2>&1 || [ ! -s "$P12" ]; then
-  open -a "Keychain Access"
-  echo "  Automatic export didn't work. In Keychain Access → login → My Certificates, right-click"
-  echo "  \"$IDENTITY\" → Export… → save as $P12"
-  pause "Export the .p12"
-fi
+rm -f "$P12"
+open -a "Keychain Access"
+echo "  Keychain Access is open. Export ONLY the Developer ID certificate (not other keys):"
+echo "    1. Left sidebar: 'login', top tabs: 'My Certificates'"
+echo "    2. Right-click \"$IDENTITY\" → Export…"
+echo "    3. Save As: picaluma-developer-id   Where: Desktop   Format: Personal Information Exchange (.p12)"
+echo "    4. Choose an export password (you'll paste it into GitHub in step 5), then allow with your Mac password"
+pause "Export the .p12 to your Desktop"
 [ -s "$P12" ] || { echo "  ✗ $P12 not found."; exit 1; }
 echo "  Saved $P12"
 
