@@ -1,32 +1,25 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, photoUrl } from "./api";
-import { renderToCanvas } from "./effects";
-import { useStore } from "./store";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { api } from "./api";
+import { hasEdits, joinPath, renderJpegBase64 } from "./share";
+import { selectVisible, useStore } from "./store";
 import { binName } from "./platform";
 
-/** Export Picture to Folder: renders each photo with its edits applied and writes a JPEG copy. */
-export async function exportPhotos(ids: number[]) {
-  const dir = await open({ directory: true, title: "Export pictures to folder" });
-  if (!dir || Array.isArray(dir)) return;
-  const edits = useStore.getState().edits;
-  let done = 0;
-  for (const id of ids) {
-    const photo = await api.getPhoto(id);
-    const canvas = await renderToCanvas(photoUrl(id), edits.get(id) ?? []);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    const base = photo.name.replace(/\.[^.]+$/, "");
-    const sep = dir.includes("/") ? "/" : "\\";
-    await api.exportPicture(`${dir.replace(/[\\/]$/, "")}${sep}${base}.jpg`, dataUrl.slice(dataUrl.indexOf(",") + 1));
-    done++;
-  }
-  alert(`Exported ${done} picture${done === 1 ? "" : "s"} to ${dir}`);
+/** Export Picture to Folder: opens the Export dialog for these pictures. */
+export function exportPhotos(ids: number[]) {
+  useStore.getState().setShare({ kind: "export", ids });
+}
+
+export function emailPhotos(ids: number[]) {
+  useStore.getState().setShare({ kind: "email", ids });
+}
+
+/** Print screen, optionally starting on a layout ("index" = contact sheet, "poster"). */
+export function printPhotos(ids: number[], layout?: "index" | "poster") {
+  useStore.getState().setPrint({ ids, layout });
 }
 
 const plural = (n: number) => `${n} picture${n === 1 ? "" : "s"}`;
-const joinPath = (dir: string, name: string) => {
-  const sep = dir.includes("\\") ? "\\" : "/";
-  return `${dir.replace(/[\\/]$/, "")}${sep}${name}`;
-};
 const parentOf = (p: string) => p.replace(/[\\/][^\\/]*[\\/]?$/, "");
 
 function reportFailures(failed: string[]) {
@@ -108,4 +101,132 @@ export async function deleteFolder(folderId: number) {
   } catch (e) {
     alert(String(e));
   }
+}
+
+/** File › Rename (F2). */
+export async function renamePhoto(id: number) {
+  const photo = await api.getPhoto(id);
+  const stem = photo.name.replace(/\.[^.]+$/, "");
+  const name = prompt("Rename picture:", stem);
+  if (!name || name.trim() === stem) return;
+  try {
+    await api.renamePhoto(id, name.trim());
+    await useStore.getState().loadSnapshot();
+  } catch (e) {
+    alert(String(e));
+  }
+}
+
+/** File › Save a Copy: the edited picture as a new JPEG beside the original (which is never changed). */
+export async function saveCopies(ids: number[]) {
+  const edited = ids.filter(hasEdits);
+  if (!edited.length) return alert("These pictures have no edits to save. Make changes in Edit view first.");
+  const failed: string[] = [];
+  for (const id of edited) {
+    const photo = await api.getPhoto(id);
+    const dir = parentOf(photo.path);
+    const base = photo.name.replace(/\.[^.]+$/, "");
+    try {
+      await api.exportPicture(joinPath(dir, `${base} (edited).jpg`), await renderJpegBase64(id, { maxEdge: 0, quality: 0.92 }));
+    } catch (e) {
+      failed.push(`${photo.name}: ${e}`);
+    }
+  }
+  api.rescan();
+  reportFailures(failed);
+}
+
+/** Edit › Copy All Effects / Paste All Effects. */
+export function copyEffects(id: number) {
+  const s = useStore.getState();
+  s.setCopiedEdits([...(s.edits.get(id) ?? [])]);
+}
+
+export function pasteEffects(ids: number[]) {
+  const s = useStore.getState();
+  const copied = s.copiedEdits;
+  if (!copied) return;
+  for (const id of ids) s.setPhotoEdits(id, [...copied]);
+}
+
+/** Picture › Batch Edit: apply one effect to every selected picture. */
+export function batchEdit(ids: number[], op: string, v?: number) {
+  const s = useStore.getState();
+  for (const id of ids) s.setPhotoEdits(id, [...(s.edits.get(id) ?? []), v == null ? { op } : { op, v }]);
+}
+
+/** Create › Set as Desktop. */
+export async function setAsDesktop(id: number) {
+  try {
+    await api.setWallpaper(await renderJpegBase64(id, { maxEdge: 3840, quality: 0.92 }));
+  } catch (e) {
+    alert(`Couldn't set the desktop picture: ${e}`);
+  }
+}
+
+/** File › Add File to Picaluma: watches the folders of the chosen pictures. */
+export async function addFiles() {
+  const picked = await open({
+    multiple: true,
+    title: "Add pictures to Picaluma",
+    filters: [{ name: "Pictures", extensions: ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tif", "tiff", "heic", "heif"] }],
+  });
+  const files = Array.isArray(picked) ? picked : picked ? [picked] : [];
+  const dirs = [...new Set(files.map(parentOf))];
+  for (const d of dirs) await api.addRoot(d);
+  if (dirs.length) api.rescan();
+}
+
+/** Folder › Export as HTML Page: a self-contained web gallery (index.html, pictures and thumbnails). */
+export async function exportHtml(folderId: number) {
+  const s = useStore.getState();
+  const vis = selectVisible(s).find((v) => v.folder.id === folderId);
+  const folder = s.folderById.get(folderId);
+  if (!vis || !folder) return;
+  const location = await open({ directory: true, title: `Export "${folder.name}" as a web page to…` });
+  if (typeof location !== "string") return;
+  const dir = await api.makeExportDir(location, folder.name);
+  const items: string[] = [];
+  const failed: string[] = [];
+  for (const id of vis.photos) {
+    const photo = await api.getPhoto(id);
+    try {
+      const big = await api.exportPicture(joinPath(joinPath(dir, "images"), photo.name.replace(/\.[^.]+$/, ".jpg")), await renderJpegBase64(id, { maxEdge: 1600, quality: 0.85 }));
+      const small = await api.exportPicture(joinPath(joinPath(dir, "thumbnails"), photo.name.replace(/\.[^.]+$/, ".jpg")), await renderJpegBase64(id, { maxEdge: 360, quality: 0.8 }));
+      const rel = (p: string) => p.slice(dir.length + 1).replace(/\\/g, "/");
+      const cap = escapeHtml(photo.caption || photo.name);
+      items.push(`<a href="${encodeURI(rel(big))}" title="${cap}"><img src="${encodeURI(rel(small))}" alt="${cap}" loading="lazy"><span>${cap}</span></a>`);
+    } catch (e) {
+      failed.push(`${photo.name}: ${e}`);
+    }
+  }
+  const title = escapeHtml(folder.name);
+  const desc = folder.description ? `<p>${escapeHtml(folder.description)}</p>` : "";
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f4f4f4;color:#222}
+header{padding:28px 24px 8px;max-width:1200px;margin:auto}h1{margin:0;font:400 30px Georgia,serif}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px;padding:16px 24px 40px;max-width:1200px;margin:auto}
+a{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:#555;font-size:13px}
+img{max-width:100%;height:180px;object-fit:contain;box-shadow:0 2px 8px rgba(0,0,0,.25);background:#fff}
+span{margin-top:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+footer{text-align:center;color:#999;font-size:12px;padding:0 0 24px}
+</style></head><body>
+<header><h1>${title}</h1>${desc}<p>${items.length} pictures</p></header>
+<main>
+${items.join("\n")}
+</main>
+<footer>Made with Picaluma</footer>
+</body></html>
+`;
+  const index = joinPath(dir, "index.html");
+  await api.writeTextFile(index, html);
+  reportFailures(failed);
+  revealItemInDir(index).catch(() => {});
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }

@@ -1,9 +1,9 @@
 import { thumbUrl } from "../api";
 import { Edit } from "../effects";
-import { exportPhotos } from "../actions";
+import { emailPhotos, exportPhotos, printPhotos } from "../actions";
 import { plural } from "../format";
 import { selectVisible, useStore } from "../store";
-import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon } from "./Icons";
+import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PrintIcon, RotateIcon, StarIcon, TagIcon } from "./Icons";
 
 export default function Tray() {
   const selected = useStore((s) => s.selected);
@@ -22,7 +22,9 @@ export default function Tray() {
 
   const folderPhotos = visible.find((v) => v.folder.id === current)?.photos ?? [];
   const ids = selected.size ? [...selected] : [];
-  const stack = (ids.length ? ids : folderPhotos).slice(0, 3);
+  // Email / Print / Export act on the selection, or the whole folder when nothing is selected (as in Picasa).
+  const targets = ids.length ? ids : folderPhotos;
+  const stack = targets.slice(0, 3);
   const kind = current != null && current < 0 ? "Album" : "Folder";
   const label = ids.length ? `${plural(ids.length, "photo")} selected` : folderPhotos.length ? `${kind} Selected - ${plural(folderPhotos.length, "photo")}` : "";
 
@@ -69,18 +71,15 @@ export default function Tray() {
           </button>
         </div>
         <div className="row">
-          <button className="share-btn" disabled title="Sharing will arrive in a later release">
-            Share
-          </button>
-          <button className="tray-action" disabled title="E-mail (coming soon)">
+          <button className="tray-action" disabled={!targets.length} title={`E-mail ${plural(targets.length, "picture")}`} onClick={() => emailPhotos(targets)}>
             <EmailIcon />
             Email
           </button>
-          <button className="tray-action" disabled title="Print (coming soon)">
+          <button className="tray-action" disabled={!targets.length} title={`Print ${plural(targets.length, "picture")}`} onClick={() => printPhotos(targets)}>
             <PrintIcon />
             Print
           </button>
-          <button className="tray-action" disabled={!ids.length} title="Export with edits applied" onClick={() => exportPhotos(ids)}>
+          <button className="tray-action" disabled={!targets.length} title={`Export ${plural(targets.length, "picture")} with edits applied`} onClick={() => exportPhotos(targets)}>
             <ExportIcon />
             Export
           </button>
@@ -96,9 +95,6 @@ export default function Tray() {
         <span className="tgroup">
           <button className="tbtn icon" disabled title="People (coming soon)">
             <PersonIcon size={16} />
-          </button>
-          <button className="tbtn icon" disabled title="Places (coming soon)">
-            <PinIcon size={16} />
           </button>
           <button className={`tbtn icon${showProps && sidePanel === "tags" ? " pressed" : ""}`} title="Tags (Ctrl+T)" onClick={toggleTags}>
             <TagIcon size={16} />

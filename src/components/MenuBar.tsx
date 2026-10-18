@@ -1,10 +1,29 @@
 import { fmtShortcut, platformItem } from "../platform";
 import { useEffect, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
 import { selectVisible, useStore } from "../store";
-import { exportPhotos } from "../actions";
+import {
+  addFiles,
+  batchEdit,
+  copyEffects,
+  deletePhotos,
+  deleteFolder,
+  emailPhotos,
+  exportHtml,
+  exportPhotos,
+  moveFolder,
+  pasteEffects,
+  printPhotos,
+  renameFolder,
+  renamePhoto,
+  saveCopies,
+  setAsDesktop,
+} from "../actions";
+import { copyPicture, folderIds, trayIds } from "../share";
+import { checkForUpdates, openWebsite, reportProblem, showAbout } from "./ShortcutsDialog";
 
 export interface MenuEntry {
   label: string;
@@ -12,18 +31,35 @@ export interface MenuEntry {
   action?: () => void;
   checked?: boolean;
   sep?: boolean;
+  submenu?: MenuEntry[];
 }
 
 const sep: MenuEntry = { label: "", sep: true };
 
-/** Menus mirror Picasa 3's structure; entries without an action are shown disabled. */
+/** Picture › Batch Edit: one-click effects applied to every selected picture. */
+const BATCH: [string, string][] = [
+  ["I'm Feeling Lucky", "lucky"],
+  ["Auto Contrast", "autoContrast"],
+  ["Auto Color", "autoColor"],
+  ["Sharpen", "sharpen"],
+  ["Black & White", "bw"],
+  ["Sepia", "sepia"],
+  ["Warmify", "warmify"],
+];
+
+/**
+ * Menus mirror Picasa 3's structure, minus its Google services (web albums, Blogger, Order
+ * Prints, Google+). Entries without an action are shown disabled.
+ */
 function useMenus(): [string, MenuEntry[]][] {
   const s = useStore();
   const selected = [...s.selected];
-  const one = selected.length === 1 ? selected[0] : null;
+  const one = s.view === "edit" && s.editId != null ? s.editId : selected.length === 1 ? selected[0] : null;
   const vis = selectVisible(s);
   const folderPhotos = vis.find((v) => v.folder.id === s.currentFolderId)?.photos ?? [];
-  const currentFolder = s.currentFolderId != null ? s.folderById.get(s.currentFolderId) : undefined;
+  const currentFolder = s.currentFolderId != null && s.currentFolderId > 0 ? s.folderById.get(s.currentFolderId) : undefined;
+  const targets = trayIds();
+  const edited = targets.filter((id) => s.edits.has(id));
 
   return [
     [
@@ -32,26 +68,26 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "New Album...", shortcut: "Ctrl+N", action: () => s.setAlbumPicker(selected) },
         sep,
         { label: "Add Folder to Picaluma...", action: () => s.setFolderManager(true) },
-        { label: "Add File to Picaluma...", shortcut: "Ctrl+O" },
+        { label: "Add File to Picaluma...", shortcut: "Ctrl+O", action: addFiles },
         { label: "Import From...", shortcut: "Ctrl+M", action: () => s.setFolderManager(true) },
         sep,
-        { label: "Open File(s) in an Editor", shortcut: "Ctrl+Shift+O" },
+        { label: "Open File in an Editor", shortcut: "Ctrl+Shift+O", action: one != null ? () => api.getPhoto(one).then((p) => api.openInDefaultApp(p.path)) : undefined },
         sep,
-        { label: "Rename...", shortcut: "F2" },
-        { label: "Save", shortcut: "Ctrl+S" },
-        { label: "Revert" },
+        { label: "Rename...", shortcut: "F2", action: one != null ? () => renamePhoto(one) : undefined },
+        { label: "Save a Copy", shortcut: "Ctrl+S", action: edited.length ? () => saveCopies(edited) : undefined },
+        { label: "Revert", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
         sep,
-        { label: "Export Picture to Folder...", shortcut: "Ctrl+Shift+S", action: selected.length ? () => exportPhotos(selected) : undefined },
+        { label: "Export Picture to Folder...", shortcut: "Ctrl+Shift+S", action: targets.length ? () => exportPhotos(targets) : undefined },
         sep,
         {
           label: "Locate on Disk",
           shortcut: "Ctrl+Enter",
           action: one != null ? () => api.getPhoto(one).then((p) => revealItemInDir(p.path)) : undefined,
         },
-        { label: "Delete from Disk", shortcut: "Delete" },
+        { label: "Delete from Disk", shortcut: "Delete", action: selected.length ? () => deletePhotos(selected) : undefined },
         sep,
-        { label: "Print...", shortcut: "Ctrl+P" },
-        { label: "E-Mail...", shortcut: "Ctrl+E" },
+        { label: "Print...", shortcut: "Ctrl+P", action: targets.length ? () => printPhotos(targets) : undefined },
+        { label: "E-Mail...", shortcut: "Ctrl+E", action: targets.length ? () => emailPhotos(targets) : undefined },
         sep,
         { label: "Exit", action: () => getCurrentWindow().close() },
       ],
@@ -59,23 +95,14 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Edit",
       [
-        { label: "Cut", shortcut: "Ctrl+X" },
-        { label: "Copy", shortcut: "Ctrl+C" },
-        { label: "Paste", shortcut: "Ctrl+V" },
+        { label: "Copy Picture", shortcut: "Ctrl+C", action: one != null ? () => copyPicture(one) : undefined },
         sep,
-        { label: "Copy All Effects" },
-        { label: "Paste All Effects" },
+        { label: "Copy All Effects", action: one != null && s.edits.has(one) ? () => copyEffects(one) : undefined },
+        { label: "Paste All Effects", action: s.copiedEdits && targets.length ? () => pasteEffects(selected.length ? selected : targets) : undefined },
         sep,
         { label: "Select All", shortcut: "Ctrl+A", action: folderPhotos.length ? () => s.selectOnly(folderPhotos) : undefined },
-        {
-          label: "Select Starred",
-          action: () => s.selectOnly(folderPhotos.filter((p) => s.starred.has(p))),
-        },
-        {
-          label: "Invert Selection",
-          shortcut: "Ctrl+I",
-          action: () => s.selectOnly(folderPhotos.filter((p) => !s.selected.has(p))),
-        },
+        { label: "Select Starred", action: () => s.selectOnly(folderPhotos.filter((p) => s.starred.has(p))) },
+        { label: "Invert Selection", shortcut: "Ctrl+I", action: () => s.selectOnly(folderPhotos.filter((p) => !s.selected.has(p))) },
         { label: "Clear Selection", shortcut: "Ctrl+D", action: s.clearSelection },
       ],
     ],
@@ -85,13 +112,14 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Library View", checked: s.view === "library", action: s.view === "edit" ? () => s.closeEditor() : undefined },
         { label: "Edit View", shortcut: "Ctrl+3", checked: s.view === "edit", action: one != null ? () => s.openEditor(one) : undefined },
         sep,
-        { label: "Properties", checked: s.showProps, action: s.toggleProps },
-        { label: "Tags", shortcut: "Ctrl+T" },
-        { label: "People" , action: () => s.setLeftSection("people") },
-        { label: "Places" },
+        { label: "Properties", checked: s.showProps && s.sidePanel === "props", action: s.toggleProps },
+        { label: "Tags", shortcut: "Ctrl+T", checked: s.showProps && s.sidePanel === "tags", action: s.toggleTags },
+        { label: "People", action: () => s.setLeftSection("people") },
+        sep,
+        { label: "Flat Folder View", checked: s.folderView === "flat", action: () => s.setFolderView("flat") },
+        { label: "Tree Folder View", checked: s.folderView === "tree", action: () => s.setFolderView("tree") },
         sep,
         { label: "Slideshow", shortcut: "Ctrl+4", action: folderPhotos.length ? () => s.startSlideshow(folderPhotos) : undefined },
-        { label: "Timeline", shortcut: "Ctrl+5" },
         sep,
         { label: "Small Thumbnails", shortcut: "Ctrl+1", checked: s.thumbSize <= 110, action: () => s.setThumbSize(100) },
         { label: "Normal Thumbnails", shortcut: "Ctrl+2", checked: s.thumbSize > 110, action: () => s.setThumbSize(150) },
@@ -106,7 +134,19 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Refresh Thumbnails", action: () => api.rescan() },
         sep,
         { label: "Locate on Disk", action: currentFolder ? () => revealItemInDir(currentFolder.path) : undefined },
-        { label: "Remove from Picaluma..." },
+        {
+          label: "Remove from Picaluma...",
+          action: currentFolder
+            ? () => confirm(`Remove "${currentFolder.name}" from Picaluma?\n\nThe folder and its pictures stay on disk; Picaluma just stops showing it.`) && api.excludeFolder(currentFolder.path)
+            : undefined,
+        },
+        sep,
+        { label: "Rename Folder...", action: currentFolder ? () => renameFolder(currentFolder.id) : undefined },
+        { label: "Move Folder...", action: currentFolder ? () => moveFolder(currentFolder.id) : undefined },
+        { label: "Delete Folder...", action: currentFolder ? () => deleteFolder(currentFolder.id) : undefined },
+        sep,
+        { label: "Print Contact Sheet...", shortcut: "Ctrl+Shift+P", action: folderPhotos.length ? () => printPhotos(folderIds(), "index") : undefined },
+        { label: "Export as HTML Page...", action: currentFolder ? () => exportHtml(currentFolder.id) : undefined },
       ],
     ],
     [
@@ -114,10 +154,16 @@ function useMenus(): [string, MenuEntry[]][] {
       [
         { label: "View and Edit", shortcut: "Ctrl+3", action: one != null ? () => s.openEditor(one) : undefined },
         sep,
-        { label: "Undo All Edits", action: one != null && s.edits.has(one) ? () => s.setPhotoEdits(one, []) : undefined },
+        { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: targets.length ? () => batchEdit(targets, "rotate", 90) : undefined },
+        { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: targets.length ? () => batchEdit(targets, "rotate", -90) : undefined },
+        {
+          label: "Batch Edit",
+          submenu: BATCH.map(([label, op]) => ({ label, action: selected.length ? () => batchEdit(selected, op) : undefined })),
+        },
+        { label: "Undo All Edits", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
         sep,
         {
-          label: s.starred.has(one ?? -1) ? "Remove Star" : "Add Star",
+          label: one != null && s.starred.has(one) ? "Remove Star" : "Add Star",
           shortcut: "Ctrl+Shift+8",
           action: selected.length ? () => s.toggleStar(selected) : undefined,
         },
@@ -128,18 +174,18 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Create",
       [
-        { label: "Set as Desktop..." },
-        { label: "Make a Poster..." },
+        { label: "Picture Collage...", action: targets.length > 1 ? () => s.setCollage(targets) : undefined },
+        { label: "Make a Poster...", action: one != null ? () => printPhotos([one], "poster") : undefined },
+        { label: "Set as Desktop", action: one != null ? () => setAsDesktop(one) : undefined },
         sep,
-        { label: "Picture Collage..." },
-        { label: "Movie" },
+        { label: "Movie (coming soon)" },
       ],
     ],
     [
       "Tools",
       [
         { label: "Folder Manager...", action: () => s.setFolderManager(true) },
-        { label: "People Manager..." },
+        { label: "People Manager (coming soon)" },
         sep,
         { label: "Rescan Library", action: () => api.rescan() },
         sep,
@@ -149,7 +195,12 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Help",
       [
-        { label: "About Picaluma", action: () => alert("Picaluma 0.6.2\nOpen-source photo organizer\ngithub.com/mokyiichek/picaluma") },
+        { label: "Keyboard Shortcuts", action: () => s.setShortcutsOpen(true) },
+        { label: "Picaluma Website", action: openWebsite },
+        { label: "Report a Problem...", action: reportProblem },
+        { label: "Check for Updates...", action: checkForUpdates },
+        sep,
+        { label: "About Picaluma", action: showAbout },
       ],
     ],
   ];
@@ -160,11 +211,42 @@ function focusDescription(folderId: number) {
   setTimeout(() => (document.querySelector(`[data-desc="${folderId}"]`) as HTMLInputElement | null)?.focus(), 80);
 }
 
+function Item({ e, close }: { e: MenuEntry; close: () => void }) {
+  const [sub, setSub] = useState(false);
+  const p = platformItem(e.label, e.shortcut);
+  const enabled = !!e.action || !!e.submenu?.some((x) => x.action);
+  return (
+    <div
+      className={`menu-item${enabled ? "" : " disabled"}${e.checked ? " checked" : ""}${e.submenu ? " has-sub" : ""}`}
+      onMouseEnter={() => e.submenu && setSub(true)}
+      onMouseLeave={() => e.submenu && setSub(false)}
+      onMouseUp={() => {
+        if (!e.action) return;
+        close();
+        e.action();
+      }}
+    >
+      <span>{p.label}</span>
+      {e.submenu ? <span className="shortcut">▸</span> : p.shortcut && <span className="shortcut">{fmtShortcut(p.shortcut)}</span>}
+      {e.submenu && sub && (
+        <div className="menu-drop submenu">
+          {e.submenu.map((x, i) => (x.sep ? <div key={i} className="menu-sep" /> : <Item key={i} e={x} close={close} />))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MenuBar() {
   const menus = useMenus();
   const [open, setOpen] = useState<string | null>(null);
+  const [version, setVersion] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const titleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -198,28 +280,11 @@ export default function MenuBar() {
       ))}
       <span className="brand">
         <img src="/logo.png" width={14} height={14} alt="" style={{ verticalAlign: -2, marginRight: 5 }} />
-        Picaluma 0.6
+        Picaluma {version}
       </span>
       {openEntries && (
         <div className="menu-drop" style={{ left }}>
-          {openEntries.map((e, i) =>
-            e.sep ? (
-              <div key={i} className="menu-sep" />
-            ) : (
-              <div
-                key={i}
-                className={`menu-item${e.action ? "" : " disabled"}${e.checked ? " checked" : ""}`}
-                onMouseUp={() => {
-                  if (!e.action) return;
-                  setOpen(null);
-                  e.action();
-                }}
-              >
-                <span>{platformItem(e.label).label}</span>
-                {platformItem(e.label, e.shortcut).shortcut && <span className="shortcut">{fmtShortcut(platformItem(e.label, e.shortcut).shortcut!)}</span>}
-              </div>
-            ),
-          )}
+          {openEntries.map((e, i) => (e.sep ? <div key={i} className="menu-sep" /> : <Item key={i} e={e} close={() => setOpen(null)} />))}
         </div>
       )}
     </div>

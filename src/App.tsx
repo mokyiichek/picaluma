@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, ScanProgress } from "./api";
 import { selectEditorSequence, useStore } from "./store";
-import { deletePhotos } from "./actions";
+import { addFiles, deletePhotos, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
+import { copyPicture, folderIds, trayIds } from "./share";
 import { isDeleteKey, isMac, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
 import LibraryToolbar from "./components/LibraryToolbar";
@@ -19,6 +20,11 @@ import TagsPanel from "./components/TagsPanel";
 import ScanNotifier from "./components/ScanNotifier";
 import OptionsDialog from "./components/OptionsDialog";
 import AlbumPicker from "./components/AlbumPicker";
+import ExportDialog from "./components/ExportDialog";
+import EmailDialog from "./components/EmailDialog";
+import PrintView from "./components/PrintView";
+import CollageDialog from "./components/CollageDialog";
+import ShortcutsDialog from "./components/ShortcutsDialog";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
@@ -44,7 +50,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
-      if (typing || st.slideshow) return;
+      if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen) return;
       const sel = [...st.selected];
       if (mod(e) && e.shiftKey && (e.key === "8" || e.key === "*")) {
         e.preventDefault();
@@ -93,6 +99,34 @@ export default function App() {
         } else {
           deletePhotos(sel, permanent);
         }
+      } else if (e.key === "F2" && trayIds().length === 1) {
+        e.preventDefault();
+        renamePhoto(trayIds()[0]);
+      } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        const ids = trayIds().filter((id) => st.edits.has(id));
+        if (ids.length) saveCopies(ids);
+      } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "c" && !window.getSelection()?.toString() && trayIds().length === 1) {
+        e.preventDefault();
+        copyPicture(trayIds()[0]);
+      } else if (mod(e) && e.key.toLowerCase() === "o" && !e.shiftKey) {
+        e.preventDefault();
+        addFiles();
+      } else if (mod(e) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        st.setFolderManager(true);
+      } else if (mod(e) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        const ids = e.shiftKey ? folderIds() : trayIds();
+        if (ids.length) printPhotos(ids, e.shiftKey ? "index" : undefined); // Ctrl+Shift+P: Print Contact Sheet
+      } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        const ids = trayIds();
+        if (ids.length) emailPhotos(ids);
+      } else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        const ids = trayIds();
+        if (ids.length) exportPhotos(ids);
       } else if (mod(e) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         st.setAlbumPicker(sel);
@@ -150,6 +184,11 @@ export default function App() {
       <ScanNotifier />
       <OptionsDialog />
       <AlbumPicker />
+      <ExportDialog />
+      <EmailDialog />
+      <PrintView />
+      <CollageDialog />
+      <ShortcutsDialog />
     </div>
   );
 }

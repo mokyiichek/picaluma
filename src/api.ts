@@ -97,7 +97,16 @@ export const api = {
   setFolderDescription: (id: number, description: string) =>
     invoke<void>("set_folder_description", { id, description }),
   setEdits: (id: number, edits: string) => invoke<void>("set_edits", { id, edits }),
-  exportPicture: (path: string, dataBase64: string) => invoke<void>("export_picture", { path, dataBase64 }),
+  /** Writes a JPEG (never overwriting) and returns the path actually used. */
+  exportPicture: (path: string, dataBase64: string) => invoke<string>("export_picture", { path, dataBase64 }),
+  makeExportDir: (location: string, name: string) => invoke<string>("make_export_dir", { location, name }),
+  copyInto: (src: string, dir: string) => invoke<string>("copy_into", { src, dir }),
+  emailDir: () => invoke<string>("email_dir"),
+  emailFiles: (paths: string[], subject: string) => invoke<void>("email_files", { paths, subject }),
+  printWindow: () => invoke<void>("print_window"),
+  writeTextFile: (path: string, text: string) => invoke<void>("write_text_file", { path, text }),
+  setWallpaper: (dataBase64: string) => invoke<void>("set_wallpaper", { dataBase64 }),
+  renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
   setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),
   getTags: (ids: number[]) => invoke<TagCount[]>("get_tags", { ids }),
   suggest: (prefix: string) => invoke<TagCount[]>("suggest", { prefix }),

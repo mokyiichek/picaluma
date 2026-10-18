@@ -24,7 +24,7 @@ export function fmtShortcut(s: string): string {
   const sym: Record<string, string> = { Ctrl: "⌘", Shift: "⇧", Alt: "⌥" };
   const order = ["Alt", "Shift", "Ctrl"];
   const mods = order.filter((m) => parts.includes(m)).map((m) => sym[m]).join("");
-  const keyName: Record<string, string> = { Delete: "⌫", Enter: "↩" };
+  const keyName: Record<string, string> = { Delete: "⌫", Backspace: "⌫", Enter: "↩", Left: "←", Right: "→", Esc: "⎋" };
   return mods + (keyName[key] ?? key);
 }
 

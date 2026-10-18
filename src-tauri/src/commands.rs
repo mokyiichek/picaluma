@@ -519,9 +519,16 @@ pub fn ui_log(message: String) {
   log::info!("[ui] {message}");
 }
 
-/// Writes a rendered (edited) copy produced by the frontend canvas.
+/// Writes a rendered (edited) copy produced by the frontend canvas and returns the path used.
 #[tauri::command]
-pub fn export_picture(path: String, data_base64: String) -> CmdResult<()> {
+pub fn export_picture(path: String, data_base64: String) -> CmdResult<String> {
   let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(err)?;
-  std::fs::write(path, bytes).map_err(err)
+  // Never overwrite: "beach.jpg" becomes "beach (2).jpg" if the name is taken.
+  let path = PathBuf::from(path);
+  let dir = path.parent().map(PathBuf::from).unwrap_or_default();
+  std::fs::create_dir_all(&dir).map_err(err)?;
+  let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+  let target = crate::fileops::unique_target(&dir, name);
+  std::fs::write(&target, bytes).map_err(err)?;
+  Ok(target.to_string_lossy().into_owned())
 }

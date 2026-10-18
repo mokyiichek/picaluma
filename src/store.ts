@@ -25,6 +25,7 @@ export interface VisibleFolder {
 }
 
 export type Section = "albums" | "people" | "folders";
+export type FolderSort = "updated" | "created" | "name" | "size";
 
 interface State {
   snapshot: Snapshot | null;
@@ -52,6 +53,14 @@ interface State {
   query: string;
   search: { ids: Set<number>; seconds: number } | null;
   starredOnly: boolean;
+  /** Filters › geotagged: only pictures with GPS coordinates. */
+  geoOnly: boolean;
+  /** Folder list: Picasa's flat (grouped by date) or tree (disk hierarchy) view. */
+  folderView: "flat" | "tree";
+  folderSort: FolderSort;
+  sortReverse: boolean;
+  /** Edit › Copy All Effects. */
+  copiedEdits: Edit[] | null;
   scan: ScanProgress;
   flight: Flight | null;
   slideshow: { photos: number[]; index: number } | null;
@@ -61,6 +70,14 @@ interface State {
   albumView: number | null;
   /** Photos waiting for an album choice in the Add to Album dialog. */
   albumPicker: number[] | null;
+  /** Export / E-mail dialog and the photos it acts on. */
+  share: { kind: "export" | "email"; ids: number[] } | null;
+  /** Print screen and the photos (and starting layout) it prints. */
+  print: { ids: number[]; layout?: string } | null;
+  /** Create › Picture Collage dialog. */
+  collage: number[] | null;
+  /** Help › Keyboard Shortcuts dialog. */
+  shortcutsOpen: boolean;
 
   loadSnapshot: () => Promise<void>;
   setScan: (p: ScanProgress) => void;
@@ -86,6 +103,10 @@ interface State {
   runSearch: (q: string) => Promise<void>;
   clearSearch: () => void;
   setStarredOnly: (on: boolean) => void;
+  setGeoOnly: (on: boolean) => void;
+  setFolderView: (v: "flat" | "tree") => void;
+  setFolderSort: (sort: FolderSort, reverse: boolean) => void;
+  setCopiedEdits: (edits: Edit[] | null) => void;
   toggleStar: (ids: number[]) => Promise<void>;
   setPhotoEdits: (id: number, edits: Edit[]) => void;
   startSlideshow: (photos: number[], index?: number) => void;
@@ -95,6 +116,10 @@ interface State {
   setFolderDescription: (id: number, text: string) => void;
   openAlbum: (id: number | null) => void;
   setAlbumPicker: (ids: number[] | null) => void;
+  setShare: (share: State["share"]) => void;
+  setPrint: (print: State["print"]) => void;
+  setCollage: (ids: number[] | null) => void;
+  setShortcutsOpen: (open: boolean) => void;
   createAlbum: (name: string, ids: number[]) => Promise<number>;
   addToAlbum: (albumId: number, ids: number[]) => Promise<void>;
   removeFromAlbum: (albumId: number, ids: number[]) => Promise<void>;
@@ -129,6 +154,11 @@ export const useStore = create<State>((set, get) => ({
   query: "",
   search: null,
   starredOnly: false,
+  geoOnly: false,
+  folderView: localStorageGet("folderView") === "tree" ? "tree" : "flat",
+  folderSort: (["updated", "created", "name", "size"].includes(localStorageGet("folderSort") ?? "") ? localStorageGet("folderSort") : "updated") as FolderSort,
+  sortReverse: localStorageGet("sortReverse") === "1",
+  copiedEdits: null,
   scan: { scanning: false, phase: "", foldersSeen: 0, photosFound: 0, indexed: 0, toIndex: 0, current: "" },
   flight: null,
   slideshow: null,
@@ -136,6 +166,10 @@ export const useStore = create<State>((set, get) => ({
   scrollTarget: null,
   albumView: null,
   albumPicker: null,
+  share: null,
+  print: null,
+  collage: null,
+  shortcutsOpen: false,
 
   loadSnapshot: async () => {
     const snapshot = await api.snapshot();
@@ -287,6 +321,17 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setStarredOnly: (starredOnly) => set({ starredOnly }),
+  setGeoOnly: (geoOnly) => set({ geoOnly }),
+  setFolderView: (folderView) => {
+    localStorageSet("folderView", folderView);
+    set({ folderView });
+  },
+  setFolderSort: (folderSort, sortReverse) => {
+    localStorageSet("folderSort", folderSort);
+    localStorageSet("sortReverse", sortReverse ? "1" : "0");
+    set({ folderSort, sortReverse });
+  },
+  setCopiedEdits: (copiedEdits) => set({ copiedEdits }),
 
   toggleStar: async (ids) => {
     if (!ids.length) return;
@@ -338,6 +383,10 @@ export const useStore = create<State>((set, get) => ({
     }),
 
   setAlbumPicker: (albumPicker) => set({ albumPicker }),
+  setShare: (share) => set({ share: share && share.ids.length ? share : null }),
+  setPrint: (print) => set({ print: print && print.ids.length ? print : null }),
+  setCollage: (ids) => set({ collage: ids && ids.length ? ids : null }),
+  setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
 
   createAlbum: async (name, ids) => {
     const id = await api.createAlbum(name, ids);
@@ -386,22 +435,52 @@ export function selectAlbum(s: State): Album | undefined {
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.geoOnly, s.folderView, s.folderSort, s.sortReverse];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
   const album = selectAlbum(s);
-  const folders = album ? [albumAsFolder(album)] : s.snapshot?.folders ?? [];
+  const folders = album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
   const ids = s.search?.ids;
   const value: VisibleFolder[] = [];
   for (const folder of folders) {
     let photos = folder.photos;
-    if (ids || s.starredOnly) {
-      photos = photos.filter((p) => (!ids || ids.has(p)) && (!s.starredOnly || s.starred.has(p)));
+    if (ids || s.starredOnly || s.geoOnly) {
+      photos = photos.filter((p) => (!ids || ids.has(p)) && (!s.starredOnly || s.starred.has(p)) && (!s.geoOnly || s.geotagged.has(p)));
       if (!photos.length) continue;
     }
     value.push({ folder, photos });
   }
   visCache = { key, value };
   return value;
+}
+
+export const pathParts = (p: string) => p.split(/[\\/]+/).filter(Boolean);
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** Disk order, folder by folder ("2019" < "2019/Trip" < "2020"), as in Picasa's tree view. */
+export function comparePaths(a: string, b: string): number {
+  const pa = pathParts(a);
+  const pb = pathParts(b);
+  for (let i = 0; i < Math.min(pa.length, pb.length); i++) {
+    const c = collator.compare(pa[i], pb[i]);
+    if (c) return c;
+  }
+  return pa.length - pb.length;
+}
+
+let sortCache: { key: unknown[]; value: Folder[] } | null = null;
+
+/** Folder order for the tree and grid. The snapshot arrives newest-updated first. */
+function sortFolders(folders: Folder[], view: "flat" | "tree", sort: FolderSort, reverse: boolean): Folder[] {
+  const key = [folders, view, sort, reverse];
+  if (sortCache && sortCache.key.every((k, i) => k === key[i])) return sortCache.value;
+  let out = folders;
+  if (view === "tree") out = [...folders].sort((a, b) => comparePaths(a.path, b.path));
+  else if (sort === "created") out = [...folders].sort((a, b) => b.dateMin - a.dateMin);
+  else if (sort === "name") out = [...folders].sort((a, b) => collator.compare(a.name, b.name));
+  else if (sort === "size") out = [...folders].sort((a, b) => b.bytes - a.bytes);
+  if (reverse) out = [...out].reverse();
+  sortCache = { key, value: out };
+  return out;
 }
 
 /** Photos the editor's prev/next and filmstrip walk through: the current folder, filtered. */

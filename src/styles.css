@@ -1737,3 +1737,298 @@ input[type="range"]:focus {
   height: 34px;
   justify-content: flex-start;
 }
+
+/* ---------- Export / E-mail dialogs ---------- */
+.modal.share-dialog {
+  width: 520px;
+}
+.share-dialog .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.share-dialog .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.share-dialog .row input:not([type]) ,
+.share-dialog .field > input {
+  flex: 1;
+}
+.share-dialog input:not([type="radio"]):not([type="checkbox"]):not([type="range"]),
+.share-dialog select,
+.print-left select {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid #b9b9b9;
+  border-radius: 2px;
+  background: #fff;
+  font: inherit;
+}
+.share-dialog fieldset {
+  border: 1px solid #ccc;
+  padding: 6px 12px 10px;
+  margin: 0 0 10px;
+}
+.opt-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  cursor: pointer;
+}
+.opt-radio .slider {
+  width: 160px;
+}
+.tbtn.default {
+  border-color: #6d8fb3;
+  background: linear-gradient(#fdfdfd, #d6e4f2);
+  font-weight: 600;
+}
+.progress-note {
+  margin-right: auto;
+  align-self: center;
+  color: var(--muted);
+}
+
+/* ---------- Print screen ---------- */
+.print-view {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  background: var(--panel);
+  animation: fade 160ms var(--ease-out);
+}
+.print-left {
+  width: 270px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--toolbar-edge);
+  background: #fafafa;
+  overflow: auto;
+}
+.print-left section {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e3e3e3;
+}
+.print-left h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #444;
+}
+.layouts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.layout-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.layout-btn:hover {
+  background: #eef3f8;
+}
+.layout-btn.active {
+  border-color: var(--sel-ring);
+  background: #e2eefa;
+}
+.prow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.stepper .tbtn {
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+}
+.print-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid #e3e3e3;
+}
+.print-preview {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  background: var(--edit-canvas);
+}
+.page-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.page-wrap .muted {
+  color: #eee;
+}
+.sheet {
+  position: relative;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.pcell {
+  position: absolute;
+  background: #fff;
+}
+.pbox {
+  position: relative;
+  overflow: hidden;
+}
+.pbox.black {
+  outline: 1px solid #000;
+}
+.pbox img {
+  display: block;
+}
+.pcap {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: #333;
+}
+.print-root {
+  display: none;
+}
+@media print {
+  html,
+  body,
+  #root {
+    height: auto;
+    overflow: visible;
+    background: #fff;
+  }
+  #root {
+    display: none;
+  }
+  .print-root {
+    display: block;
+  }
+  .print-root .sheet {
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+}
+
+/* ---------- Tree folder view ---------- */
+.tree-row .twisty {
+  display: inline-flex;
+  width: 12px;
+  justify-content: center;
+  flex: none;
+  cursor: pointer;
+}
+.tree-row .twisty.leaf {
+  visibility: hidden;
+}
+.tree-row.dir {
+  color: #555;
+}
+.tree-row.dir .name {
+  font-style: italic;
+}
+.sort-menu {
+  top: 28px;
+  left: 0;
+  z-index: 60;
+  min-width: 170px;
+}
+.tbtn.caret {
+  width: 18px;
+  padding: 0;
+  justify-content: center;
+  font-size: 10px;
+}
+
+/* ---------- Collage ---------- */
+.modal.collage {
+  width: 760px;
+}
+.collage-body {
+  display: flex;
+  gap: 16px;
+}
+.collage-opts {
+  width: 210px;
+  flex: none;
+}
+.collage-opts .slider {
+  width: 100%;
+}
+.collage-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  background: #e2e2e2;
+  border: 1px solid #ccc;
+}
+.collage-preview canvas {
+  max-width: 100%;
+  max-height: 340px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- Keyboard shortcuts ---------- */
+.modal.shortcuts {
+  width: 560px;
+}
+.shortcuts h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  color: #444;
+}
+.shortcuts section:first-child h4 {
+  margin-top: 0;
+}
+.shortcuts table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.shortcuts td {
+  padding: 3px 4px;
+  border-bottom: 1px solid #e6e6e6;
+}
+.shortcuts td.keys {
+  text-align: right;
+  white-space: nowrap;
+  color: #2b5f8e;
+  font-family: "Segoe UI", -apple-system, sans-serif;
+}
+.menu-drop.submenu {
+  top: -3px;
+  left: 100%;
+  min-width: 180px;
+}

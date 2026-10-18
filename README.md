@@ -19,7 +19,7 @@ Get the latest version from **[Releases](https://github.com/mokyiichek/picaluma/
 |----------|------|-------|
 | **Windows 10/11** (64-bit) | `Picaluma_x.y.z_x64-setup.exe` | Installs for your user only — no admin rights needed. If SmartScreen says *"Windows protected your PC"*, click **More info → Run anyway** (the installer isn't code-signed yet). |
 | **Linux** (x86-64) | `Picaluma_x.y.z_amd64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Debian/Ubuntu: `sudo apt install ./Picaluma_x.y.z_amd64.deb`. |
-| **macOS 11+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. Signed with a Developer ID and notarized by Apple, so it opens like any other Mac app. Or install from Terminal: `curl -fsSL https://ahmok.com/picaluma/install.sh \| bash` |
+| **macOS 11+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. If macOS says it can't verify Picaluma: ** → System Settings → Privacy & Security → Open Anyway** (once). Or install from Terminal with no prompts: `curl -fsSL https://ahmok.com/picaluma/install.sh \| bash` |
 
 On first launch, add the folders you want Picaluma to watch. On Windows it can also
 import your old Picasa folder list in one click.
@@ -40,6 +40,8 @@ import your old Picasa folder list in one click.
 - **Albums** — collect pictures from any folders into albums (right-click › Add to Album,
   Ctrl+N). Albums never move or copy your files.
 - **Tags, stars and captions** — Tags panel (Ctrl+T) with one-click Quick Tags.
+- **Flat or tree folder view** — Picasa's date-grouped list or your disk's folder tree;
+  sort by creation date, recent changes, size or name. Filters for starred and geotagged photos.
 - **File management** — Move to Folder, Copy to Folder, Move to New Folder, Delete from
   Disk, Rename / Move / Delete Folder. Delete sends pictures to the Recycle Bin / Trash;
   Shift+Delete (⌥⌘⌫ on Mac) deletes permanently. Moved pictures keep their stars, tags,
@@ -54,13 +56,22 @@ import your old Picasa folder list in one click.
   Color Temperature.
 - 30+ effects — Sepia, B&W, Warmify, Film Grain, Lomo-ish, HDR-ish, Cinemascope, Vignette,
   Border, Polaroid and more — with live previews, full undo/redo and a live histogram.
-- Export with edits applied, fullscreen slideshow, EXIF Properties panel.
+- Copy and paste all effects between pictures; Batch Edit applies an effect to a whole selection.
+- Save a Copy writes the edited picture beside the original.
+
+**Share and create**
+- **Export to Folder** — resize, choose quality, add a watermark.
+- **E-mail** — resized copies attached to a new message in Outlook, Thunderbird, Apple Mail or
+  your Linux mail app, or saved to a folder for Gmail and other web mail.
+- **Print** — wallet to 8×10 and full-page layouts, contact sheets, borders, copies, Letter/A4.
+- **Picture Collage**, **Make a Poster**, **Set as Desktop**, **Export as HTML Page**.
+- Fullscreen slideshow, EXIF Properties panel.
 
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned: People (local face grouping), Places map, timeline, collage, red-eye/retouch,
-`.picasa.ini` import, Folder Manager redesign, flat/tree folder views.
+Planned: People (local face grouping), Places map, movies, red-eye/retouch, hide/unhide,
+`.picasa.ini` import, Folder Manager redesign.
 
 ## Build from source
 

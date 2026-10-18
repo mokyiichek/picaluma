@@ -82,12 +82,19 @@ jobs:
             } >> "$GITHUB_ENV"
             echo "Developer ID signing: enabled"
             if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-              {
-                echo "APPLE_ID=$APPLE_ID"
-                echo "APPLE_PASSWORD=$APPLE_PASSWORD"
-                echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
-              } >> "$GITHUB_ENV"
-              echo "Notarization: enabled"
+              # Ask Apple first: if notarization is refused (for example a developer agreement
+              # waiting to be accepted), still ship a Developer ID-signed build instead of failing.
+              if out=$(xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" 2>&1); then
+                {
+                  echo "APPLE_ID=$APPLE_ID"
+                  echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+                  echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+                  echo "NOTARIZE=1"
+                } >> "$GITHUB_ENV"
+                echo "Notarization: enabled"
+              else
+                echo "::warning::Notarization skipped — Apple refused: $(echo "$out" | tail -3 | tr '\n' ' ')"
+              fi
             else
               echo "Notarization: skipped (APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID not set)"
             fi
@@ -122,19 +129,19 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/v')"
         run: npx tauri build ${{ matrix.args }}
 
-      # With Developer ID configured, fail the build unless Gatekeeper accepts the notarized app,
-      # so an unapproved Mac build is never released.
+      # When notarization ran, fail the build unless Gatekeeper accepts the app, so a build Apple
+      # didn't approve is never released as "notarized".
       - name: Check macOS signature
         if: matrix.name == 'macos'
         run: |
           APP=src-tauri/target/universal-apple-darwin/release/bundle/macos/Picaluma.app
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority|Signature|TeamIdentifier|Identifier"
-          if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+          if [ -n "${NOTARIZE:-}" ]; then
             spctl -a -t exec -vv "$APP"
             xcrun stapler validate "$APP"
           else
-            spctl -a -t exec -vv "$APP" || echo "Gatekeeper: not notarized (Apple secrets not set)"
+            spctl -a -t exec -vv "$APP" || echo "Gatekeeper: not notarized"
           fi
 
       - name: Upload installers

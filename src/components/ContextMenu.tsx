@@ -5,7 +5,23 @@ import { api } from "../api";
 import { Edit } from "../effects";
 import { selectVisible, useStore } from "../store";
 import { MenuEntry } from "./MenuBar";
-import { deleteFolder, deletePhotos, moveFolder, moveToNewFolder, renameFolder, transferPhotos } from "../actions";
+import {
+  copyEffects,
+  deleteFolder,
+  deletePhotos,
+  emailPhotos,
+  exportHtml,
+  exportPhotos,
+  moveFolder,
+  moveToNewFolder,
+  pasteEffects,
+  printPhotos,
+  renameFolder,
+  renamePhoto,
+  setAsDesktop,
+  transferPhotos,
+} from "../actions";
+import { copyPicture } from "../share";
 
 const sep: MenuEntry = { label: "", sep: true };
 
@@ -88,17 +104,24 @@ function photoEntries(): MenuEntry[] {
     { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: () => rotateSelected(90) },
     { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: () => rotateSelected(-90) },
     sep,
+    { label: "Copy All Effects", action: one != null && s.edits.has(one) ? () => copyEffects(one) : undefined },
+    { label: "Paste All Effects", action: s.copiedEdits ? () => pasteEffects(ids) : undefined },
     { label: "Undo all Edits", action: ids.some((id) => s.edits.has(id)) ? () => ids.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
     sep,
     { label: ids.every((id) => s.starred.has(id)) ? "Remove Star" : "Add Star", shortcut: "Ctrl+Shift+8", action: () => s.toggleStar(ids) },
-    { label: "Hide" },
     sep,
     { label: "Move to Folder...", action: ids.length ? () => transferPhotos(ids, false) : undefined },
     { label: "Copy to Folder...", action: ids.length ? () => transferPhotos(ids, true) : undefined },
     { label: "Move to New Folder...", action: ids.length ? () => moveToNewFolder(ids) : undefined },
     sep,
+    { label: "Rename...", shortcut: "F2", action: one != null ? () => renamePhoto(one) : undefined },
     { label: "Open File", shortcut: "Ctrl+Shift+O", action: withPath((p) => api.openInDefaultApp(p)) },
-    { label: "Open With" },
+    { label: "Copy Picture", shortcut: "Ctrl+C", action: one != null ? () => copyPicture(one) : undefined },
+    { label: "Set as Desktop", action: one != null ? () => setAsDesktop(one) : undefined },
+    sep,
+    { label: "Print...", shortcut: "Ctrl+P", action: ids.length ? () => printPhotos(ids) : undefined },
+    { label: "E-Mail...", shortcut: "Ctrl+E", action: ids.length ? () => emailPhotos(ids) : undefined },
+    { label: "Export Picture to Folder...", shortcut: "Ctrl+Shift+S", action: ids.length ? () => exportPhotos(ids) : undefined },
     sep,
     { label: "Locate on Disk", shortcut: "Ctrl+Enter", action: withPath((p) => revealItemInDir(p)) },
     { label: "Delete from Disk", shortcut: isMac ? "Ctrl+Delete" : "Delete", action: ids.length ? () => deletePhotos(ids) : undefined },
@@ -153,9 +176,7 @@ function folderEntries(folderId: number): MenuEntry[] {
     sep,
     { label: "View Slideshow", shortcut: "Ctrl+4", action: () => s.startSlideshow(photos) },
     { label: "Refresh Thumbnails", action: () => api.rescan() },
-    { label: "Sort Folder By" },
-    sep,
-    { label: "Hide Folder" },
+    { label: "Picture Collage...", action: photos.length > 1 ? () => s.setCollage(photos) : undefined },
     sep,
     { label: "Locate on Disk", shortcut: "Ctrl+Enter", action: folder ? () => revealItemInDir(folder.path) : undefined },
     {
@@ -171,6 +192,8 @@ function folderEntries(folderId: number): MenuEntry[] {
     { label: "Move Folder...", action: folder ? () => moveFolder(folderId) : undefined },
     { label: "Delete Folder...", action: folder ? () => deleteFolder(folderId) : undefined },
     sep,
-    { label: "Export as HTML Page..." },
+    { label: "Print Contact Sheet...", shortcut: "Ctrl+Shift+P", action: photos.length ? () => printPhotos(photos, "index") : undefined },
+    { label: "Export Folder to...", action: photos.length ? () => exportPhotos(photos) : undefined },
+    { label: "Export as HTML Page...", action: folder ? () => exportHtml(folderId) : undefined },
   ];
 }

@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Section, selectVisible, useStore } from "../store";
+import { pathParts, Section, selectVisible, useStore } from "../store";
 import { fmtMonth } from "../format";
 import { CollapseIcon, FolderIcon, PicturesIcon, StarIcon } from "./Icons";
 import type { Album } from "../api";
 
 const NO_ALBUMS: Album[] = [];
 
-type Row = { kind: "group"; label: string } | { kind: "folder"; id: number; name: string; count: number };
+type Row =
+  | { kind: "group"; label: string }
+  | { kind: "folder"; id: number; name: string; count: number; depth?: number; key?: string; parent?: boolean }
+  | { kind: "dir"; name: string; depth: number; key: string };
 
 const ROW_H = 22;
 
@@ -124,22 +127,63 @@ function FolderTree() {
   );
   const current = useStore((s) => s.currentFolderId);
   const selectFolder = useStore((s) => s.selectFolder);
+  const view = useStore((s) => s.folderView);
+  const sort = useStore((s) => s.folderSort);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // Picasa groups folders under "Updated <Month Year>" headings, newest first.
   const rows = useMemo(() => {
     const out: Row[] = [];
+    if (view === "tree") {
+      // Disk hierarchy below the folders' common parent. Parents without pictures appear as plain rows.
+      const parts = visible.map((v) => pathParts(v.folder.path));
+      let common = parts.length ? parts[0].length - 1 : 0;
+      for (const p of parts) {
+        let i = 0;
+        while (i < common && i < p.length - 1 && p[i].toLowerCase() === parts[0][i].toLowerCase()) i++;
+        common = i;
+      }
+      const seen = new Map<string, Row>();
+      visible.forEach(({ folder, photos }, n) => {
+        const p = parts[n];
+        for (let d = common; d < p.length; d++) {
+          const key = p.slice(0, d + 1).join("/").toLowerCase();
+          const parentKey = p.slice(0, d).join("/").toLowerCase();
+          const parent = seen.get(parentKey);
+          if (parent && parent.kind !== "group") (parent as { parent?: boolean }).parent = true;
+          if (d === p.length - 1) {
+            const row: Row = { kind: "folder", id: folder.id, name: folder.name, count: photos.length, depth: d - common, key };
+            seen.set(key, row);
+            out.push(row);
+          } else if (!seen.has(key)) {
+            const row: Row = { kind: "dir", name: p[d], depth: d - common, key };
+            seen.set(key, row);
+            out.push(row);
+          }
+        }
+      });
+      // Hide everything under a collapsed row.
+      return out.filter((r) => r.kind === "group" || ![...collapsed].some((c) => r.key !== c && r.key!.startsWith(c + "/")));
+    }
+    // Flat view: Picasa groups folders under "Updated <Month Year>" (or the date taken) headings.
     let last = "";
     for (const { folder, photos } of visible) {
-      const label = `Updated ${fmtMonth(folder.updated)}`;
-      if (label !== last) {
+      const label = sort === "updated" ? `Updated ${fmtMonth(folder.updated)}` : sort === "created" ? fmtMonth(folder.dateMin) : "";
+      if (label && label !== last) {
         out.push({ kind: "group", label });
         last = label;
       }
       out.push({ kind: "folder", id: folder.id, name: folder.name, count: photos.length });
     }
     return out;
-  }, [visible]);
+  }, [visible, view, sort, collapsed]);
+
+  const toggle = (key: string) =>
+    setCollapsed((c) => {
+      const next = new Set(c);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   const rowIndex = useMemo(() => {
     const m = new Map<number, number>();
@@ -177,11 +221,32 @@ function FolderTree() {
                 {r.label}
               </div>
             );
+          const indent = r.depth != null ? { paddingLeft: 6 + r.depth * 16 } : undefined;
+          const twisty =
+            r.depth != null ? (
+              <span
+                className={`twisty${(r.kind === "dir" || r.parent) ? "" : " leaf"}`}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (r.kind === "dir" || r.parent) toggle(r.key!);
+                }}
+              >
+                <CollapseIcon open={!collapsed.has(r.key!)} />
+              </span>
+            ) : null;
+          if (r.kind === "dir")
+            return (
+              <div key={item.key} className="tree-row dir" style={{ ...style, ...indent }} onMouseDown={() => toggle(r.key)}>
+                {twisty}
+                <FolderIcon />
+                <span className="name">{r.name}</span>
+              </div>
+            );
           return (
             <div
               key={item.key}
               className={`tree-row${r.id === current ? " sel" : ""}`}
-              style={style}
+              style={{ ...style, ...indent }}
               onMouseDown={(e) => e.button === 0 && selectFolder(r.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -189,6 +254,7 @@ function FolderTree() {
                 useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "folder", folderId: r.id });
               }}
             >
+              {twisty}
               <FolderIcon />
               <span className="name">
                 {r.name} ({r.count.toLocaleString()})

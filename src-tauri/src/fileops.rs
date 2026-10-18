@@ -128,6 +128,37 @@ pub fn rename_folder(state: State<'_, AppState>, id: i64, name: String) -> CmdRe
   Ok(new_path.to_string_lossy().into_owned())
 }
 
+/// File › Rename (F2): renames a picture on disk, keeping its extension and its row (stars,
+/// captions, edits, albums). Returns the new file name.
+#[tauri::command]
+pub fn rename_photo(state: State<'_, AppState>, id: i64, name: String) -> CmdResult<String> {
+  let stem = name.trim();
+  if stem.is_empty() || stem.contains(['\\', '/', ':', '*', '?', '"', '<', '>', '|']) {
+    return Err("That name contains characters a file name can't have.".into());
+  }
+  let conn = state.db.lock().map_err(err)?;
+  let old: String = conn.query_row("SELECT path FROM photos WHERE id = ?1", [id], |r| r.get(0)).map_err(err)?;
+  let old_path = PathBuf::from(&old);
+  let ext = old_path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+  // Accept "beach.jpg" as well as "beach" without doubling the extension.
+  let stem = stem.strip_suffix(ext.as_str()).filter(|s| !ext.is_empty() && !s.is_empty()).unwrap_or(stem);
+  let file_name = format!("{stem}{ext}");
+  let new_path = old_path.with_file_name(&file_name);
+  if new_path == old_path {
+    return Ok(file_name);
+  }
+  // Case-only renames (beach.jpg → Beach.jpg) are allowed on case-insensitive disks.
+  if new_path.exists() && !old.eq_ignore_ascii_case(&new_path.to_string_lossy()) {
+    return Err(format!("A file named \"{file_name}\" already exists in that folder."));
+  }
+  std::fs::rename(&old_path, &new_path).map_err(err)?;
+  conn
+    .execute("UPDATE photos SET path = ?1, name = ?2 WHERE id = ?3", params![new_path.to_string_lossy(), file_name, id])
+    .map_err(err)?;
+  db::reindex_photo(&conn, id).map_err(err)?;
+  Ok(file_name)
+}
+
 /// Move a folder (with everything inside it) into `dest_parent`.
 #[tauri::command]
 pub fn move_folder(app: AppHandle, state: State<'_, AppState>, id: i64, dest_parent: String) -> CmdResult<String> {
@@ -258,7 +289,7 @@ fn with_sep(p: &str) -> String {
   }
 }
 
-fn unique_target(dir: &Path, name: String) -> PathBuf {
+pub(crate) fn unique_target(dir: &Path, name: String) -> PathBuf {
   let first = dir.join(&name);
   if !first.exists() {
     return first;

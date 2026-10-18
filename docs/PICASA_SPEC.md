@@ -11,10 +11,10 @@ Top to bottom:
 | Region            | Height | Contents                                                                                     | Status |
 |-------------------|--------|----------------------------------------------------------------------------------------------|--------|
 | Menu bar          | 22     | File · Edit · View · Folder · Picture · Create · Tools · Help; account link at right          | ✅      |
-| Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 |
+| Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆ and geotag ✅; faces ⬜; uploaded/movies dropped — Google Web Albums, no video support) |
 | Main              | flex   | Left tree (≈505 px, resizable) · splitter · thumbnail grid · Properties panel (≈278 px, toggle) | ✅ |
 | Status bar        | 17     | Blue `#568FB7`, white bold 11 px, centered: `252 pictures   Apr 12, 2013 to Aug 4, 2026   92.7MB on disk` | ✅ |
-| Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | 🟡 |
+| Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ⬜; Share and Places dropped — Google+ and Google Maps) |
 
 ### Palette (sampled)
 
@@ -133,7 +133,12 @@ Color Space, Thumbnail. ✅ (embedded thumbnail preview ⬜)
   Configure Screensaver… · Back Up Pictures… · Batch Upload… · Adjust Date and Time… ·
   Download Name Tags… · Upload ▸ · Geotag ▸ · Experimental ▸ · Configure Buttons… · Options…
 
-Picaluma keeps the same menu structure; unimplemented entries are shown disabled.
+Picaluma keeps the same menu structure without Picasa's Google services (Import from Web
+Albums, Order Prints, Publish to Blogger, Upload/Batch Upload, Download Name Tags, Gift CD, TiVo).
+Implemented: every File entry (Save writes a *copy*, originals are never changed), Copy Picture,
+Copy/Paste All Effects, Flat/Tree Folder View, Batch Edit ▸, Print Contact Sheet, Export as
+HTML Page, Set as Desktop, Make a Poster, Picture Collage, Help › Keyboard Shortcuts / Check for
+Updates. Still disabled: Movie, People Manager, Hide/Unhide, Timeline, Places.
 
 ## 9. Controls, cursors and selection
 
@@ -160,7 +165,7 @@ Reset Faces · Properties Alt+Enter. ✅ Move/Copy to Folder, Move to New Folder
 **Folder** (right-click tree row or folder header): Edit Folder Description… · Select All
 Pictures Ctrl+A · Clear Selection Ctrl+D · Invert Selection Ctrl+I · Move to Collection ▸ ·
 Refresh Thumbnails · Sort Folder By ▸ · Hide Folder · Locate on Disk Ctrl+Enter · Remove from
-Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML Page… · Add name tags. ✅ (Rename/Move/Delete Folder ✅; HTML export, Sort By, Hide ⬜)
+Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML Page… · Add name tags. ✅ (Rename/Move/Delete Folder, HTML export, Print Contact Sheet ✅; sorting lives in the toolbar ▾; Hide ⬜)
 
 ## 11. Crop and Straighten
 
@@ -187,3 +192,21 @@ Picasa stores its scan list in `<AppLocalDataPath>\Google\Picasa2\db3\scanlist.t
 (`AppLocalDataPath` from `HKCU\Software\Google\Picasa\Picasa2\Preferences`, default
 `%LOCALAPPDATA%`). Lines prefixed `+` are "Scan Always" roots (often whole drives); plain
 lines are excluded folders. Picaluma imports this file verbatim. ✅
+
+## 14. Export, E-mail, Print and Create
+
+- **Export to Folder** (tray Export, Ctrl+Shift+S): location + Browse, name of the new folder
+  (defaults to the current folder's name), Image size (Use original size / Resize to *n*
+  pixels slider), Image quality (Automatic · Normal · Maximum · Minimum · Custom %), Watermark
+  (bottom-right text). Opens the exported folder when done. ✅
+- **E-mail** (Ctrl+E): Picasa asked which mail service to use. Picaluma sends resized copies
+  (640 / 1024 / 1600 / original) to the system mail program (Simple MAPI on Windows for Outlook,
+  Thunderbird…; Mail on macOS; `xdg-email` on Linux) or saves them to a folder for web mail. ✅
+- **Print** (Ctrl+P) replaces the window with a print screen: layouts Wallet · 3.5×5 · 4×6 ·
+  5×7 · 8×10 · Full Page · Index Print (contact sheet, Ctrl+Shift+P); Shrink to Fit / Crop to
+  Fit; borders; copies per picture; Letter or A4; live page previews; system print dialog. ✅
+- **Make a Poster**: one picture enlarged across 2×2, 3×3 or 4×4 pages. ✅
+- **Picture Collage**: Mosaic or Picture Grid, page format, background, spacing; saved to
+  *Pictures/Picaluma/Collages* or set as the desktop. ✅ (Picasa's Picture Pile, Frame Mosaic
+  and Contact Sheet collage styles ⬜)
+- **Set as Desktop** (Windows, macOS, GNOME/KDE). ✅

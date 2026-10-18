@@ -1,8 +1,56 @@
 import { useEffect, useRef, useState } from "react";
 import { api, TagCount } from "../api";
 import { mod } from "../platform";
-import { useStore } from "../store";
-import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, MovieIcon, PicturesIcon, TagIcon } from "./Icons";
+import { FolderSort, useStore } from "../store";
+import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, TagIcon } from "./Icons";
+
+const SORTS: [FolderSort, string][] = [
+  ["created", "Creation Date"],
+  ["updated", "Recent Changes"],
+  ["size", "Size"],
+  ["name", "Name"],
+];
+
+/** The ▾ next to the view buttons: Picasa's folder sort order. */
+function SortMenu() {
+  const [open, setOpen] = useState(false);
+  const sort = useStore((s) => s.folderSort);
+  const reverse = useStore((s) => s.sortReverse);
+  const view = useStore((s) => s.folderView);
+  const setSort = useStore((s) => s.setFolderSort);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+  return (
+    <span ref={ref} style={{ position: "relative" }}>
+      <button className={`tbtn icon caret${open ? " pressed" : ""}`} title="Sort folders" onClick={() => setOpen(!open)}>
+        ▾
+      </button>
+      {open && (
+        <div className="menu-drop sort-menu">
+          {view === "tree" && <div className="menu-item disabled">Tree view is in disk order</div>}
+          {SORTS.map(([id, label]) => (
+            <div
+              key={id}
+              className={`menu-item${sort === id && view === "flat" ? " checked" : ""}${view === "tree" ? " disabled" : ""}`}
+              onMouseDown={() => view === "flat" && (setSort(id, reverse), setOpen(false))}
+            >
+              {label}
+            </div>
+          ))}
+          <div className="menu-sep" />
+          <div className={`menu-item${reverse ? " checked" : ""}`} onMouseDown={() => (setSort(sort, !reverse), setOpen(false))}>
+            Reverse Order
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 const lastToken = (q: string) => (q.endsWith(" ") ? "" : q.split(/\s+/).pop() ?? "");
 
@@ -12,6 +60,10 @@ export default function LibraryToolbar() {
   const clearSearch = useStore((s) => s.clearSearch);
   const starredOnly = useStore((s) => s.starredOnly);
   const setStarredOnly = useStore((s) => s.setStarredOnly);
+  const geoOnly = useStore((s) => s.geoOnly);
+  const setGeoOnly = useStore((s) => s.setGeoOnly);
+  const folderView = useStore((s) => s.folderView);
+  const setFolderView = useStore((s) => s.setFolderView);
   const scanning = useStore((s) => s.scan.scanning);
   const setFolderManager = useStore((s) => s.setFolderManager);
   const input = useRef<HTMLInputElement>(null);
@@ -52,29 +104,24 @@ export default function LibraryToolbar() {
         <ImportIcon /> Import
       </button>
       <span className="tgroup">
-        <button className="tbtn icon pressed" title="Flat folder view">
+        <button className={`tbtn icon${folderView === "flat" ? " pressed" : ""}`} title="Flat folder view" onClick={() => setFolderView("flat")}>
           <ListFlatIcon />
         </button>
-        <button className="tbtn icon" title="Tree folder view (coming soon)" disabled>
+        <button className={`tbtn icon${folderView === "tree" ? " pressed" : ""}`} title="Tree folder view" onClick={() => setFolderView("tree")}>
           <ListTreeIcon />
         </button>
       </span>
+      <SortMenu />
       <div className="filters">
         <span className="label">Filters</span>
         <span className="row">
           <button className={`tbtn${starredOnly ? " pressed" : ""}`} title="Show only starred photos" onClick={() => setStarredOnly(!starredOnly)}>
             <StarIcon size={14} />
           </button>
-          <button className="tbtn" title="Show only uploaded photos (coming soon)" disabled>
-            <PicturesIcon size={14} />
-          </button>
-          <button className="tbtn" title="Show only photos with faces (coming soon)" disabled>
+          <button className="tbtn" title="Show only photos with faces (coming with face grouping)" disabled>
             <PersonIcon size={14} />
           </button>
-          <button className="tbtn" title="Show only movies (coming soon)" disabled>
-            <MovieIcon size={14} />
-          </button>
-          <button className="tbtn" title="Show only geotagged items (coming soon)" disabled>
+          <button className={`tbtn${geoOnly ? " pressed" : ""}`} title="Show only geotagged photos" onClick={() => setGeoOnly(!geoOnly)}>
             <PinIcon size={14} />
           </button>
         </span>

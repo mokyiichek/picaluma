@@ -1,11 +1,28 @@
 # Changelog
 
-## 0.6.3 — 2026-10-18
+## 0.7.0 — 2026-10-19
 
-- **macOS** — signed with an Apple Developer ID and notarized by Apple: download the .dmg, drag
-  Picaluma to Applications and open it, with no security warning or *Open Anyway* step.
-- **One-line Mac install** — `curl -fsSL https://ahmok.com/picaluma/install.sh | bash` downloads,
-  installs and opens the latest version, and saves a report if it can't start.
+- **E-mail** — resized copies with your edits, attached to a new message in your mail program
+  (Outlook, Thunderbird… on Windows; Mail on macOS; your Linux mail app), or saved to a folder
+  for Gmail and other web mail.
+- **Export to Folder** — Picasa's dialog: new folder name, original size or resize, quality
+  (Automatic / Normal / Maximum / Minimum / Custom), watermark. Unedited JPEGs are copied
+  untouched, keeping their camera data.
+- **Print** — a print screen with Wallet, 3.5×5, 4×6, 5×7, 8×10, Full Page and Index Print
+  (contact sheet) layouts, Shrink or Crop to Fit, borders, copies, Letter/A4 and page previews.
+- **Create** — Picture Collage (mosaic or grid), Make a Poster (2×2 to 4×4 pages), Set as
+  Desktop, and Folder › Export as HTML Page.
+- **Folder views** — Flat or Tree view, and sort by creation date, recent changes, size or name
+  (toolbar ▾). Geotagged-photos filter.
+- **Editing** — Rename (F2), Save a Copy (Ctrl+S), Copy Picture, Copy / Paste All Effects,
+  Picture › Batch Edit.
+- **Menus** — every Picasa menu entry that doesn't depend on a Google service now works;
+  Google-only entries (Share, web album upload, uploaded filter, Places, Timeline) are gone.
+  Help › Keyboard Shortcuts and Check for Updates.
+- **New app icon** — simpler: eight tiles on a square grid.
+- **macOS** — builds are signed with an Apple Developer ID. One-line Terminal install:
+  `curl -fsSL https://ahmok.com/picaluma/install.sh | bash`. Apple notarization (no prompt at
+  all) switches on automatically once the developer account's agreement is accepted.
 
 ## 0.6.2 — 2026-10-18
 

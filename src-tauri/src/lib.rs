@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod fileops;
 mod scanner;
+mod share;
 mod thumbs;
 
 use std::path::PathBuf;
@@ -80,6 +81,14 @@ pub fn run() {
       commands::set_folder_description,
       commands::set_edits,
       commands::export_picture,
+      share::make_export_dir,
+      share::copy_into,
+      share::email_dir,
+      share::email_files,
+      share::print_window,
+      share::write_text_file,
+      share::set_wallpaper,
+      fileops::rename_photo,
       commands::ui_log,
       commands::set_tags,
       commands::get_tags,
