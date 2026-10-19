@@ -60,10 +60,9 @@ jobs:
           workspaces: src-tauri -> target
           key: ${{ matrix.name }}
 
-      # macOS signing. With the Apple secrets set, builds are signed with the Developer ID and
-      # notarized by Apple (no Gatekeeper warnings). Without them, tauri.conf.json's ad-hoc
-      # identity ("-") is used, so the app still opens after "Open Anyway" instead of being
-      # reported as damaged.
+      # Distribution builds must be Developer ID signed and notarized. Pull requests may use
+      # tauri.conf.json's ad-hoc identity ("-") because GitHub does not expose repository secrets
+      # to untrusted PRs.
       - name: Configure Apple signing
         if: matrix.name == 'macos'
         env:
@@ -74,6 +73,11 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          require_distribution=0
+          case "$GITHUB_REF" in
+            refs/heads/main|refs/tags/v*) require_distribution=1 ;;
+          esac
+
           if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
             {
               echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE"
@@ -81,26 +85,35 @@ jobs:
               echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
             } >> "$GITHUB_ENV"
             echo "Developer ID signing: enabled"
-            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-              # Ask Apple first: if notarization is refused (for example a developer agreement
-              # waiting to be accepted), still ship a Developer ID-signed build instead of failing.
-              if out=$(xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" 2>&1); then
-                {
-                  echo "APPLE_ID=$APPLE_ID"
-                  echo "APPLE_PASSWORD=$APPLE_PASSWORD"
-                  echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
-                  echo "NOTARIZE=1"
-                } >> "$GITHUB_ENV"
-                echo "Notarization: enabled"
-              else
-                echo "::warning::Notarization skipped — Apple refused: $(echo "$out" | tail -3 | tr '\n' ' ')"
-              fi
-            else
-              echo "Notarization: skipped (APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID not set)"
-            fi
+          elif [ "$require_distribution" -eq 1 ]; then
+            echo "::error::Developer ID signing secrets are required for main and tagged builds"
+            exit 1
           else
-            echo "Developer ID signing: not configured — using ad-hoc signature"
+            echo "Developer ID signing: unavailable for pull request — using ad-hoc signature"
+            exit 0
           fi
+
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            if [ "$require_distribution" -eq 1 ]; then
+              echo "::error::Apple notarization credentials are required for main and tagged builds"
+              exit 1
+            fi
+            echo "Notarization: unavailable for pull request"
+            exit 0
+          fi
+
+          if ! out=$(xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" 2>&1); then
+            echo "::error::Apple notarization is unavailable: $(echo "$out" | tail -3 | tr '\n' ' ')"
+            exit 1
+          fi
+
+          {
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+            echo "NOTARIZE=1"
+          } >> "$GITHUB_ENV"
+          echo "Notarization: enabled"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -129,8 +142,8 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/v')"
         run: npx tauri build ${{ matrix.args }}
 
-      # When notarization ran, fail the build unless Gatekeeper accepts the app, so a build Apple
-      # didn't approve is never released as "notarized".
+      # Fail distribution builds unless Gatekeeper accepts the app and the notarization ticket is
+      # stapled. This prevents a signed-but-unnotarized DMG from reaching a release.
       - name: Check macOS signature
         if: matrix.name == 'macos'
         run: |
@@ -140,8 +153,11 @@ jobs:
           if [ -n "${NOTARIZE:-}" ]; then
             spctl -a -t exec -vv "$APP"
             xcrun stapler validate "$APP"
+          elif [[ "$GITHUB_REF" == refs/heads/main || "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "::error::Distribution build completed without notarization"
+            exit 1
           else
-            spctl -a -t exec -vv "$APP" || echo "Gatekeeper: not notarized"
+            echo "Pull request build: notarization not required"
           fi
 
       - name: Upload installers
