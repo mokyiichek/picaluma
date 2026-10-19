@@ -67,7 +67,8 @@
     .dl span { text-align: left; line-height: 1.25; }
     .meta { margin-top: 14px; color: var(--muted); font-size: 14px; }
 
-    /* App mock (illustration, no personal photos) */
+    .preview { display: block; width: 100%; max-width: 960px; height: auto; margin: 34px auto 0; border-radius: 8px; box-shadow: 0 18px 50px rgba(0,0,0,0.18); }
+    /* App mock (rendered to preview.jpg by scripts/make-preview.py) */
     .mock {
       margin: 44px auto 0; max-width: 920px; border: 1px solid #c8ced4; border-radius: 8px; overflow: hidden;
       box-shadow: 0 18px 50px rgba(20, 40, 60, 0.18); background: #f2f2f2; text-align: left;
@@ -116,11 +117,11 @@
     .mock .tools span { border: 1px solid #b9b9b9; border-radius: 3px; background: linear-gradient(#fdfdfd, #e3e3e3); padding: 1px 6px; font-size: 11px; color: #444; }
 
     .install { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-    .install .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 24px; }
+    .install .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 24px; min-width: 0; }
     .install h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 10px; }
     .install ol { margin: 0; padding-left: 20px; color: var(--muted); }
     .install li { margin: 6px 0; }
-    .install .cmd { margin: 8px 0 4px; padding: 10px 12px; background: #1e2430; color: #e8ecf3; border-radius: 6px; font-size: 12.5px; overflow-x: auto; user-select: all; }
+    .install .cmd { margin: 8px 0 4px; padding: 10px 12px; background: #1e2430; color: #e8ecf3; border-radius: 6px; font-size: 12.5px; overflow-x: auto; user-select: all; white-space: pre-wrap; word-break: break-all; }
     kbd { background: #eef1f4; border: 1px solid #cfd5db; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 13px ui-monospace, Menlo, Consolas, monospace; color: var(--ink); }
 
     footer { padding: 32px 0 44px; color: var(--muted); font-size: 14px; text-align: center; }
@@ -173,38 +174,7 @@
       </div>
       <p class="meta"><span id="version">Latest release</span> · Free &amp; open source · Also for <a id="dl-linux" href="https://github.com/mokyiichek/picaluma/releases/latest">Linux</a> (<a id="dl-deb" href="https://github.com/mokyiichek/picaluma/releases/latest">.deb</a>) · <a href="https://github.com/mokyiichek/picaluma/releases">All versions</a></p>
 
-      <div class="mock" aria-hidden="true">
-        <div class="bar">
-          <span style="font-size:12px;color:#333">File&nbsp;&nbsp; Edit&nbsp;&nbsp; View&nbsp;&nbsp; Folder&nbsp;&nbsp; Picture&nbsp;&nbsp; Create&nbsp;&nbsp; Tools&nbsp;&nbsp; Help</span>
-          <span class="tools"><span>☰ Flat</span><span>🌲 Tree</span><span>▾</span><span>☆</span><span>📍</span></span>
-          <span class="search">🔍 beach</span>
-        </div>
-        <div class="body">
-          <div class="tree">
-            <div class="grp">Updated October 2026</div>
-            <div class="sel">📁 Summer Holiday (248)</div>
-            <div>📁 Family Dinner (36)</div>
-            <div class="grp">Updated September 2026</div>
-            <div>📁 Garden (91)</div>
-            <div>📁 Weekend Hike (127)</div>
-            <div>📁 Birthday (58)</div>
-            <div class="grp">Updated August 2026</div>
-            <div>📁 City Walk (73)</div>
-            <div>📁 Scanned Film (412)</div>
-          </div>
-          <div class="grid">
-            <h4>Summer Holiday</h4>
-            <div class="tiles" id="tiles"></div>
-          </div>
-        </div>
-        <div class="status">248 pictures &nbsp;&nbsp; Jul 2, 2026 to Jul 14, 2026 &nbsp;&nbsp; 1.2GB on disk</div>
-        <div class="tray">
-          <span class="stack"></span><span>1 photo selected</span>
-          <span class="pill">☆</span><span class="pill">⟲</span><span class="pill">⟳</span>
-          <span class="grow"></span>
-          <span class="pill">✉ Email</span><span class="pill">🖨 Print</span><span class="pill">⇪ Export</span>
-        </div>
-      </div>
+      <img class="preview" src="preview.jpg" width="960" height="431" alt="Picaluma showing a folder of holiday photos, with the folder list on the left and Email, Print and Export in the tray" />
     </div>
 
     <section id="features" class="alt">
@@ -288,17 +258,6 @@
   </footer>
 
   <script>
-    // Sample holiday photos for the app mock — free Unsplash photos served by Lorem Picsum.
-    const photos = [1015, 1011, 1040, 1043, 1050, 1039, 1047, 1067, 129, 1016];
-    const tiles = document.getElementById("tiles");
-    photos.forEach((id, i) => {
-      const t = document.createElement("img");
-      t.className = "tile" + (i === 6 ? " sel" : "");
-      t.src = `https://picsum.photos/id/${id}/320/240`;
-      t.alt = "";
-      t.loading = "lazy";
-      tiles.appendChild(t);
-    });
 
     // Highlight the visitor's platform.
     const isMac = /Mac/.test(navigator.userAgent) && !/iPhone|iPad/.test(navigator.userAgent);

@@ -7,7 +7,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $site = $PSScriptRoot
-$files = Get-ChildItem $site -File | Where-Object { $_.Extension -in '.html', '.png', '.css', '.js', '.svg', '.ico' }
+$files = Get-ChildItem $site -File | Where-Object { $_.Extension -in '.html', '.png', '.jpg', '.css', '.js', '.svg', '.ico' }
 ssh -i $Key -o BatchMode=yes "root@$ServerHost" "mkdir -p $Remote"
 scp -i $Key -o BatchMode=yes @($files.FullName) "root@${ServerHost}:$Remote/"
 # One-line Mac installer: curl -fsSL https://ahmok.com/picaluma/install.sh | bash
