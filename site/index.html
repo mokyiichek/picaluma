@@ -100,6 +100,20 @@
     .stat div { text-align: center; }
     .stat b { display: block; font: 400 40px Georgia, serif; color: var(--green); }
     .stat span { color: var(--muted); font-size: 14px; }
+    .sources { width: 100%; max-width: 860px; margin: 40px auto 0; border-collapse: collapse; font-size: 15px; }
+    .sources th, .sources td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: right; }
+    .sources th:first-child, .sources td:first-child { text-align: left; }
+    .sources th { font-size: 13px; color: var(--muted); font-weight: 600; }
+    .sources td small { display: block; color: var(--muted); font-size: 12.5px; }
+    .sources tfoot td { font-weight: 700; border-bottom: none; }
+    .measured { text-align: center; color: var(--muted); font-size: 13px; margin-top: 14px; }
+    .table-wrap { overflow-x: auto; }
+    .mock .tray { height: 46px; background: #f8f8f8; border-top: 1px solid #ccc; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 12px; color: #333; }
+    .mock .tray .pill { border: 1px solid #b9b9b9; border-radius: 3px; background: linear-gradient(#fdfdfd, #e3e3e3); padding: 3px 10px; }
+    .mock .tray .stack { width: 34px; height: 30px; background: #ddd url('https://picsum.photos/id/1047/80/60') center/cover; box-shadow: 1px 2px 3px rgba(0,0,0,.35); margin-right: 4px; }
+    .mock .tray .grow { flex: 1; }
+    .mock .tools { display: flex; gap: 4px; margin-left: 14px; }
+    .mock .tools span { border: 1px solid #b9b9b9; border-radius: 3px; background: linear-gradient(#fdfdfd, #e3e3e3); padding: 1px 6px; font-size: 11px; color: #444; }
 
     .install { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
     .install .card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 24px; }
@@ -141,7 +155,7 @@
       <h1>Your photos, the Picasa way.</h1>
       <p class="tagline">A free, open-source photo organizer and editor for Windows, Mac and Linux. Every folder on one page, instant search, one-click fixes — and your originals are never touched.</p>
       <ul class="badges">
-        <li><b>⚡ Fast</b> searches 12,000 photos in 0.003 s</li>
+        <li><b>⚡ Fast</b> searches 712,000 photos in milliseconds</li>
         <li><b>🪶 Tiny</b> 4 MB download</li>
         <li><b>💻 Everywhere</b> Windows · Mac · Linux</li>
         <li><b>🔒 Private</b> offline, no account</li>
@@ -161,7 +175,8 @@
 
       <div class="mock" aria-hidden="true">
         <div class="bar">
-          <span style="font-size:12px;color:#333">File&nbsp;&nbsp; Edit&nbsp;&nbsp; View&nbsp;&nbsp; Folder&nbsp;&nbsp; Picture&nbsp;&nbsp; Create&nbsp;&nbsp; Tools</span>
+          <span style="font-size:12px;color:#333">File&nbsp;&nbsp; Edit&nbsp;&nbsp; View&nbsp;&nbsp; Folder&nbsp;&nbsp; Picture&nbsp;&nbsp; Create&nbsp;&nbsp; Tools&nbsp;&nbsp; Help</span>
+          <span class="tools"><span>☰ Flat</span><span>🌲 Tree</span><span>▾</span><span>☆</span><span>📍</span></span>
           <span class="search">🔍 beach</span>
         </div>
         <div class="body">
@@ -183,6 +198,12 @@
           </div>
         </div>
         <div class="status">248 pictures &nbsp;&nbsp; Jul 2, 2026 to Jul 14, 2026 &nbsp;&nbsp; 1.2GB on disk</div>
+        <div class="tray">
+          <span class="stack"></span><span>1 photo selected</span>
+          <span class="pill">☆</span><span class="pill">⟲</span><span class="pill">⟳</span>
+          <span class="grow"></span>
+          <span class="pill">✉ Email</span><span class="pill">🖨 Print</span><span class="pill">⇪ Export</span>
+        </div>
       </div>
     </div>
 
@@ -197,6 +218,9 @@
           <div class="feature"><div class="ico" style="background:#fde8e7">🛡️</div><h3>Originals never touched</h3><p>Every edit is non-destructive and can be undone. Export a copy with your edits whenever you like.</p></div>
           <div class="feature"><div class="ico" style="background:#f0e9fb">🏷️</div><h3>Albums, stars &amp; tags</h3><p>Gather pictures from any folders into albums, star your favourites and tag them for later.</p></div>
           <div class="feature"><div class="ico" style="background:#e5f5f7">🔒</div><h3>Private &amp; offline</h3><p>Everything stays on your computer. No account, no upload, no subscription — just your photos.</p></div>
+          <div class="feature"><div class="ico" style="background:#e8f1fd">✉️</div><h3>Email, print &amp; export</h3><p>Send resized copies through your mail app, print wallet to full-page layouts and contact sheets, or export with a watermark.</p></div>
+          <div class="feature"><div class="ico" style="background:#eaf6e4">🖼️</div><h3>Collages &amp; posters</h3><p>Mosaic and grid collages, posters across several pages, web-page galleries, and one click to set your desktop.</p></div>
+          <div class="feature"><div class="ico" style="background:#fff3df">☁️</div><h3>Cloud drives, no downloads</h3><p>OneDrive, Google Drive, Dropbox and Synology Drive folders are listed in seconds. Online-only photos stay online until you look at them.</p></div>
         </div>
       </div>
     </section>
@@ -204,12 +228,29 @@
     <section>
       <div class="wrap">
         <h2>Fast on real libraries</h2>
-        <p class="lead">Measured on a 23,000-photo library stored on a network drive.</p>
+        <p class="lead">Tested on one real collection: <b>712,064 photos (1.7 TB) in 10,731 folders</b>, spread over external hard disks, an internal archive disk, a Synology NAS, and Dropbox, OneDrive and Google Drive.</p>
         <div class="stat">
-          <div><b>0.003 s</b><span>to search 12,000+ photos</span></div>
-          <div><b>4.7 s</b><span>to list 23,588 photos from a network drive</span></div>
+          <div><b>11 min 40 s</b><span>to list all 712,064 photos</span></div>
+          <div><b>1–13 ms</b><span>typical search across the whole library</span></div>
+          <div><b>0</b><span>cloud photos downloaded while scanning</span></div>
           <div><b>4 MB</b><span>Windows installer</span></div>
         </div>
+        <div class="table-wrap">
+          <table class="sources">
+            <thead><tr><th>Where the photos live</th><th>Photos</th><th>Size</th><th>Listed in</th></tr></thead>
+            <tbody>
+              <tr><td>External hard disk<small>USB Drobo 5D</small></td><td>241,807</td><td>711 GB</td><td>1 min 17 s</td></tr>
+              <tr><td>Internal archive hard disk<small>first scan, cold cache</small></td><td>241,807</td><td>711 GB</td><td>3 min 35 s</td></tr>
+              <tr><td>NAS<small>Synology Drive</small></td><td>141,237</td><td>229 GB</td><td>3 min 13 s</td></tr>
+              <tr><td>Dropbox</td><td>79,276</td><td>57 GB</td><td>3 min 28 s</td></tr>
+              <tr><td>External hard disk<small>USB Drobo Mini</small></td><td>7,078</td><td>0.3 GB</td><td>6.9 s</td></tr>
+              <tr><td>Google Drive<small>streaming drive — all online-only, nothing downloaded</small></td><td>731</td><td>5.8 GB</td><td>0.2 s</td></tr>
+              <tr><td>OneDrive<small>including the Windows Pictures folder</small></td><td>128</td><td>0.1 GB</td><td>0.6 s</td></tr>
+            </tbody>
+            <tfoot><tr><td>All together</td><td>712,064</td><td>1.7 TB</td><td>11 min 40 s</td></tr></tfoot>
+          </table>
+        </div>
+        <p class="measured">Searches: "beach" 1,272 matches in 0.6 ms · "family trip" 5,016 in 11 ms · "iphone" 24,203 in 13 ms · even "dsc", matching 329,914 photos, in 0.19 s.<br>Measured 19 Oct 2026 with Picaluma 0.7.2 on a Windows 10 PC (Core i7-7700K). The library database and thumbnails live on the local SSD. After listing, dates, camera details and thumbnails fill in from the background, newest folders first.</p>
       </div>
     </section>
 
