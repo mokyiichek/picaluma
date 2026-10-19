@@ -3,7 +3,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { fmtShortcut, isMac } from "../platform";
 import { useStore } from "../store";
 
-const SITE = "https://ahmok.com/picaluma/";
+import { ISSUES_URL, SITE_URL } from "./AboutDialog";
+
 const LATEST = "https://api.github.com/repos/mokyiichek/picaluma/releases/latest";
 
 const GROUPS: [string, [string, string][]][] = [
@@ -103,19 +104,14 @@ export async function checkForUpdates() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const latest = (await res.json()).tag_name as string;
     if (newer(latest, current)) {
-      if (confirm(`Picaluma ${latest.replace(/^v/, "")} is available (you have ${current}).\n\nOpen the download page?`)) openUrl(SITE);
+      if (confirm(`Picaluma ${latest.replace(/^v/, "")} is available (you have ${current}).\n\nOpen the download page?`)) openUrl(SITE_URL);
     } else {
       alert(`You have the latest version of Picaluma (${current}).`);
     }
   } catch (e) {
-    if (confirm(`Couldn't check for updates (${e}).\n\nOpen the Picaluma website instead?`)) openUrl(SITE);
+    if (confirm(`Couldn't check for updates (${e}).\n\nOpen the Picaluma website instead?`)) openUrl(SITE_URL);
   }
 }
 
-export async function showAbout() {
-  const v = await getVersion();
-  alert(`Picaluma ${v}\nA fast, free photo organizer and editor in the spirit of Picasa 3.\n\n${SITE}\ngithub.com/mokyiichek/picaluma\n\nNot affiliated with Google. "Picasa" is a trademark of Google LLC.`);
-}
-
-export const openWebsite = () => openUrl(SITE);
-export const reportProblem = () => openUrl("https://github.com/mokyiichek/picaluma/issues/new");
+export const openWebsite = () => openUrl(SITE_URL);
+export const reportProblem = () => openUrl(`${ISSUES_URL}/new`);

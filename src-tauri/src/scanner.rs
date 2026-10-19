@@ -3,9 +3,11 @@
 //! 1. **Listing** walks the watched folders and records every picture from directory metadata
 //!    alone (name, size, mtime). No file is opened, so even cloud-synced folders (Synology
 //!    Drive, OneDrive placeholders) appear in the library within seconds, folder by folder.
-//! 2. **Indexing** then reads each new or changed file exactly once, newest folders first,
-//!    extracting EXIF *and* writing its thumbnail from the same bytes. It yields to the UI's
-//!    on-screen thumbnail requests and reports progress for the scanning popup.
+//! 2. **Indexing** then reads just the start of each new or changed file (EXIF and dimensions
+//!    live in the first few KB), newest folders first. Thumbnails need the whole file, so they're
+//!    made when pictures scroll into view and by the background warmer afterwards: on hard disks
+//!    and NAS drives, where reading 700k whole photos took days, dates and camera details now fill
+//!    in quickly. Indexing yields to on-screen thumbnail requests and reports progress.
 //!
 //! Online-only cloud files (OneDrive, Synology Drive and Dropbox placeholders, everything on a
 //! Google Drive streaming drive, macOS "dataless" File Provider files) are listed but skipped by
@@ -91,7 +93,9 @@ pub fn skip_dir(path: &Path) -> bool {
 const EVENT_THROTTLE: Duration = Duration::from_millis(400);
 /// Photos indexed per DB transaction.
 const INDEX_BATCH: usize = 48;
-const INDEX_THREADS: usize = 3;
+const INDEX_THREADS: usize = 4;
+/// Indexing reads this much of each file; enough for EXIF (APP1 ≤ 64 KB) and the image header.
+const HEADER_BYTES: u64 = 256 * 1024;
 
 #[derive(Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -421,7 +425,6 @@ struct Pending {
   id: i64,
   folder_id: i64,
   path: String,
-  mtime: i64,
 }
 
 fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut ScanProgress) {
@@ -429,12 +432,12 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
     let conn = db.lock().unwrap();
     let mut stmt = conn
       .prepare(
-        "SELECT p.id, p.folder_id, p.path, p.mtime FROM photos p JOIN folders f ON f.id = p.folder_id
+        "SELECT p.id, p.folder_id, p.path FROM photos p JOIN folders f ON f.id = p.folder_id
          WHERE p.meta_done = 0 ORDER BY f.updated DESC, p.folder_id, p.name",
       )
       .unwrap();
     let rows = stmt
-      .query_map([], |r| Ok(Pending { id: r.get(0)?, folder_id: r.get(1)?, path: r.get(2)?, mtime: r.get(3)? }))
+      .query_map([], |r| Ok(Pending { id: r.get(0)?, folder_id: r.get(1)?, path: r.get(2)? }))
       .unwrap();
     rows.filter_map(Result::ok).collect()
   };
@@ -442,7 +445,6 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
     return;
   }
   let state = app.state::<AppState>();
-  let thumb_dir = state.thumb_dir.clone();
   let queue = state.thumbs.clone();
   progress.phase = "indexing".into();
   progress.to_index = pending.len() as u64;
@@ -466,7 +468,7 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
           while queue.pending() > 0 {
             std::thread::sleep(Duration::from_millis(30));
           }
-          let meta = index_file(&thumb_dir, p);
+          let meta = index_file(p);
           done.fetch_add(1, Ordering::Relaxed);
           (p, meta)
         })
@@ -510,18 +512,31 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
   }
 }
 
-/// Read the file once: EXIF + dimensions, and write its thumbnail if not cached yet.
-fn index_file(thumb_dir: &Path, p: &Pending) -> Meta {
+/// EXIF and dimensions from the start of the file. TIFF and HEIF may keep EXIF further in, so
+/// those are read whole when the header alone doesn't have it.
+fn index_file(p: &Pending) -> Meta {
+  use std::io::Read;
   let mut meta = empty_meta();
-  let Ok(bytes) = std::fs::read(&p.path) else { return meta };
+  let Ok(file) = std::fs::File::open(&p.path) else { return meta };
+  let mut bytes = Vec::with_capacity(HEADER_BYTES as usize);
+  if file.take(HEADER_BYTES).read_to_end(&mut bytes).is_err() {
+    return meta;
+  }
+  let mut ex = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes));
+  let ext = Path::new(&p.path).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+  if ex.is_err() && bytes.len() as u64 == HEADER_BYTES && matches!(ext.as_str(), "tif" | "tiff" | "heic" | "heif") {
+    if let Ok(all) = std::fs::read(&p.path) {
+      bytes = all;
+      ex = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes));
+    }
+  }
   if let Ok(sz) = imagesize::blob_size(&bytes) {
     meta.width = sz.width as i64;
     meta.height = sz.height as i64;
   }
-  if let Ok(ex) = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)) {
+  if let Ok(ex) = ex {
     fill_exif(&mut meta, &ex);
   }
-  thumbs::write_thumb_from_bytes(thumb_dir, p.mtime, &p.path, &bytes, meta.orientation);
   meta
 }
 
@@ -709,16 +724,17 @@ mod tests {
   }
 
   #[test]
-  fn indexes_dimensions_and_writes_thumbnails() {
+  fn indexes_dimensions_from_the_header_only() {
     let d = temp_dir("index");
     let file = d.join("photo.jpg");
     write_jpeg(&file);
-    let thumbs_dir = d.join("thumbs");
-    let p = Pending { id: 1, folder_id: 1, path: file.to_string_lossy().into_owned(), mtime: 1 };
-    let meta = index_file(&thumbs_dir, &p);
+    // Pad the file far past the header: indexing must not need the rest.
+    let mut bytes = std::fs::read(&file).unwrap();
+    bytes.extend(std::iter::repeat_n(0u8, 2 * HEADER_BYTES as usize));
+    std::fs::write(&file, bytes).unwrap();
+    let p = Pending { id: 1, folder_id: 1, path: file.to_string_lossy().into_owned() };
+    let meta = index_file(&p);
     assert_eq!((meta.width, meta.height), (640, 480));
-    let written = walkdir::WalkDir::new(&thumbs_dir).into_iter().filter_map(Result::ok).filter(|e| e.file_type().is_file()).count();
-    assert_eq!(written, 1, "indexing writes the thumbnail from the same read");
   }
 
   #[cfg(target_os = "macos")]
@@ -735,9 +751,11 @@ mod tests {
     let files = list_images(&d, false);
     assert_eq!(files.len(), 1, "HEIC files are picked up on macOS");
 
-    let p = Pending { id: 7, folder_id: 1, path: heic.to_string_lossy().into_owned(), mtime: 1 };
-    let meta = index_file(&d.join("thumbs"), &p);
+    let p = Pending { id: 7, folder_id: 1, path: heic.to_string_lossy().into_owned() };
+    let meta = index_file(&p);
     assert_eq!((meta.width, meta.height), (640, 480), "HEIC dimensions are read");
+    let src = std::fs::read(&heic).unwrap();
+    thumbs::write_thumb_from_bytes(&d.join("thumbs"), 1, &p.path, &src, meta.orientation);
     let thumb = walkdir::WalkDir::new(d.join("thumbs")).into_iter().filter_map(Result::ok).find(|e| e.file_type().is_file()).expect("thumbnail written");
     let img = image::open(thumb.path()).unwrap();
     assert!(img.width() <= 360 && img.height() <= 360 && img.width() > 0);

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.3 — 2026-10-19
+
+- **Faster indexing on hard disks and NAS** — dates and camera details now come from the first
+  256 KB of each file instead of the whole photo. On a 712,000-photo library the disk, not the
+  CPU, was the limit (1% CPU, disk 100% busy). Thumbnails are made as you scroll and by the
+  background warmer afterwards.
+- **Thumbnail cache cleans itself** — thumbnails no picture uses any more (removed folders,
+  changed files, the old cache layout) are deleted after each scan. One library had collected
+  31 GB of them.
+- **About Picaluma** — a proper window with the app icon, the website's description and
+  clickable links.
+
 ## 0.7.2 — 2026-10-19
 
 - **Much smaller library file** — the search index kept every replaced entry, so a library of

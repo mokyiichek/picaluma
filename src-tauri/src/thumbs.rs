@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -94,7 +95,8 @@ fn ensure_thumb(cache: &Path, photo: &PhotoRef) -> Result<Vec<u8>, String> {
   Ok(bytes)
 }
 
-/// Used by the indexer, which already holds the file's bytes.
+/// Writes a thumbnail from bytes already in memory (the macOS HEIC test).
+#[cfg(all(test, target_os = "macos"))]
 pub fn write_thumb_from_bytes(dir: &Path, mtime: i64, path: &str, src: &[u8], orientation: i64) {
   let cache = cache_path(dir, path, mtime);
   if cache.exists() {
@@ -131,6 +133,7 @@ pub fn spawn_warmer(app: AppHandle) {
   let queue = state.thumbs.clone();
   let flag = state.warming.clone();
   std::thread::spawn(move || {
+    prune_cache(&db, &dir);
     let photos: Vec<(i64, PhotoRef)> = {
       let conn = db.lock().unwrap();
       let mut stmt = conn
@@ -162,6 +165,54 @@ pub fn spawn_warmer(app: AppHandle) {
     }
     flag.store(false, Ordering::SeqCst);
   });
+}
+
+/// Deletes cached thumbnails that no picture in the library uses any more (folders removed,
+/// files changed since, older versions' cache layout), so the cache doesn't grow forever.
+fn prune_cache(db: &Arc<Mutex<rusqlite::Connection>>, dir: &Path) {
+  let started = std::time::Instant::now();
+  let keep: HashSet<String> = {
+    let conn = db.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare("SELECT path, mtime FROM photos") else { return };
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)));
+    let Ok(rows) = rows else { return };
+    rows
+      .filter_map(Result::ok)
+      .filter_map(|(path, mtime)| cache_path(dir, &path, mtime).file_name().map(|n| n.to_string_lossy().into_owned()))
+      .collect()
+  };
+  if keep.is_empty() {
+    return; // never wipe the cache because of an empty or unreadable library
+  }
+  let (mut removed, mut bytes) = (0u64, 0u64);
+  let Ok(entries) = std::fs::read_dir(dir) else { return };
+  for entry in entries.flatten() {
+    let name = entry.file_name().to_string_lossy().into_owned();
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    if name.len() == 3 && name.bytes().all(|b| b.is_ascii_digit()) {
+      // Cache layout of Picaluma 0.1–0.2.
+      if std::fs::remove_dir_all(entry.path()).is_ok() {
+        removed += 1;
+      }
+    } else if name.len() == 2 && name.bytes().all(|b| b.is_ascii_hexdigit()) {
+      let Ok(files) = std::fs::read_dir(entry.path()) else { continue };
+      for f in files.flatten() {
+        let fname = f.file_name().to_string_lossy().into_owned();
+        if fname.ends_with(".jpg") && !keep.contains(&fname) {
+          let size = f.metadata().map(|m| m.len()).unwrap_or(0);
+          if std::fs::remove_file(f.path()).is_ok() {
+            removed += 1;
+            bytes += size;
+          }
+        }
+      }
+    }
+  }
+  if removed > 0 {
+    log::info!("thumbnail cache: removed {removed} unused entries ({} MB) in {:?}", bytes / 1_048_576, started.elapsed());
+  }
 }
 
 pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {

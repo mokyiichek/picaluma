@@ -23,7 +23,7 @@ import {
   setAsDesktop,
 } from "../actions";
 import { copyPicture, folderIds, trayIds } from "../share";
-import { checkForUpdates, openWebsite, reportProblem, showAbout } from "./ShortcutsDialog";
+import { checkForUpdates, openWebsite, reportProblem } from "./ShortcutsDialog";
 
 export interface MenuEntry {
   label: string;
@@ -200,7 +200,7 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Report a Problem...", action: reportProblem },
         { label: "Check for Updates...", action: checkForUpdates },
         sep,
-        { label: "About Picaluma", action: showAbout },
+        { label: "About Picaluma", action: () => s.setAboutOpen(true) },
       ],
     ],
   ];

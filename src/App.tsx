@@ -25,6 +25,7 @@ import EmailDialog from "./components/EmailDialog";
 import PrintView from "./components/PrintView";
 import CollageDialog from "./components/CollageDialog";
 import ShortcutsDialog from "./components/ShortcutsDialog";
+import AboutDialog from "./components/AboutDialog";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
@@ -50,7 +51,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
-      if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen) return;
+      if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen) return;
       const sel = [...st.selected];
       if (mod(e) && e.shiftKey && (e.key === "8" || e.key === "*")) {
         e.preventDefault();
@@ -189,6 +190,7 @@ export default function App() {
       <PrintView />
       <CollageDialog />
       <ShortcutsDialog />
+      <AboutDialog />
     </div>
   );
 }

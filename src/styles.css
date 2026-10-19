@@ -2032,3 +2032,49 @@ input[type="range"]:focus {
   left: 100%;
   min-width: 180px;
 }
+
+/* ---------- About ---------- */
+.modal.about {
+  width: 460px;
+}
+.about .body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 26px 28px 14px;
+}
+.about h2 {
+  margin: 12px 0 2px;
+  font: 400 28px Georgia, serif;
+}
+.about .ver {
+  color: var(--muted);
+}
+.about .tagline {
+  margin: 14px 0 12px;
+  line-height: 1.5;
+  font-size: 13px;
+}
+.about .links {
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.about .links td {
+  padding: 3px 6px;
+  text-align: left;
+}
+.about .links td:first-child {
+  color: var(--muted);
+  text-align: right;
+}
+.about a {
+  color: var(--link);
+  cursor: pointer;
+}
+.about .fine {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}

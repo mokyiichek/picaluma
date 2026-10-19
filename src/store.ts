@@ -78,6 +78,8 @@ interface State {
   collage: number[] | null;
   /** Help › Keyboard Shortcuts dialog. */
   shortcutsOpen: boolean;
+  /** Help › About Picaluma. */
+  aboutOpen: boolean;
 
   loadSnapshot: () => Promise<void>;
   setScan: (p: ScanProgress) => void;
@@ -120,6 +122,7 @@ interface State {
   setPrint: (print: State["print"]) => void;
   setCollage: (ids: number[] | null) => void;
   setShortcutsOpen: (open: boolean) => void;
+  setAboutOpen: (open: boolean) => void;
   createAlbum: (name: string, ids: number[]) => Promise<number>;
   addToAlbum: (albumId: number, ids: number[]) => Promise<void>;
   removeFromAlbum: (albumId: number, ids: number[]) => Promise<void>;
@@ -170,6 +173,7 @@ export const useStore = create<State>((set, get) => ({
   print: null,
   collage: null,
   shortcutsOpen: false,
+  aboutOpen: false,
 
   loadSnapshot: async () => {
     const snapshot = await api.snapshot();
@@ -387,6 +391,7 @@ export const useStore = create<State>((set, get) => ({
   setPrint: (print) => set({ print: print && print.ids.length ? print : null }),
   setCollage: (ids) => set({ collage: ids && ids.length ? ids : null }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+  setAboutOpen: (aboutOpen) => set({ aboutOpen }),
 
   createAlbum: async (name, ids) => {
     const id = await api.createAlbum(name, ids);
