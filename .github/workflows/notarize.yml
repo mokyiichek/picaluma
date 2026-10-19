@@ -1,0 +1,77 @@
+name: Notarize latest Mac release
+
+# Every 6 hours, ask Apple whether notarization works for the team (it can be blocked by a
+# developer agreement Apple hasn't synced yet). Once it does, notarize the latest release's
+# Developer ID-signed .dmg and .app, staple the tickets and replace the release assets, so Mac
+# users stop seeing "Apple could not verify" without waiting for a new release.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  notarize:
+    runs-on: macos-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - name: Ask Apple whether notarization is available
+        id: check
+        run: |
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::notice::Apple notarization secrets are not set."
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if out=$(xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" 2>&1); then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Apple still refuses notarization: $(echo "$out" | tail -2 | tr '\n' ' ')"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download the latest release's Mac files
+        if: steps.check.outputs.ready == 'true'
+        id: dl
+        run: |
+          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          mkdir mac && cd mac
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.dmg' --pattern '*.app.tar.gz'
+          ls -la
+          DMG=$(ls *.dmg | head -1)
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          if xcrun stapler validate "$DMG" >/dev/null 2>&1; then
+            echo "::notice::$DMG in $TAG is already notarized."
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "done=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notarize, staple and replace the assets
+        if: steps.check.outputs.ready == 'true' && steps.dl.outputs.done == 'false'
+        working-directory: mac
+        run: |
+          DMG="${{ steps.dl.outputs.dmg }}"
+          TAG="${{ steps.dl.outputs.tag }}"
+          codesign -dv --verbose=2 "$DMG" 2>&1 | grep -E "Authority|TeamIdentifier" || true
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 60m
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          # The .app inside the dmg was part of the submission, so its ticket exists too.
+          for TGZ in *.app.tar.gz; do
+            [ -e "$TGZ" ] || continue
+            rm -rf x && mkdir x && tar -xzf "$TGZ" -C x
+            APP=$(ls -d x/*.app | head -1)
+            xcrun stapler staple "$APP"
+            spctl -a -t exec -vv "$APP"
+            (cd x && tar -czf "../$TGZ" "$(basename "$APP")")
+          done
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$DMG" *.app.tar.gz
+          echo "::notice::$TAG Mac downloads are now notarized by Apple."
