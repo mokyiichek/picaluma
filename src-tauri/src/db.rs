@@ -175,6 +175,23 @@ pub fn library_id(conn: &Connection) -> String {
   conn.query_row("SELECT value FROM meta WHERE key = 'library_id'", [], |r| r.get(0)).unwrap_or_default()
 }
 
+/// Keeps the library file small. Every re-index leaves the old full-text rows in the index's
+/// segments until they are merged (11k photos had grown a 530 MB index), so merge them, and
+/// rewrite the file when more than a quarter of it is free pages. Runs after each scan.
+pub fn compact(conn: &Connection) -> rusqlite::Result<()> {
+  let started = std::time::Instant::now();
+  conn.execute("INSERT INTO photos_fts(photos_fts) VALUES('optimize')", [])?;
+  let free: i64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0))?;
+  let pages: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
+  let vacuum = pages > 2_560 && free * 4 > pages;
+  if vacuum {
+    conn.execute_batch("VACUUM")?;
+  }
+  conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+  log::info!("library compacted in {:?} (vacuum: {vacuum}, {free} of {pages} pages were free)", started.elapsed());
+  Ok(())
+}
+
 /// Rebuild one photo's full-text row. Called after insert/update and caption edits.
 pub fn reindex_photo(conn: &Connection, photo_id: i64) -> rusqlite::Result<()> {
   conn.execute("DELETE FROM photos_fts WHERE rowid = ?1", [photo_id])?;
@@ -200,4 +217,38 @@ pub fn refresh_folder(conn: &Connection, folder_id: i64) -> rusqlite::Result<()>
     [folder_id],
   )?;
   Ok(())
+}
+
+#[cfg(test)]
+mod compact_tests {
+  use super::*;
+  use rusqlite::params;
+
+  #[test]
+  fn compact_shrinks_a_churned_index() {
+    let dir = std::env::temp_dir().join(format!("picaluma-compact-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let conn = open(&dir.join("library.db")).unwrap();
+    conn.execute("INSERT INTO folders(path, name) VALUES ('/p', 'Trip')", []).unwrap();
+    for i in 0..300 {
+      conn
+        .execute("INSERT INTO photos(folder_id, path, name, size, mtime) VALUES (1, ?1, ?2, 1, 1)", params![format!("/p/IMG_{i}.jpg"), format!("IMG_{i}.jpg")])
+        .unwrap();
+    }
+    // Re-index every photo many times, one transaction each, as scanning does.
+    for _ in 0..20 {
+      for id in 1..=300 {
+        reindex_photo(&conn, id).unwrap();
+      }
+    }
+    let size = |c: &Connection| -> i64 { c.query_row("SELECT SUM(LENGTH(block)) FROM photos_fts_data", [], |r| r.get(0)).unwrap() };
+    let before = size(&conn);
+    compact(&conn).unwrap();
+    let after = size(&conn);
+    assert!(after < before, "index {before} -> {after} bytes");
+    let hits: i64 = conn.query_row("SELECT COUNT(*) FROM photos_fts WHERE photos_fts MATCH 'img*'", [], |r| r.get(0)).unwrap();
+    assert_eq!(hits, 300, "search still finds every photo");
+    let _ = std::fs::remove_dir_all(&dir);
+  }
 }

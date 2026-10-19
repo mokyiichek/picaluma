@@ -241,6 +241,9 @@ fn run_scan(app: &AppHandle) {
   let _ = app.emit("scan-progress", progress);
   let _ = app.emit("library-changed", ());
   log::info!("scan finished in {:?}", started.elapsed());
+  if let Err(e) = db::compact(&db.lock().unwrap()) {
+    log::warn!("compact: {e}");
+  }
   thumbs::spawn_warmer(app.clone());
 }
 
@@ -488,6 +491,9 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
       for f in folders {
         let _ = db::refresh_folder(&tx, f);
       }
+      // Merge full-text segments a little as we go, so a first scan of a big library doesn't
+      // balloon the file before the final compaction.
+      let _ = tx.execute("INSERT INTO photos_fts(photos_fts, rank) VALUES('merge', 64)", []);
       let _ = tx.commit();
     }
 

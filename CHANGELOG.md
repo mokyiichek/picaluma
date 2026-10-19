@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 — 2026-10-19
+
+- **Much smaller library file** — the search index kept every replaced entry, so a library of
+  11,000 photos had grown to 2 GB. It's now compacted after each scan: that library shrank to
+  13 MB, and searches stay at ~2 ms.
+
 ## 0.7.1 — 2026-10-19
 
 - **Cloud drives without the downloads** — online-only files in OneDrive, Synology Drive and
