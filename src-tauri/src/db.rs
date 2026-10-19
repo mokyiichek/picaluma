@@ -144,6 +144,11 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN meta_done INTEGER NOT NULL DEFAULT 1")?;
   }
   conn.execute_batch("CREATE INDEX IF NOT EXISTS photos_pending ON photos(meta_done) WHERE meta_done = 0")?;
+  // v0.7.1: online-only cloud files (OneDrive / Synology / Dropbox placeholders, Google Drive
+  // streaming). They're listed but never read in the background, so scanning doesn't download them.
+  if !has("cloud")? {
+    conn.execute_batch("ALTER TABLE photos ADD COLUMN cloud INTEGER NOT NULL DEFAULT 0")?;
+  }
   // v0.5: albums. Photos are referenced by id; deleting a photo drops it from its albums.
   conn.execute_batch(
     "CREATE TABLE IF NOT EXISTS albums (

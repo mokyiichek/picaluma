@@ -30,7 +30,9 @@ import your old Picasa folder list in one click.
 - **Watched folders** — point Picaluma at folders or whole drives. Scanning is
   progressive: every picture appears within seconds (23,588 photos in 277 folders listed
   in 4.7 s from a network drive), then dates, camera data and thumbnails fill in from the
-  background, newest folders first. A progress panel shows what's happening.
+  background, newest folders first. A progress panel shows what's happening. Online-only
+  files on OneDrive, Google Drive, Dropbox and Synology Drive are listed without being
+  downloaded; their thumbnails load as you scroll to them.
 - **Picasa-style library** — every folder on one continuous page, newest first, grouped
   under "Updated *Month Year*", with folder descriptions. Smooth, Picasa-tuned wheel
   scrolling and gliding folder-to-folder jumps (toggle in *Tools › Options › Special effects*).

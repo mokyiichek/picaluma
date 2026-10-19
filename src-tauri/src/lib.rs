@@ -20,10 +20,32 @@ pub struct AppState {
   pub warming: Arc<AtomicBool>,
 }
 
+/// Logs to stderr and to `picaluma.log` in the library folder (the release app has no console).
+/// The previous run's log is kept as `picaluma.old.log`.
+fn init_logging(data_dir: &std::path::Path) {
+  struct Tee(Option<std::fs::File>);
+  impl std::io::Write for Tee {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+      let _ = std::io::stderr().write_all(buf);
+      if let Some(f) = &mut self.0 {
+        let _ = f.write_all(buf);
+      }
+      Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+      self.0.as_mut().map_or(Ok(()), |f| f.flush())
+    }
+  }
+  let path = data_dir.join("picaluma.log");
+  let _ = std::fs::rename(&path, data_dir.join("picaluma.old.log"));
+  let file = std::fs::File::create(&path).ok();
+  let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+    .target(env_logger::Target::Pipe(Box::new(Tee(file))))
+    .try_init();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
@@ -34,6 +56,7 @@ pub fn run() {
         None => app.path().app_data_dir()?,
       };
       std::fs::create_dir_all(&data_dir)?;
+      init_logging(&data_dir);
       let thumb_dir = data_dir.join("thumbs");
       std::fs::create_dir_all(&thumb_dir)?;
       let conn = db::open(&data_dir.join("library.db"))?;

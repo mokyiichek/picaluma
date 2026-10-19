@@ -6,6 +6,11 @@
 //! 2. **Indexing** then reads each new or changed file exactly once, newest folders first,
 //!    extracting EXIF *and* writing its thumbnail from the same bytes. It yields to the UI's
 //!    on-screen thumbnail requests and reports progress for the scanning popup.
+//!
+//! Online-only cloud files (OneDrive, Synology Drive and Dropbox placeholders, everything on a
+//! Google Drive streaming drive, macOS "dataless" File Provider files) are listed but skipped by
+//! indexing and the thumbnail warmer: reading them would download the whole cloud library.
+//! Their thumbnails are fetched only when they scroll into view.
 
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
@@ -106,6 +111,76 @@ struct FileInfo {
   name: String,
   size: i64,
   mtime: i64,
+  /// Online-only: the bytes live in the cloud and reading them would download the file.
+  cloud: bool,
+}
+
+/// Windows: placeholder attributes set by OneDrive, Synology Drive, Dropbox and other Cloud Files
+/// providers (OFFLINE, RECALL_ON_OPEN, RECALL_ON_DATA_ACCESS).
+#[cfg(windows)]
+fn is_online_only(md: &std::fs::Metadata) -> bool {
+  use std::os::windows::fs::MetadataExt;
+  md.file_attributes() & (0x1000 | 0x4_0000 | 0x40_0000) != 0
+}
+
+/// macOS: File Provider files (iCloud Drive, Google Drive, OneDrive, Dropbox) not on disk are "dataless".
+#[cfg(target_os = "macos")]
+fn is_online_only(md: &std::fs::Metadata) -> bool {
+  use std::os::macos::fs::MetadataExt;
+  md.st_flags() & 0x4000_0000 != 0
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn is_online_only(_md: &std::fs::Metadata) -> bool {
+  false
+}
+
+/// Google Drive for desktop on Windows mounts a streaming drive (volume "Google Drive") that marks
+/// nothing as online-only, yet reading any file downloads it. Treat all of it as cloud.
+#[cfg(windows)]
+pub fn is_streaming_volume(path: &Path) -> bool {
+  #[link(name = "kernel32")]
+  extern "system" {
+    fn GetVolumePathNameW(file: *const u16, volume: *mut u16, len: u32) -> i32;
+    fn GetVolumeInformationW(
+      root: *const u16,
+      name: *mut u16,
+      name_len: u32,
+      serial: *mut u32,
+      max_component: *mut u32,
+      flags: *mut u32,
+      fs_name: *mut u16,
+      fs_len: u32,
+    ) -> i32;
+  }
+  let wide: Vec<u16> = path.as_os_str().to_string_lossy().encode_utf16().chain(Some(0)).collect();
+  let mut root = [0u16; 512];
+  let mut label = [0u16; 261];
+  unsafe {
+    if GetVolumePathNameW(wide.as_ptr(), root.as_mut_ptr(), root.len() as u32) == 0 {
+      return false;
+    }
+    let ok = GetVolumeInformationW(
+      root.as_ptr(),
+      label.as_mut_ptr(),
+      label.len() as u32,
+      std::ptr::null_mut(),
+      std::ptr::null_mut(),
+      std::ptr::null_mut(),
+      std::ptr::null_mut(),
+      0,
+    );
+    if ok == 0 {
+      return false;
+    }
+  }
+  let len = label.iter().position(|&c| c == 0).unwrap_or(0);
+  String::from_utf16_lossy(&label[..len]).eq_ignore_ascii_case("Google Drive")
+}
+
+#[cfg(not(windows))]
+pub fn is_streaming_volume(_path: &Path) -> bool {
+  false
 }
 
 pub struct Meta {
@@ -151,7 +226,10 @@ fn run_scan(app: &AppHandle) {
   let mut seen: Vec<String> = Vec::new();
 
   for root in &roots {
+    let t = Instant::now();
+    let before = progress.photos_found;
     list_root(app, &db, Path::new(root), &excluded, &mut progress, &mut last_emit, &mut seen);
+    log::info!("listed {root}: {} photos in {:?}", progress.photos_found - before, t.elapsed());
   }
   prune_missing_folders(&db, &roots, &excluded, &seen);
   let _ = app.emit("library-changed", ());
@@ -192,6 +270,7 @@ fn list_root(
   last_emit: &mut Instant,
   seen: &mut Vec<String>,
 ) {
+  let streaming = is_streaming_volume(root);
   let walker = WalkDir::new(root).follow_links(false).into_iter().filter_entry(|e| {
     if !e.file_type().is_dir() {
       return false;
@@ -205,7 +284,7 @@ fn list_root(
   for entry in walker.filter_map(Result::ok) {
     let dir = entry.path();
     progress.folders_seen += 1;
-    match list_dir(db, dir) {
+    match list_dir(db, dir, streaming) {
       Ok(Some((count, changed))) => {
         seen.push(dir.to_string_lossy().into_owned());
         progress.photos_found += count as u64;
@@ -226,8 +305,8 @@ fn list_root(
 
 /// Record one directory from metadata only. Returns Some((picture count, changed)) or None if
 /// the directory holds no pictures.
-fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<(usize, bool)>> {
-  let files = list_images(dir);
+fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlite::Result<Option<(usize, bool)>> {
+  let files = list_images(dir, streaming);
   let dir_str = dir.to_string_lossy().into_owned();
   let mut conn = db.lock().unwrap();
 
@@ -237,17 +316,18 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<
     return Ok(None);
   }
 
-  let known: HashMap<String, (i64, i64, i64)> = {
+  let known: HashMap<String, (i64, i64, i64, bool)> = {
     let mut stmt = conn.prepare_cached(
-      "SELECT p.path, p.id, p.size, p.mtime FROM photos p JOIN folders f ON f.id = p.folder_id WHERE f.path = ?1",
+      "SELECT p.path, p.id, p.size, p.mtime, p.cloud FROM photos p JOIN folders f ON f.id = p.folder_id WHERE f.path = ?1",
     )?;
-    let rows = stmt.query_map([&dir_str], |r| Ok((r.get::<_, String>(0)?, (r.get(1)?, r.get(2)?, r.get(3)?))))?;
+    let rows = stmt.query_map([&dir_str], |r| Ok((r.get::<_, String>(0)?, (r.get(1)?, r.get(2)?, r.get(3)?, r.get::<_, i64>(4)? != 0))))?;
     rows.filter_map(Result::ok).collect()
   };
+  // A cloud file that has since been downloaded ("Always keep on this device") gets indexed now.
   let changed: Vec<&FileInfo> = files
     .iter()
     .filter(|f| match known.get(&*f.path.to_string_lossy()) {
-      Some((_, size, mtime)) => *size != f.size || *mtime != f.mtime,
+      Some((_, size, mtime, cloud)) => *size != f.size || *mtime != f.mtime || (*cloud && !f.cloud),
       None => true,
     })
     .collect();
@@ -267,13 +347,17 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<
   }
   {
     let mut upsert = tx.prepare_cached(
-      "INSERT INTO photos(folder_id, path, name, size, mtime, meta_done) VALUES (?1, ?2, ?3, ?4, ?5, 0)
+      "INSERT INTO photos(folder_id, path, name, size, mtime, meta_done, cloud) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
        ON CONFLICT(path) DO UPDATE SET folder_id = excluded.folder_id, size = excluded.size,
-         mtime = excluded.mtime, meta_done = 0
+         mtime = excluded.mtime, meta_done = excluded.meta_done, cloud = excluded.cloud
        RETURNING id",
     )?;
     for f in &changed {
-      let id: i64 = upsert.query_row(params![folder_id, f.path.to_string_lossy(), f.name, f.size, f.mtime], |r| r.get(0))?;
+      // Cloud files are complete as listed: indexing them would download them.
+      let id: i64 = upsert.query_row(
+        params![folder_id, f.path.to_string_lossy(), f.name, f.size, f.mtime, f.cloud as i64, f.cloud as i64],
+        |r| r.get(0),
+      )?;
       db::reindex_photo(&tx, id)?;
     }
   }
@@ -282,7 +366,7 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<
   Ok(Some((files.len(), true)))
 }
 
-fn list_images(dir: &Path) -> Vec<FileInfo> {
+fn list_images(dir: &Path, streaming: bool) -> Vec<FileInfo> {
   let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
   rd.filter_map(Result::ok)
     .filter_map(|e| {
@@ -299,6 +383,7 @@ fn list_images(dir: &Path) -> Vec<FileInfo> {
         name: e.file_name().to_string_lossy().into_owned(),
         size: md.len() as i64,
         mtime: md.modified().map(local_naive_secs).unwrap_or(0),
+        cloud: streaming || is_online_only(&md),
         path,
       })
     })
@@ -580,7 +665,7 @@ mod tests {
       std::fs::write(dir.join("notes.txt"), b"not a picture").unwrap();
     }
     for dir in &dirs {
-      let (count, changed) = list_dir(&conn, dir).unwrap().expect("folder with pictures");
+      let (count, changed) = list_dir(&conn, dir, false).unwrap().expect("folder with pictures");
       assert_eq!((count, changed), (2, true), "{}", dir.display());
     }
     let c = conn.lock().unwrap();
@@ -589,6 +674,32 @@ mod tests {
     assert_eq!(hits("\"café\"*"), 4);
     assert_eq!(hits("\"日本\"*"), 2, "CJK prefix search");
     assert_eq!(hits("\"img\"*"), 6, "file names are case-insensitive");
+  }
+
+  /// An online-only placeholder (OFFLINE attribute, as OneDrive/Synology set it) is listed as
+  /// finished cloud item and never queued for indexing; once it's local it gets indexed.
+  #[cfg(windows)]
+  #[test]
+  fn online_only_files_are_listed_without_reading() {
+    let d = temp_dir("cloud");
+    let conn = Arc::new(Mutex::new(db::open(&d.join("library.db")).unwrap()));
+    let dir = d.join("OneDrive Pictures");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("beach.jpg");
+    write_jpeg(&file);
+    let attrib = |flag: &str| assert!(std::process::Command::new("attrib").arg(flag).arg(&file).status().unwrap().success());
+    attrib("+O");
+    assert!(list_images(&dir, false)[0].cloud, "OFFLINE attribute marks a cloud placeholder");
+    assert!(list_images(&dir, true)[0].cloud, "everything on a streaming drive is cloud");
+    list_dir(&conn, &dir, false).unwrap();
+    let state = |c: &Arc<Mutex<Connection>>| -> (i64, i64) {
+      c.lock().unwrap().query_row("SELECT meta_done, cloud FROM photos", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap()
+    };
+    assert_eq!(state(&conn), (1, 1), "cloud files are not queued for indexing");
+    attrib("-O");
+    let (_, changed) = list_dir(&conn, &dir, false).unwrap().unwrap();
+    assert!(changed, "a downloaded file is picked up");
+    assert_eq!(state(&conn), (0, 0), "and queued for indexing");
   }
 
   #[test]
@@ -615,7 +726,7 @@ mod tests {
     assert!(ok.success() && heic.exists(), "sips should create a HEIC test file");
     std::fs::remove_file(&jpg).unwrap();
 
-    let files = list_images(&d);
+    let files = list_images(&d, false);
     assert_eq!(files.len(), 1, "HEIC files are picked up on macOS");
 
     let p = Pending { id: 7, folder_id: 1, path: heic.to_string_lossy().into_owned(), mtime: 1 };

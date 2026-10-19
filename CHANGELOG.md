@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.1 — 2026-10-19
+
+- **Cloud drives without the downloads** — online-only files in OneDrive, Synology Drive and
+  Dropbox, and everything on a Google Drive streaming drive (Windows) or a macOS File Provider
+  drive, are listed in seconds but never read in the background, so scanning no longer downloads
+  your whole cloud library. Their thumbnails are fetched only when you scroll to them. A file
+  you make available offline is indexed on the next scan.
+- **Log file** — `picaluma.log` in the library folder (the previous run's is kept), with per-folder
+  listing times, for diagnosing slow drives.
+
 ## 0.7.0 — 2026-10-19
 
 - **E-mail** — resized copies with your edits, attached to a new message in your mail program

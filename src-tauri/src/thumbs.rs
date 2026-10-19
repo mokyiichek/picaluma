@@ -119,7 +119,8 @@ fn exif_orientation(src: &[u8]) -> Option<i64> {
 }
 
 /// Background warmer: after a scan, pre-build every missing thumbnail (newest folders first)
-/// on two low-priority threads, backing off whenever the UI is waiting on the queue.
+/// on two low-priority threads, backing off whenever the UI is waiting on the queue. Online-only
+/// cloud files are left alone; their thumbnails are made when they scroll into view.
 pub fn spawn_warmer(app: AppHandle) {
   let state = app.state::<AppState>();
   if state.warming.swap(true, Ordering::SeqCst) {
@@ -135,6 +136,7 @@ pub fn spawn_warmer(app: AppHandle) {
       let mut stmt = conn
         .prepare(
           "SELECT p.id, p.path, p.mtime, p.orientation FROM photos p JOIN folders f ON f.id = p.folder_id
+           WHERE p.cloud = 0
            ORDER BY f.updated DESC, p.folder_id, COALESCE(p.taken, p.mtime), p.name",
         )
         .unwrap();
