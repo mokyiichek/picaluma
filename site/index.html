@@ -33,14 +33,13 @@
 
     header { display: flex; align-items: center; justify-content: space-between; max-width: 1140px; margin: 0 auto; padding: 22px 24px; }
     .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 18px; }
-    .brand img { width: 28px; height: 28px; }
+    .brand img { width: 32px; height: 32px; }
     header nav a { color: var(--muted); text-decoration: none; font-size: 15px; margin-left: 24px; }
     header nav a:hover { color: var(--ink); }
 
-    /* Hero: the icon's eight tiles, then the promise. */
+    /* Hero: the app icon, then the promise. */
     .hero { padding: 56px 24px 0; text-align: center; }
-    .tiles { display: flex; justify-content: center; gap: 6px; margin-bottom: 34px; }
-    .tiles i { width: 30px; height: 10px; border-radius: 2px; }
+    .icon { display: block; width: 128px; height: 128px; margin: 0 auto 28px; }
     h1 { font: 500 clamp(42px, 7vw, 72px)/1.04 var(--serif); letter-spacing: -0.02em; margin: 0 auto 22px; max-width: none; }
     .sub { color: var(--muted); font-size: 19px; max-width: 34em; margin: 0 auto 34px; }
     .downloads { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
@@ -79,7 +78,7 @@
     @media (max-width: 760px) {
       body { font-size: 16px; }
       .hero { padding-top: 32px; }
-      .tiles i { width: 22px; height: 8px; }
+      .icon { width: 96px; height: 96px; margin-bottom: 20px; }
       .sub { font-size: 17px; }
       .dl { width: 100%; justify-content: center; }
       .shot { margin-top: 40px; padding: 0 12px; }
@@ -97,9 +96,7 @@
 
   <main>
     <div class="hero">
-      <div class="tiles" aria-hidden="true">
-        <i style="background:#d6302a"></i><i style="background:#ea7a17"></i><i style="background:#eeae06"></i><i style="background:#6baf2e"></i><i style="background:#1360d8"></i><i style="background:#18a4c9"></i><i style="background:#8b3fc4"></i><i style="background:#0f8e6d"></i>
-      </div>
+      <img class="icon" src="logo.png" width="128" height="128" alt="Picaluma app icon" />
       <h1>Your photos,<br /> the Picasa way.</h1>
       <p class="sub">A free photo organizer and editor for Windows, Mac and Linux. Every folder on one page, instant search, one-click fixes. Your originals are never touched.</p>
       <div class="downloads">
