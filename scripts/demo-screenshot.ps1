@@ -1,11 +1,12 @@
-param([switch]$SkipDownload, [int]$Width = 1280, [int]$Height = 800)
+param([switch]$SkipDownload, [int]$Width = 1280, [int]$Height = 800, [int]$ClickX = -1, [int]$ClickY = -1, [switch]$Cleanup)
 # Real Picaluma screenshot for the website (site/preview.jpg) from an isolated demo: its own library
 # and web-view profile, filled with free Unsplash photos served by Lorem Picsum. The installed
-# Picaluma's library and settings are never opened. Run after installing a new version:
-#   powershell -File scripts/demo-screenshot.ps1   (then convert demo\screenshot.png to site/preview.jpg)
+# Picaluma's library and settings are never opened. The website's shot was taken with:
+#   powershell -File scripts/demo-screenshot.ps1 -Width 1520 -Height 920 -ClickX 724 -ClickY 305 -Cleanup
+# (-ClickX/-ClickY select a photo so the Properties panel shows it; output: %TEMP%\picaluma-demo\screenshot.png)
 $ErrorActionPreference = 'Stop'
 $root = Join-Path $env:TEMP 'picaluma-demo'
-$pics = Join-Path $root 'Pictures'
+$pics = Join-Path $env:PUBLIC 'Pictures\Demo'   # short neutral path for the Properties panel
 $lib = Join-Path $root 'library'
 $exe = "$env:LOCALAPPDATA\Picaluma\picaluma.exe"
 
@@ -56,29 +57,37 @@ Start-Sleep 20
 
 Add-Type @'
 using System; using System.Runtime.InteropServices;
-public class Win {
+public class Win2 {
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hgt, uint flags);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(int f, int x, int y, int d, int e);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT r, int size);
   public struct RECT { public int L, T, R, B; }
 }
 '@
 Add-Type -AssemblyName System.Drawing
 $p.Refresh(); $h = $p.MainWindowHandle
-[Win]::ShowWindow($h, 9) | Out-Null                       # restore (not maximised)
-[Win]::SetWindowPos($h, [IntPtr]::new(-1), 60, 40, $Width, $Height, 0x40) | Out-Null   # topmost while capturing
-[Win]::SetForegroundWindow($h) | Out-Null
+[Win2]::ShowWindow($h, 9) | Out-Null                       # restore (not maximised)
+[Win2]::SetWindowPos($h, [IntPtr]::new(-1), 60, 40, $Width, $Height, 0x40) | Out-Null   # topmost while capturing
+[Win2]::SetForegroundWindow($h) | Out-Null
 Start-Sleep 2
-Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait('%{ENTER}')    # Alt+Enter: hide the Properties panel
-Start-Sleep 3
-$r = New-Object Win+RECT
-[Win]::DwmGetWindowAttribute($h, 9, [ref]$r, 16) | Out-Null   # visible frame, without the invisible resize border
+$r = New-Object Win2+RECT
+[Win2]::DwmGetWindowAttribute($h, 9, [ref]$r, 16) | Out-Null   # visible frame, without the invisible resize border
+if ($ClickX -ge 0) {
+  # Select a photo (window-relative position) so the Properties panel shows its details.
+  [Win2]::SetCursorPos($r.L + $ClickX, $r.T + $ClickY) | Out-Null
+  [Win2]::mouse_event(2, 0, 0, 0, 0); [Win2]::mouse_event(4, 0, 0, 0, 0)
+  Start-Sleep 1
+  [Win2]::SetCursorPos($r.R + 200, $r.B + 100) | Out-Null   # move the pointer out of the shot
+}
+Start-Sleep 2
 $w = $r.R - $r.L; $hh = $r.B - $r.T
 $bmp = New-Object Drawing.Bitmap $w, $hh
 $g = [Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size); $g.Dispose()
 $out = Join-Path $root 'screenshot.png'; $bmp.Save($out); $bmp.Dispose()
-[Win]::SetWindowPos($h, [IntPtr]::new(-2), 0, 0, 0, 0, 0x3) | Out-Null
+[Win2]::SetWindowPos($h, [IntPtr]::new(-2), 0, 0, 0, 0, 0x3) | Out-Null
 "captured ${w}x$hh -> $out"
 $p.CloseMainWindow() | Out-Null; Start-Sleep 2; if (-not $p.HasExited) { $p.Kill() }
+if ($Cleanup) { Remove-Item $pics -Recurse -Force -ErrorAction SilentlyContinue; "removed $pics" }
