@@ -6,6 +6,7 @@ import { isMac } from "../platform";
 import { renderPicture } from "../share";
 import { useStore } from "../store";
 import { BackIcon, PrintIcon } from "./Icons";
+import { notify } from "../dialogs";
 
 // Page geometry is in inches. Layout sizes are portrait; cells turn landscape when more fit that way.
 const PAPERS = { Letter: [8.5, 11], A4: [8.27, 11.69] } as const;
@@ -219,7 +220,7 @@ export default function PrintView() {
       if (isMac) await api.printWindow();
       else window.print();
     } catch (e) {
-      alert(`Printing failed: ${e}`);
+      notify(`Printing failed: ${e}`, "error");
     }
     setPrinting(false);
   };

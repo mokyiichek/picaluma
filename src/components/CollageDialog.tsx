@@ -5,6 +5,7 @@ import { api, thumbUrl } from "../api";
 import { plural } from "../format";
 import { joinPath, renderPicture } from "../share";
 import { useStore } from "../store";
+import { notify } from "../dialogs";
 
 const FORMATS = {
   "Screen (16:9)": 16 / 9,
@@ -156,7 +157,7 @@ export default function CollageDialog() {
       useStore.getState().setCollage(null);
       if (!desktop) revealItemInDir(out).catch(() => {});
     } catch (e) {
-      alert(`The collage couldn't be made: ${e}`);
+      notify(`The collage couldn't be made: ${e}`, "error");
     }
     setBusy(false);
   };

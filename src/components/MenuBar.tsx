@@ -1,4 +1,4 @@
-import { fmtShortcut, platformItem } from "../platform";
+import { fmtShortcut, isMac, platformItem } from "../platform";
 import { useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -24,6 +24,7 @@ import {
 } from "../actions";
 import { copyPicture, folderIds, trayIds } from "../share";
 import { checkForUpdates, openWebsite, reportProblem } from "./ShortcutsDialog";
+import { confirmAsk } from "../dialogs";
 
 export interface MenuEntry {
   label: string;
@@ -102,7 +103,7 @@ function useMenus(): [string, MenuEntry[]][] {
         sep,
         { label: "Select All", shortcut: "Ctrl+A", action: folderPhotos.length ? () => s.selectOnly(folderPhotos) : undefined },
         { label: "Select Starred", action: () => s.selectOnly(folderPhotos.filter((p) => s.starred.has(p))) },
-        { label: "Invert Selection", shortcut: "Ctrl+I", action: () => s.selectOnly(folderPhotos.filter((p) => !s.selected.has(p))) },
+        { label: "Invert Selection", shortcut: isMac ? "Ctrl+Shift+I" : "Ctrl+I", action: () => s.selectOnly(folderPhotos.filter((p) => !s.selected.has(p))) },
         { label: "Clear Selection", shortcut: "Ctrl+D", action: s.clearSelection },
       ],
     ],
@@ -137,7 +138,10 @@ function useMenus(): [string, MenuEntry[]][] {
         {
           label: "Remove from Picaluma...",
           action: currentFolder
-            ? () => confirm(`Remove "${currentFolder.name}" from Picaluma?\n\nThe folder and its pictures stay on disk; Picaluma just stops showing it.`) && api.excludeFolder(currentFolder.path)
+            ? async () => {
+                if (await confirmAsk(`Remove "${currentFolder.name}" from Picaluma?\n\nThe folder and its pictures stay on disk; Picaluma just stops showing it.`, { ok: "Remove" }))
+                  api.excludeFolder(currentFolder.path);
+              }
             : undefined,
         },
         sep,

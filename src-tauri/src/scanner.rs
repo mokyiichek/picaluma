@@ -225,6 +225,7 @@ fn run_scan(app: &AppHandle) {
   let db = state.db.clone();
   let started = Instant::now();
   let (roots, excluded) = load_roots(&db);
+  crate::watch::refresh(app, &roots);
   let mut progress = ScanProgress { scanning: true, phase: "listing".into(), ..Default::default() };
   let mut last_emit = Instant::now() - EVENT_THROTTLE;
   let mut seen: Vec<String> = Vec::new();
@@ -251,7 +252,7 @@ fn run_scan(app: &AppHandle) {
   thumbs::spawn_warmer(app.clone());
 }
 
-fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
+pub(crate) fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
   let conn = db.lock().unwrap();
   let mut stmt = conn.prepare("SELECT path, excluded FROM roots ORDER BY path").unwrap();
   let rows: Vec<(String, i64)> = stmt
@@ -633,6 +634,69 @@ fn is_excluded(path: &Path, excluded: &[String]) -> bool {
   excluded.iter().any(|x| p.starts_with(x.as_str()))
 }
 
+// ---------------------------------------------------------------------------------------------
+// Live updates (see watch.rs)
+// ---------------------------------------------------------------------------------------------
+
+pub(crate) fn is_image(path: &Path) -> bool {
+  path.extension().map(|e| IMAGE_EXTS.contains(&e.to_string_lossy().to_lowercase().as_str())).unwrap_or(false)
+}
+
+/// Inside a watched folder, not excluded, and not inside a folder the scanner skips.
+pub(crate) fn is_watched(path: &Path, roots: &[String], excluded: &[String]) -> bool {
+  let p = normalize(&path.to_string_lossy());
+  let Some(root) = roots.iter().find(|r| p.starts_with(normalize(r).as_str())) else { return false };
+  if is_excluded(path, excluded) {
+    return false;
+  }
+  let root_len = Path::new(root).components().count();
+  let mut cur = Some(path);
+  while let Some(c) = cur {
+    if c.components().count() <= root_len {
+      break;
+    }
+    if c.is_dir() && skip_dir(c) {
+      return false;
+    }
+    cur = c.parent();
+  }
+  true
+}
+
+/// Drops a removed folder and everything below it from the library.
+pub(crate) fn forget_tree(db: &Arc<Mutex<Connection>>, dir: &Path) {
+  let d = dir.to_string_lossy().into_owned();
+  let prefix = format!("{d}{}", std::path::MAIN_SEPARATOR);
+  let conn = db.lock().unwrap();
+  let _ = conn.execute(
+    "DELETE FROM photos_fts WHERE rowid IN (SELECT p.id FROM photos p JOIN folders f ON f.id = p.folder_id
+       WHERE f.path = ?1 OR substr(f.path, 1, length(?2)) = ?2)",
+    params![d, prefix],
+  );
+  let _ = conn.execute("DELETE FROM folders WHERE path = ?1 OR substr(path, 1, length(?2)) = ?2", params![d, prefix]);
+}
+
+/// Lists one folder (live update).
+pub(crate) fn list_folder(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<(usize, bool)>> {
+  list_dir(db, dir, is_streaming_volume(dir))
+}
+
+/// Lists a folder and all folders inside it (a folder created or moved into a watched folder).
+pub(crate) fn list_tree(db: &Arc<Mutex<Connection>>, tree: &Path, excluded: &[String]) {
+  let streaming = is_streaming_volume(tree);
+  let walker = WalkDir::new(tree).follow_links(false).into_iter().filter_entry(|e| {
+    e.file_type().is_dir() && (e.depth() == 0 || (!skip_dir(e.path()) && !is_excluded(e.path(), excluded)))
+  });
+  for entry in walker.filter_map(Result::ok) {
+    let _ = list_dir(db, entry.path(), streaming);
+  }
+}
+
+/// Indexes pictures added by a live update, with the scanning pop-up's progress.
+pub(crate) fn index_new(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut ScanProgress) {
+  index_pending(app, db, progress);
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -721,6 +785,31 @@ mod tests {
     let (_, changed) = list_dir(&conn, &dir, false).unwrap().unwrap();
     assert!(changed, "a downloaded file is picked up");
     assert_eq!(state(&conn), (0, 0), "and queued for indexing");
+  }
+
+  /// Live updates: a new folder tree is listed, skipped folders are ignored, and a removed
+  /// tree disappears from the library.
+  #[test]
+  fn live_update_helpers() {
+    let d = temp_dir("live");
+    let conn = Arc::new(Mutex::new(db::open(&d.join("library.db")).unwrap()));
+    let root = d.join("Pictures");
+    let trip = root.join("Trip").join("Day 1");
+    std::fs::create_dir_all(&trip).unwrap();
+    write_jpeg(&trip.join("a.jpg"));
+    let roots = vec![root.to_string_lossy().into_owned()];
+    assert!(is_watched(&trip.join("a.jpg"), &roots, &[]));
+    assert!(!is_watched(&d.join("elsewhere.jpg"), &roots, &[]));
+    let excluded = vec![normalize(&root.join("Trip").to_string_lossy())];
+    assert!(!is_watched(&trip.join("a.jpg"), &roots, &excluded), "excluded folders are not watched");
+    assert!(is_image(Path::new("x/IMG_1.JPG")) && !is_image(Path::new("x/IMG_1.jpg.crdownload")));
+
+    list_tree(&conn, &root.join("Trip"), &[]);
+    let count = |c: &Arc<Mutex<Connection>>| -> i64 { c.lock().unwrap().query_row("SELECT COUNT(*) FROM photos", [], |r| r.get(0)).unwrap() };
+    assert_eq!(count(&conn), 1, "a folder moved in is listed with its subfolders");
+    std::fs::remove_dir_all(root.join("Trip")).unwrap();
+    forget_tree(&conn, &root.join("Trip"));
+    assert_eq!(count(&conn), 0, "a removed folder tree leaves the library");
   }
 
   #[test]

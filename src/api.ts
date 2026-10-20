@@ -107,6 +107,7 @@ export const api = {
   writeTextFile: (path: string, text: string) => invoke<void>("write_text_file", { path, text }),
   setWallpaper: (dataBase64: string) => invoke<void>("set_wallpaper", { dataBase64 }),
   renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
+  removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
   setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),
   getTags: (ids: number[]) => invoke<TagCount[]>("get_tags", { ids }),
   suggest: (prefix: string) => invoke<TagCount[]>("suggest", { prefix }),
@@ -128,6 +129,8 @@ export const api = {
 export interface OpResult {
   done: number;
   failed: string[];
+  /** Folders the operation left empty on disk. */
+  emptyFolders?: string[];
 }
 
 export interface TagCount {

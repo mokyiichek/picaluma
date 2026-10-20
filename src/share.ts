@@ -3,6 +3,7 @@
 import { api, Photo, photoUrl } from "./api";
 import { renderToCanvas } from "./effects";
 import { selectVisible, useStore } from "./store";
+import { notify } from "./dialogs";
 
 export interface RenderOptions {
   /** Longest edge in pixels; 0 keeps the original size. */
@@ -103,6 +104,6 @@ export async function copyPicture(id: number) {
     if (!blob) throw new Error("render failed");
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
   } catch (e) {
-    alert(`Couldn't copy the picture: ${e}`);
+    notify(`Couldn't copy the picture: ${e}`, "error");
   }
 }

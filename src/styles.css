@@ -2078,3 +2078,30 @@ input[type="range"]:focus {
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* ---------- Confirm / text prompt ---------- */
+.modal.confirm,
+.modal.text-prompt {
+  width: 420px;
+}
+.modal.confirm .body p {
+  margin: 0 0 12px;
+  white-space: pre-line;
+}
+.modal.text-prompt label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.modal.text-prompt input {
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid #b9b9b9;
+  border-radius: 2px;
+  font: inherit;
+}
+.tbtn.default.danger {
+  border-color: #b34a3d;
+  background: linear-gradient(#fdfdfd, #f3d9d5);
+  color: #8a1f12;
+}

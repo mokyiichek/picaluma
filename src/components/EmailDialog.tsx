@@ -5,6 +5,7 @@ import { plural } from "../format";
 import { isMac } from "../platform";
 import { writePicture } from "../share";
 import { useStore } from "../store";
+import { notify } from "../dialogs";
 
 const SIZES = [
   { label: "Small (640 pixels)", edge: 640 },
@@ -52,7 +53,7 @@ export default function EmailDialog() {
       }
     } catch (e) {
       setProgress(null);
-      alert(`The pictures could not be prepared:\n\n${e}`);
+      notify(`The pictures could not be prepared:\n\n${e}`, "error");
       return;
     }
     setProgress(null);
@@ -63,7 +64,7 @@ export default function EmailDialog() {
         await api.emailFiles(paths, subject);
         return;
       } catch (e) {
-        alert(`Picaluma couldn't open ${program} (${e}).\n\nThe pictures are in the folder that opens next — drag them into a new message.`);
+        await notify(`Picaluma couldn't open ${program} (${e}).\n\nThe pictures are in the folder that opens next — drag them into a new message.`);
       }
     }
     revealItemInDir(paths[0]).catch(() => {});

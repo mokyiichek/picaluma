@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, TagCount } from "../api";
 import { useStore } from "../store";
 import { CloseIcon } from "./Icons";
+import { askText } from "../dialogs";
 
 const QUICK_KEY = "picaluma.quickTags";
 const QUICK_SLOTS = 10;
@@ -44,8 +45,8 @@ export default function TagsPanel() {
     await api.setTags(selected, [], [tag]);
     setRev((r) => r + 1);
   };
-  const setSlot = (i: number) => {
-    const v = prompt("Quick tag for this button:", quick[i] ?? "");
+  const setSlot = async (i: number) => {
+    const v = await askText("Quick tag for this button:", quick[i] ?? "", "Save");
     if (v == null) return;
     const next = [...quick];
     next[i] = v.trim();

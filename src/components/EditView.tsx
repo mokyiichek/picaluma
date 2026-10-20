@@ -110,6 +110,7 @@ export default function EditView({ active }: { active: boolean }) {
       if (e.key === "Escape") backToLibrary();
       else if (e.key === "ArrowRight" && i < seq.length - 1) s.setEditId(seq[i + 1]);
       else if (e.key === "ArrowLeft" && i > 0) s.setEditId(seq[i - 1]);
+      else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "z") stack.redo(); // ⇧⌘Z on Mac
       else if (mod(e) && e.key.toLowerCase() === "z") stack.undo();
       else if (mod(e) && e.key.toLowerCase() === "y") stack.redo();
       else return;

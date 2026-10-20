@@ -4,6 +4,7 @@ import { api } from "./api";
 import { hasEdits, joinPath, renderJpegBase64 } from "./share";
 import { selectVisible, useStore } from "./store";
 import { binName } from "./platform";
+import { askText, confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_REMOVE } from "./dialogs";
 
 /** Export Picture to Folder: opens the Export dialog for these pictures. */
 export function exportPhotos(ids: number[]) {
@@ -23,24 +24,55 @@ const plural = (n: number) => `${n} picture${n === 1 ? "" : "s"}`;
 const parentOf = (p: string) => p.replace(/[\\/][^\\/]*[\\/]?$/, "");
 
 function reportFailures(failed: string[]) {
-  if (failed.length) alert(`${plural(failed.length)} could not be processed:\n\n${failed.slice(0, 10).join("\n")}${failed.length > 10 ? "\n…" : ""}`);
+  if (failed.length) notify(`${plural(failed.length)} could not be processed:\n\n${failed.slice(0, 10).join("\n")}${failed.length > 10 ? "\n…" : ""}`);
 }
 
 /**
  * Delete key / "Delete from Disk": pictures go to the Recycle Bin (Trash on macOS).
  * With `permanent` (Shift+Del / Ctrl+Del, ⌥⌘⌫ on Mac) they are deleted outright.
  */
-export async function deletePhotos(ids: number[], permanent = false) {
-  if (!ids.length) return;
-  const question = permanent
-    ? `Permanently delete ${plural(ids.length)}?\n\nThey will NOT go to the ${binName} and can't be recovered.`
-    : `Delete ${plural(ids.length)} from disk?\n\nThey will be moved to the ${binName}.`;
-  if (!confirm(question)) return;
+export async function deletePhotos(ids: number[], permanent = false): Promise<boolean> {
+  if (!ids.length) return false;
+  const one = ids.length === 1;
+  const what = one ? "the selected picture" : `the ${ids.length} selected pictures`;
+  const ok = permanent
+    ? await confirmAsk(`Permanently delete ${what}?\n\nThis can't be undone: ${one ? "it" : "they"} won't go to the ${binName}.`, {
+        title: "Delete Permanently",
+        ok: one ? "Delete File" : "Delete Files",
+        danger: true,
+      })
+    : await confirmAsk(`Move ${what} to the ${binName}?\n\n${one ? "It" : "They"} will also be removed from any albums.`, {
+        title: one ? "Delete Picture" : "Delete Pictures",
+        ok: one ? "Delete Picture" : "Delete Pictures",
+        dontAskKey: NO_CONFIRM_DELETE,
+      });
+  if (!ok) return false;
   const s = useStore.getState();
   const res = await api.deletePhotos(ids, permanent);
   s.clearSelection();
   await s.loadSnapshot();
   reportFailures(res.failed);
+  // Like Picasa: offer to tidy up a folder the delete left empty.
+  for (const dir of res.emptyFolders ?? []) {
+    const name = dir.split(/[\\/]/).pop();
+    if (await confirmAsk(`The folder "${name}" is now empty. Delete the folder too?`, { title: "Empty Folder", ok: "Delete Folder" })) {
+      await api.removeEmptyFolder(dir).catch((e) => notify(String(e), "error"));
+    }
+  }
+  if (res.emptyFolders?.length) await s.loadSnapshot();
+  return true;
+}
+
+/** Takes pictures out of an album (Delete key in album view); the files stay where they are. */
+export async function removeFromAlbum(albumId: number, ids: number[]) {
+  if (!ids.length) return;
+  const one = ids.length === 1;
+  const ok = await confirmAsk(`Remove ${one ? "the selected picture" : `the ${ids.length} selected pictures`} from this album?\n\nThe ${one ? "file stays" : "files stay"} in ${one ? "its folder" : "their folders"}.`, {
+    title: "Remove from Album",
+    ok: one ? "Remove Picture" : "Remove Pictures",
+    dontAskKey: NO_CONFIRM_REMOVE,
+  });
+  if (ok) await useStore.getState().removeFromAlbum(albumId, ids);
 }
 
 /** "Move to Folder…" / "Copy to Folder…": pick a destination folder. */
@@ -56,7 +88,7 @@ export async function transferPhotos(ids: number[], copy: boolean) {
 /** "Move to New Folder…": a new folder next to the pictures' current folder. */
 export async function moveToNewFolder(ids: number[]) {
   if (!ids.length) return;
-  const name = prompt(`Move ${plural(ids.length)} to a new folder named:`, "New Folder")?.trim();
+  const name = await askText(`Move ${plural(ids.length)} to a new folder named:`, "New Folder", "Move");
   if (!name) return;
   const first = await api.getPhoto(ids[0]);
   const dest = joinPath(parentOf(parentOf(first.path)), name);
@@ -68,13 +100,13 @@ export async function moveToNewFolder(ids: number[]) {
 export async function renameFolder(folderId: number) {
   const f = useStore.getState().folderById.get(folderId);
   if (!f) return;
-  const name = prompt("Rename folder to:", f.name)?.trim();
+  const name = await askText("Rename folder to:", f.name, "Rename");
   if (!name || name === f.name) return;
   try {
     await api.renameFolder(folderId, name);
     await useStore.getState().loadSnapshot();
   } catch (e) {
-    alert(String(e));
+    notify(String(e), "error");
   }
 }
 
@@ -87,19 +119,19 @@ export async function moveFolder(folderId: number) {
     await api.moveFolder(folderId, dest);
     await useStore.getState().loadSnapshot();
   } catch (e) {
-    alert(String(e));
+    notify(String(e), "error");
   }
 }
 
 export async function deleteFolder(folderId: number) {
   const f = useStore.getState().folderById.get(folderId);
   if (!f) return;
-  if (!confirm(`Delete the folder "${f.name}" and everything in it?\n\n${f.path}\n\nIt will be moved to the ${binName}.`)) return;
+  if (!(await confirmAsk(`Delete the folder "${f.name}" and everything in it?\n\n${f.path}\n\nIt will be moved to the ${binName}.`, { ok: "Delete Folder", danger: true }))) return;
   try {
     await api.deleteFolder(folderId);
     await useStore.getState().loadSnapshot();
   } catch (e) {
-    alert(String(e));
+    notify(String(e), "error");
   }
 }
 
@@ -107,20 +139,20 @@ export async function deleteFolder(folderId: number) {
 export async function renamePhoto(id: number) {
   const photo = await api.getPhoto(id);
   const stem = photo.name.replace(/\.[^.]+$/, "");
-  const name = prompt("Rename picture:", stem);
+  const name = await askText("Rename picture:", stem, "Rename");
   if (!name || name.trim() === stem) return;
   try {
     await api.renamePhoto(id, name.trim());
     await useStore.getState().loadSnapshot();
   } catch (e) {
-    alert(String(e));
+    notify(String(e), "error");
   }
 }
 
 /** File › Save a Copy: the edited picture as a new JPEG beside the original (which is never changed). */
 export async function saveCopies(ids: number[]) {
   const edited = ids.filter(hasEdits);
-  if (!edited.length) return alert("These pictures have no edits to save. Make changes in Edit view first.");
+  if (!edited.length) return void notify("These pictures have no edits to save. Make changes in Edit view first.");
   const failed: string[] = [];
   for (const id of edited) {
     const photo = await api.getPhoto(id);
@@ -160,7 +192,7 @@ export async function setAsDesktop(id: number) {
   try {
     await api.setWallpaper(await renderJpegBase64(id, { maxEdge: 3840, quality: 0.92 }));
   } catch (e) {
-    alert(`Couldn't set the desktop picture: ${e}`);
+    notify(`Couldn't set the desktop picture: ${e}`, "error");
   }
 }
 

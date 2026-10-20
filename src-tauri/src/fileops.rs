@@ -25,6 +25,8 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 pub struct OpResult {
   done: usize,
   failed: Vec<String>,
+  /// Disk folders the operation left completely empty (Picasa then offered to delete them).
+  empty_folders: Vec<String>,
 }
 
 /// Move pictures to the Recycle Bin / Trash (or, with `permanent`, delete them outright —
@@ -49,9 +51,32 @@ pub fn delete_photos(state: State<'_, AppState>, ids: Vec<i64>, permanent: Optio
   let folders = forget_photos(&tx, &gone).map_err(err)?;
   for f in folders {
     db::refresh_folder(&tx, f).map_err(err)?;
+    if let Ok(dir) = tx.query_row("SELECT path FROM folders WHERE id = ?1", [f], |r| r.get::<_, String>(0)) {
+      if dir_is_empty(Path::new(&dir)) {
+        res.empty_folders.push(dir);
+      }
+    }
   }
   tx.commit().map_err(err)?;
   Ok(res)
+}
+
+fn dir_is_empty(dir: &Path) -> bool {
+  std::fs::read_dir(dir).map(|mut entries| entries.next().is_none()).unwrap_or(false)
+}
+
+/// Removes a folder that is completely empty (after its last pictures were deleted) and drops it
+/// from the library. Refuses anything that still holds a file.
+#[tauri::command]
+pub fn remove_empty_folder(state: State<'_, AppState>, path: String) -> CmdResult<()> {
+  let dir = PathBuf::from(&path);
+  if !dir_is_empty(&dir) {
+    return Err(format!("{path} is not empty."));
+  }
+  std::fs::remove_dir(&dir).map_err(err)?;
+  let conn = state.db.lock().map_err(err)?;
+  conn.execute("DELETE FROM folders WHERE path = ?1", [&path]).map_err(err)?;
+  Ok(())
 }
 
 /// Move or copy pictures into `dest` (created if needed). Name clashes get " (2)", " (3)"…

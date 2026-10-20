@@ -6,6 +6,7 @@ import { api } from "../api";
 import { plural } from "../format";
 import { RenderOptions, writePicture } from "../share";
 import { useStore } from "../store";
+import { notify } from "../dialogs";
 
 const QUALITY = { Automatic: 0.85, Maximum: 0.97, Normal: 0.8, Minimum: 0.6 } as const;
 type Quality = keyof typeof QUALITY | "Custom";
@@ -86,7 +87,7 @@ export default function ExportDialog() {
     }
     setProgress(null);
     useStore.getState().setShare(null);
-    if (failed.length) alert(`${plural(failed.length, "picture")} could not be exported:\n\n${failed.slice(0, 8).join("\n")}`);
+    if (failed.length) notify(`${plural(failed.length, "picture")} could not be exported:\n\n${failed.slice(0, 8).join("\n")}`);
     // Like Picasa, show the exported folder when done.
     if (first) revealItemInDir(first).catch(() => {});
   };

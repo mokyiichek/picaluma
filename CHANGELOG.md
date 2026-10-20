@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.4 — 2026-10-20
+
+- **Delete waits for your answer on Mac** — macOS deleted the picture before the confirmation
+  could be answered, so Cancel did nothing. All confirmations, messages and name prompts are now
+  Picaluma's own dialogs, which wait on every platform.
+- **Delete like Picasa** — Delete Picture / Delete Pictures with "Don't ask again"; permanent
+  delete is red and starts on Cancel; removing from an album asks too; when a delete empties a
+  folder, Picaluma offers to delete the folder.
+- **Live folder watching** — new, changed or removed photos in watched folders appear within
+  about two seconds, like Picasa's "Scan Always". No polling.
+- **Shortcuts** — Mac permanent delete also accepts ⇧⌫ and ⌥⌫ (besides ⌥⌘⌫); Ctrl+A selects
+  the folder wherever the focus is; Ctrl+I inverts the selection (⇧⌘I on Mac, where ⌘I is Get
+  Info); ⇧⌘Z redoes on Mac.
+
 ## 0.7.3 — 2026-10-19
 
 - **Faster indexing on hard disks and NAS** — dates and camera details now come from the first

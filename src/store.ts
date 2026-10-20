@@ -80,6 +80,9 @@ interface State {
   shortcutsOpen: boolean;
   /** Help › About Picaluma. */
   aboutOpen: boolean;
+  /** Open confirmation dialog (confirmAsk) and text prompt (askText). */
+  confirmReq: { title: string; text: string; ok: string; danger: boolean; dontAskKey?: string; resolve: (yes: boolean) => void } | null;
+  textPrompt: { label: string; value: string; ok: string; resolve: (value: string | null) => void } | null;
 
   loadSnapshot: () => Promise<void>;
   setScan: (p: ScanProgress) => void;
@@ -123,6 +126,8 @@ interface State {
   setCollage: (ids: number[] | null) => void;
   setShortcutsOpen: (open: boolean) => void;
   setAboutOpen: (open: boolean) => void;
+  setConfirmReq: (req: State["confirmReq"]) => void;
+  setTextPrompt: (req: State["textPrompt"]) => void;
   createAlbum: (name: string, ids: number[]) => Promise<number>;
   addToAlbum: (albumId: number, ids: number[]) => Promise<void>;
   removeFromAlbum: (albumId: number, ids: number[]) => Promise<void>;
@@ -174,6 +179,8 @@ export const useStore = create<State>((set, get) => ({
   collage: null,
   shortcutsOpen: false,
   aboutOpen: false,
+  confirmReq: null,
+  textPrompt: null,
 
   loadSnapshot: async () => {
     const snapshot = await api.snapshot();
@@ -392,6 +399,8 @@ export const useStore = create<State>((set, get) => ({
   setCollage: (ids) => set({ collage: ids && ids.length ? ids : null }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  setConfirmReq: (confirmReq) => set({ confirmReq }),
+  setTextPrompt: (textPrompt) => set({ textPrompt }),
 
   createAlbum: async (name, ids) => {
     const id = await api.createAlbum(name, ids);

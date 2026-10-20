@@ -10,9 +10,9 @@ export const isDeleteKey = (e: KeyboardEvent) => e.key === "Delete" || (isMac &&
 
 /**
  * Permanent delete (skip the Recycle Bin / Trash): Shift+Del or Ctrl+Del on Windows, as in
- * Picasa and Explorer; ⌥⌘⌫ on Mac, as in Finder.
+ * Picasa and Explorer. On Mac ⌥⌘⌫ as in Finder, and also ⌥⌫ or ⇧⌫; plain ⌫ and ⌘⌫ use the Trash.
  */
-export const isPermanentDelete = (e: KeyboardEvent) => (isMac ? e.metaKey && e.altKey : e.shiftKey || e.ctrlKey);
+export const isPermanentDelete = (e: KeyboardEvent) => (isMac ? e.altKey || e.shiftKey : e.shiftKey || e.ctrlKey);
 
 export const binName = navigator.userAgent.includes("Windows") ? "Recycle Bin" : "Trash";
 

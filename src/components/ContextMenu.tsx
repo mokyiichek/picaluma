@@ -16,12 +16,14 @@ import {
   moveToNewFolder,
   pasteEffects,
   printPhotos,
+  removeFromAlbum,
   renameFolder,
   renamePhoto,
   setAsDesktop,
   transferPhotos,
 } from "../actions";
 import { copyPicture } from "../share";
+import { askText, confirmAsk } from "../dialogs";
 
 const sep: MenuEntry = { label: "", sep: true };
 
@@ -98,7 +100,7 @@ function photoEntries(): MenuEntry[] {
     { label: "View and Edit", shortcut: "Enter", action: one != null ? () => s.openEditor(one) : undefined },
     { label: "Add to Album...", action: ids.length ? () => s.setAlbumPicker(ids) : undefined },
     ...(s.albumView != null
-      ? [{ label: "Remove from Album", action: () => s.removeFromAlbum(s.albumView!, ids) } as MenuEntry]
+      ? [{ label: "Remove from Album", shortcut: "Delete", action: () => removeFromAlbum(s.albumView!, ids) } as MenuEntry]
       : []),
     sep,
     { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: () => rotateSelected(90) },
@@ -143,15 +145,15 @@ function albumEntries(albumId: number): MenuEntry[] {
     sep,
     {
       label: "Rename Album...",
-      action: () => {
-        const n = prompt("Album name:", album.name);
-        if (n && n.trim() && n.trim() !== album.name) s.renameAlbum(albumId, n.trim());
+      action: async () => {
+        const n = await askText("Album name:", album.name, "Rename");
+        if (n && n !== album.name) s.renameAlbum(albumId, n);
       },
     },
     {
       label: "Delete Album",
-      action: () => {
-        if (confirm(`Delete the album "${album.name}"?\n\nOnly the album is removed — the pictures stay in their folders.`)) s.deleteAlbum(albumId);
+      action: async () => {
+        if (await confirmAsk(`Delete the album "${album.name}"?\n\nOnly the album is removed — the pictures stay in their folders.`, { ok: "Delete Album" })) s.deleteAlbum(albumId);
       },
     },
   ];
@@ -172,7 +174,7 @@ function folderEntries(folderId: number): MenuEntry[] {
     sep,
     { label: "Select All Pictures", shortcut: "Ctrl+A", action: () => s.selectOnly(photos) },
     { label: "Clear Selection", shortcut: "Ctrl+D", action: s.clearSelection },
-    { label: "Invert Selection", shortcut: "Ctrl+I", action: () => s.selectOnly(photos.filter((p) => !s.selected.has(p))) },
+    { label: "Invert Selection", shortcut: isMac ? "Ctrl+Shift+I" : "Ctrl+I", action: () => s.selectOnly(photos.filter((p) => !s.selected.has(p))) },
     sep,
     { label: "View Slideshow", shortcut: "Ctrl+4", action: () => s.startSlideshow(photos) },
     { label: "Refresh Thumbnails", action: () => api.rescan() },
@@ -182,8 +184,8 @@ function folderEntries(folderId: number): MenuEntry[] {
     {
       label: "Remove from Picaluma...",
       action: folder
-        ? () => {
-            if (confirm(`Remove "${folder.name}" from Picaluma?\n\nThe folder and its pictures stay on disk; Picaluma just stops showing it.`)) api.excludeFolder(folder.path);
+        ? async () => {
+            if (await confirmAsk(`Remove "${folder.name}" from Picaluma?\n\nThe folder and its pictures stay on disk; Picaluma just stops showing it.`, { ok: "Remove" })) api.excludeFolder(folder.path);
           }
         : undefined,
     },

@@ -4,6 +4,7 @@ import { fmtShortcut, isMac } from "../platform";
 import { useStore } from "../store";
 
 import { ISSUES_URL, SITE_URL } from "./AboutDialog";
+import { confirmAsk, notify } from "../dialogs";
 
 const LATEST = "https://api.github.com/repos/mokyiichek/picaluma/releases/latest";
 
@@ -13,6 +14,7 @@ const GROUPS: [string, [string, string][]][] = [
     [
       ["Search", "Ctrl+F"],
       ["Select all pictures in the folder", "Ctrl+A"],
+      ["Invert selection", isMac ? "Ctrl+Shift+I" : "Ctrl+I"],
       ["Clear selection", "Ctrl+D"],
       ["Add / remove star", "Ctrl+Shift+8"],
       ["Rotate clockwise / counterclockwise", "Ctrl+R / Ctrl+Shift+R"],
@@ -35,14 +37,15 @@ const GROUPS: [string, [string, string][]][] = [
       ["E-mail", "Ctrl+E"],
       [isMac ? "Show in Finder" : "Locate on disk", "Ctrl+Enter"],
       ["Open in default program", "Ctrl+Shift+O"],
-      [`Delete (to the ${isMac ? "Trash" : "Recycle Bin"})`, isMac ? "Ctrl+Backspace" : "Delete"],
-      ["Delete permanently", isMac ? "Alt+Ctrl+Backspace" : "Shift+Delete"],
+      [`Delete (to the ${isMac ? "Trash" : "Recycle Bin"})`, isMac ? "Backspace / Ctrl+Backspace" : "Delete"],
+      ["Delete permanently", isMac ? "Alt+Ctrl+Backspace / Shift+Backspace" : "Shift+Delete / Ctrl+Delete"],
     ],
   ],
   [
     "Edit view",
     [
       ["Previous / next picture", "Left / Right"],
+      ["Undo / redo", isMac ? "Ctrl+Z / Ctrl+Shift+Z" : "Ctrl+Z / Ctrl+Y"],
       ["Back to library", "Esc"],
     ],
   ],
@@ -104,12 +107,12 @@ export async function checkForUpdates() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const latest = (await res.json()).tag_name as string;
     if (newer(latest, current)) {
-      if (confirm(`Picaluma ${latest.replace(/^v/, "")} is available (you have ${current}).\n\nOpen the download page?`)) openUrl(SITE_URL);
+      if (await confirmAsk(`Picaluma ${latest.replace(/^v/, "")} is available (you have ${current}).\n\nOpen the download page?`, { ok: "Open Download Page" })) openUrl(SITE_URL);
     } else {
-      alert(`You have the latest version of Picaluma (${current}).`);
+      notify(`You have the latest version of Picaluma (${current}).`);
     }
   } catch (e) {
-    if (confirm(`Couldn't check for updates (${e}).\n\nOpen the Picaluma website instead?`)) openUrl(SITE_URL);
+    if (await confirmAsk(`Couldn't check for updates (${e}).\n\nOpen the Picaluma website instead?`, { ok: "Open Website" })) openUrl(SITE_URL);
   }
 }
 

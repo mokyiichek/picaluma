@@ -4,6 +4,7 @@ mod fileops;
 mod scanner;
 mod share;
 mod thumbs;
+mod watch;
 
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -71,6 +72,8 @@ pub fn run() {
         rescan_requested: Arc::new(AtomicBool::new(false)),
         warming: Arc::new(AtomicBool::new(false)),
       });
+      app.manage(watch::Watch::default());
+      watch::start(app.handle());
       scanner::spawn_rescan(app.handle().clone());
       // `maximized` in tauri.conf.json is unreliable on multi-monitor Windows setups.
       if let Some(win) = app.get_webview_window("main") {
@@ -112,6 +115,7 @@ pub fn run() {
       share::write_text_file,
       share::set_wallpaper,
       fileops::rename_photo,
+      fileops::remove_empty_folder,
       commands::ui_log,
       commands::set_tags,
       commands::get_tags,

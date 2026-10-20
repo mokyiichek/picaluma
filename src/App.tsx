@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, ScanProgress } from "./api";
 import { selectEditorSequence, useStore } from "./store";
-import { addFiles, deletePhotos, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
+import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
 import { copyPicture, folderIds, trayIds } from "./share";
 import { isDeleteKey, isMac, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
@@ -26,6 +26,8 @@ import PrintView from "./components/PrintView";
 import CollageDialog from "./components/CollageDialog";
 import ShortcutsDialog from "./components/ShortcutsDialog";
 import AboutDialog from "./components/AboutDialog";
+import ConfirmDialog from "./components/ConfirmDialog";
+import TextPrompt from "./components/TextPrompt";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
@@ -51,7 +53,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
-      if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen) return;
+      if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
       const sel = [...st.selected];
       if (mod(e) && e.shiftKey && (e.key === "8" || e.key === "*")) {
         e.preventDefault();
@@ -69,6 +71,15 @@ export default function App() {
       } else if (mod(e) && e.key === "2") {
         e.preventDefault();
         st.setThumbSize(150);
+      } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "a") {
+        // Select All: the pictures of the current folder or album, wherever the focus is.
+        e.preventDefault();
+        st.selectOnly(folderIds());
+      } else if (mod(e) && e.key.toLowerCase() === "i" && (isMac ? e.shiftKey : !e.shiftKey)) {
+        // Invert Selection: Ctrl+I on Windows; ⇧⌘I on Mac, where ⌘I is Get Info.
+        e.preventDefault();
+        const folder = folderIds();
+        st.selectOnly(folder.filter((p) => !st.selected.has(p)));
       } else if (mod(e) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         st.clearSelection();
@@ -86,14 +97,14 @@ export default function App() {
         const permanent = isPermanentDelete(e);
         // In an album, plain Delete takes pictures out of the album; elsewhere it deletes from disk.
         if (st.albumView != null && st.view === "library" && !permanent) {
-          st.removeFromAlbum(st.albumView, sel);
+          removeFromAlbum(st.albumView, sel);
         } else if (st.view === "edit" && st.editId != null) {
           const seq = selectEditorSequence(st);
           const i = seq.indexOf(st.editId);
           const next = seq[i + 1] ?? seq[i - 1];
-          deletePhotos([st.editId], permanent).then(() => {
+          deletePhotos([st.editId], permanent).then((deleted) => {
             const now = useStore.getState();
-            if (now.folderOfPhoto.has(st.editId!)) return; // cancelled
+            if (!deleted || now.folderOfPhoto.has(st.editId!)) return; // cancelled or failed
             if (next != null) now.setEditId(next);
             else now.closeEditor();
           });
@@ -191,6 +202,8 @@ export default function App() {
       <CollageDialog />
       <ShortcutsDialog />
       <AboutDialog />
+      <ConfirmDialog />
+      <TextPrompt />
     </div>
   );
 }
