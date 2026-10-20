@@ -213,14 +213,17 @@ export const useStore = create<State>((set, get) => ({
 
   setScan: (scan) => set({ scan }),
 
-  selectFolder: (id, scroll = true) =>
+  selectFolder: (id, scroll = true) => {
+    // Mid-scan, the folder the user opens jumps the queue (Picasa's scanning priority).
+    if (get().scan.scanning && id > 0) api.prioritizeFolder(id).catch(() => {});
     set({
       albumView: id < 0 ? get().albumView : null,
       currentFolderId: id,
       selected: new Set(),
       anchor: null,
       scrollTarget: scroll ? { folderId: id, nonce: Date.now() } : get().scrollTarget,
-    }),
+    });
+  },
 
   setCurrentFolder: (id) => {
     if (get().currentFolderId !== id) set({ currentFolderId: id });

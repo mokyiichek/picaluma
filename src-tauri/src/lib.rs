@@ -128,6 +128,7 @@ pub fn run() {
       commands::set_folder_description,
       commands::set_edits,
       commands::export_picture,
+      commands::prioritize_folder,
       share::make_export_dir,
       share::copy_into,
       share::email_dir,

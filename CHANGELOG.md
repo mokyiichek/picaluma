@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.6 — 2026-10-21
+
+- **Steady while scanning** — clicking a folder mid-scan no longer makes the highlight jump to
+  another folder. As folders above grow or move during a scan, the view stays on what you're
+  looking at, and a glide to a clicked folder follows it to its new position.
+- **Scanning priority** — the folder you open is listed and indexed straight away, ahead of the
+  running scan, as in Picasa.
+
 ## 0.7.5 — 2026-10-20
 
 - **Runs on older computers** — Picaluma now draws its window on the CPU by default instead of

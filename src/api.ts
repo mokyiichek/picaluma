@@ -108,6 +108,7 @@ export const api = {
   setWallpaper: (dataBase64: string) => invoke<void>("set_wallpaper", { dataBase64 }),
   renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
   removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
+  prioritizeFolder: (id: number) => invoke<void>("prioritize_folder", { id }),
   getSettings: () => invoke<{ hardwareAcceleration: boolean }>("get_settings"),
   setHardwareAcceleration: (on: boolean) => invoke<void>("set_hardware_acceleration", { on }),
   setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),

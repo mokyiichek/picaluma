@@ -476,29 +476,7 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
         .collect()
     });
 
-    {
-      let mut conn = db.lock().unwrap();
-      let Ok(tx) = conn.transaction() else { continue };
-      let mut folders = HashSet::new();
-      for (p, m) in &metas {
-        let _ = tx.execute(
-          "UPDATE photos SET taken = ?1, width = ?2, height = ?3, orientation = ?4, make = ?5, model = ?6,
-             has_gps = ?7, exif = ?8, meta_done = 1 WHERE id = ?9",
-          params![m.taken, m.width, m.height, m.orientation, m.make, m.model, m.has_gps as i64, m.exif, p.id],
-        );
-        if !m.make.is_empty() || !m.model.is_empty() {
-          let _ = db::reindex_photo(&tx, p.id);
-        }
-        folders.insert(p.folder_id);
-      }
-      for f in folders {
-        let _ = db::refresh_folder(&tx, f);
-      }
-      // Merge full-text segments a little as we go, so a first scan of a big library doesn't
-      // balloon the file before the final compaction.
-      let _ = tx.execute("INSERT INTO photos_fts(photos_fts, rank) VALUES('merge', 64)", []);
-      let _ = tx.commit();
-    }
+    save_metas(db, &metas);
 
     progress.indexed = done.load(Ordering::Relaxed);
     progress.current = batch
@@ -511,6 +489,61 @@ fn index_pending(app: &AppHandle, db: &Arc<Mutex<Connection>>, progress: &mut Sc
       let _ = app.emit("library-changed", ());
     }
   }
+}
+
+/// Stores indexed metadata for a batch of pictures in one transaction.
+fn save_metas(db: &Arc<Mutex<Connection>>, metas: &[(&Pending, Meta)]) {
+  let mut conn = db.lock().unwrap();
+  let Ok(tx) = conn.transaction() else { return };
+  let mut folders = HashSet::new();
+  for (p, m) in metas {
+    let _ = tx.execute(
+      "UPDATE photos SET taken = ?1, width = ?2, height = ?3, orientation = ?4, make = ?5, model = ?6,
+         has_gps = ?7, exif = ?8, meta_done = 1 WHERE id = ?9",
+      params![m.taken, m.width, m.height, m.orientation, m.make, m.model, m.has_gps as i64, m.exif, p.id],
+    );
+    if !m.make.is_empty() || !m.model.is_empty() {
+      let _ = db::reindex_photo(&tx, p.id);
+    }
+    folders.insert(p.folder_id);
+  }
+  for f in folders {
+    let _ = db::refresh_folder(&tx, f);
+  }
+  // Merge full-text segments a little as we go, so a first scan of a big library doesn't
+  // balloon the file before the final compaction.
+  let _ = tx.execute("INSERT INTO photos_fts(photos_fts, rank) VALUES('merge', 64)", []);
+  let _ = tx.commit();
+}
+
+/// Scanning priority, as in Picasa: when the user opens a folder mid-scan it is listed and
+/// indexed straight away, ahead of the big pass (which may still be listing other drives).
+pub(crate) fn scan_folder_now(app: &AppHandle, folder_id: i64) {
+  let state = app.state::<AppState>();
+  let db = state.db.clone();
+  let path: Option<String> = db.lock().unwrap().query_row("SELECT path FROM folders WHERE id = ?1", [folder_id], |r| r.get(0)).ok();
+  let Some(path) = path else { return };
+  let started = Instant::now();
+  let _ = list_folder(&db, Path::new(&path));
+  let pending: Vec<Pending> = {
+    let conn = db.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare("SELECT id, folder_id, path FROM photos WHERE folder_id = ?1 AND meta_done = 0 ORDER BY name") else { return };
+    let rows = stmt.query_map([folder_id], |r| Ok(Pending { id: r.get(0)?, folder_id: r.get(1)?, path: r.get(2)? }));
+    match rows {
+      Ok(rows) => rows.filter_map(Result::ok).collect(),
+      Err(_) => return,
+    }
+  };
+  if !pending.is_empty() {
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(INDEX_THREADS).thread_name(|i| format!("priority-{i}")).build().unwrap();
+    for batch in pending.chunks(INDEX_BATCH) {
+      let metas: Vec<(&Pending, Meta)> = pool.install(|| batch.par_iter().map(|p| (p, index_file(p))).collect());
+      save_metas(&db, &metas);
+      let _ = app.emit("library-changed", ());
+    }
+  }
+  let _ = app.emit("library-changed", ());
+  log::info!("priority scan of {path}: {} pictures indexed in {:?}", pending.len(), started.elapsed());
 }
 
 /// EXIF and dimensions from the start of the file. TIFF and HEIF may keep EXIF further in, so

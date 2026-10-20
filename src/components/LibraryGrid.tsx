@@ -40,6 +40,8 @@ export default function LibraryGrid() {
   const smooth = useRef<{ to: (y: number) => void } | null>(null);
   /** True while gliding to a clicked folder: the tree keeps that folder highlighted meanwhile. */
   const gliding = useRef(false);
+  /** The folder a glide is heading for, so a mid-glide reload can re-aim at its new position. */
+  const glideFolder = useRef<number | null>(null);
   const effects = useStore((s) => s.effects);
   const album = useStore(selectAlbum);
 
@@ -90,6 +92,28 @@ export default function LibraryGrid() {
   });
 
   useLayoutEffect(() => v.measure(), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scanning reloads the library every second or so, and folders above the one on screen grow
+  // as photos are found. Keep what the user is looking at in place: re-aim a glide at the
+  // clicked folder's new position, otherwise pin the photo at the top of the view.
+  const prevRows = useRef(rows);
+  useLayoutEffect(() => {
+    if (prevRows.current === rows) return;
+    prevRows.current = rows;
+    const el = scrollRef.current;
+    if (!el) return;
+    if (gliding.current && glideFolder.current != null) {
+      const idx = headOfFolder.get(glideFolder.current);
+      if (idx != null) smooth.current?.to(offsets[idx]);
+      return;
+    }
+    const a = topAnchor.current;
+    const idx = a ? rowOfPhoto.get(a.photo) : undefined;
+    if (a && idx != null) {
+      const top = Math.max(0, offsets[idx] - a.delta);
+      if (Math.abs(el.scrollTop - top) > 1) el.scrollTop = top;
+    }
+  }, [rows, offsets, rowOfPhoto, headOfFolder]);
 
   // Picasa's animated wheel scrolling, measured frame-by-frame from Picasa 3 with special effects
   // on: each notch moves ~117px, easing in from rest and gliding out (≈15% at 60ms, 54% at
@@ -195,6 +219,7 @@ export default function LibraryGrid() {
     }
     const idx = headOfFolder.get(scrollTarget.folderId);
     if (idx == null) return;
+    glideFolder.current = scrollTarget.folderId;
     if (useStore.getState().effects && smooth.current) smooth.current.to(offsets[idx]);
     else el.scrollTop = offsets[idx];
   }, [scrollTarget]); // eslint-disable-line react-hooks/exhaustive-deps

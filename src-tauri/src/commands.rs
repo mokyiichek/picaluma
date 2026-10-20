@@ -532,3 +532,12 @@ pub fn export_picture(path: String, data_base64: String) -> CmdResult<String> {
   std::fs::write(&target, bytes).map_err(err)?;
   Ok(target.to_string_lossy().into_owned())
 }
+
+/// The user opened a folder: list and index it now, ahead of the running scan.
+#[tauri::command]
+pub fn prioritize_folder(app: AppHandle, id: i64) {
+  if id <= 0 {
+    return; // albums aren't folders on disk
+  }
+  std::thread::spawn(move || scanner::scan_folder_now(&app, id));
+}
