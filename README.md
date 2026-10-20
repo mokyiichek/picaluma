@@ -17,9 +17,9 @@ Get the latest version from **[Releases](https://github.com/mokyiichek/picaluma/
 
 | Platform | File | Notes |
 |----------|------|-------|
-| **Windows 10/11** (64-bit) | `Picaluma_x.y.z_x64-setup.exe` | Installs for your user only — no admin rights needed. If SmartScreen says *"Windows protected your PC"*, click **More info → Run anyway** (the installer isn't code-signed yet). |
+| **Windows 10/11** (64-bit; 32-bit: `Picaluma_x.y.z_x86-setup.exe`) | `Picaluma_x.y.z_x64-setup.exe` | Installs for your user only — no admin rights needed. If SmartScreen says *"Windows protected your PC"*, click **More info → Run anyway** (the installer isn't code-signed yet). |
 | **Linux** (x86-64) | `Picaluma_x.y.z_amd64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Debian/Ubuntu: `sudo apt install ./Picaluma_x.y.z_amd64.deb`. |
-| **macOS 11+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. Signed with a Developer ID and notarized by Apple, so it opens with no warning. Or from Terminal: `curl -fsSL https://ahmok.com/picaluma/install.sh \| bash` |
+| **macOS 10.15+** (Apple Silicon & Intel) | `Picaluma_x.y.z_universal.dmg` | Open the .dmg and drag Picaluma to **Applications**. Signed with a Developer ID and notarized by Apple, so it opens with no warning. Or from Terminal: `curl -fsSL https://ahmok.com/picaluma/install.sh \| bash` |
 
 On first launch, add the folders you want Picaluma to watch. On Windows it can also
 import your old Picasa folder list in one click.
@@ -68,6 +68,12 @@ import your old Picasa folder list in one click.
 - **Print** — wallet to 8×10 and full-page layouts, contact sheets, borders, copies, Letter/A4.
 - **Picture Collage**, **Make a Poster**, **Set as Desktop**, **Export as HTML Page**.
 - Fullscreen slideshow, EXIF Properties panel.
+
+**Runs on older computers**
+- Windows 10 and 11 (64- and 32-bit), Intel and Apple Silicon Macs from macOS 10.15, Linux.
+- Draws on the CPU by default, so a small or old graphics card can't run out of memory or crash
+  its driver with a large library. Turn on *Tools › Options › Use the graphics card* for
+  recent cards.
 
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.

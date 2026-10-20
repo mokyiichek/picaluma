@@ -489,7 +489,6 @@ textarea {
   align-items: center;
   justify-content: center;
   border-radius: 3px;
-  will-change: transform;
 }
 .cell img {
   cursor: pointer;

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.5 — 2026-10-20
+
+- **Runs on older computers** — Picaluma now draws its window on the CPU by default instead of
+  the graphics card. On a 3 GB graphics card with an older driver, a 700,000-photo library could
+  exhaust graphics memory and crash Windows (VIDEO_TDR_FAILURE). Measured: graphics memory used
+  by Picaluma fell from 56 MB with only six photos on screen (growing with every thumbnail) to
+  0 MB. Recent graphics cards can turn it back on in *Tools › Options*. Thumbnails no longer get
+  a graphics layer each.
+- **32-bit Windows** installer, and the Mac version now runs on macOS 10.15 Catalina or later
+  (Intel and Apple Silicon).
+- **New effects** — Redeye (drag a box around each eye), Retouch (click blemishes), Text,
+  Pixelate and Focal Zoom, included in export, print, e-mail and collages.
+
 ## 0.7.4 — 2026-10-20
 
 - **Delete waits for your answer on Mac** — macOS deleted the picture before the confirmation

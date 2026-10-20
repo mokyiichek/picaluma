@@ -22,6 +22,13 @@ jobs:
             args: "--bundles nsis"
             artifacts: |
               src-tauri/target/release/bundle/nsis/*.exe
+          # 32-bit Windows 10 for older PCs (WebView2 has an x86 runtime).
+          - platform: windows-latest
+            name: windows-x86
+            rust_targets: i686-pc-windows-msvc
+            args: "--target i686-pc-windows-msvc --bundles nsis"
+            artifacts: |
+              src-tauri/target/i686-pc-windows-msvc/release/bundle/nsis/*.exe
           - platform: ubuntu-22.04
             name: linux
             rust_targets: ""

@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod fileops;
 mod scanner;
+mod settings;
 mod share;
 mod thumbs;
 mod watch;
@@ -19,6 +20,8 @@ pub struct AppState {
   pub scanning: Arc<AtomicBool>,
   pub rescan_requested: Arc<AtomicBool>,
   pub warming: Arc<AtomicBool>,
+  /// The library folder (library.db, thumbs, settings.json, picaluma.log).
+  pub data_dir: PathBuf,
 }
 
 /// Logs to stderr and to `picaluma.log` in the library folder (the release app has no console).
@@ -71,14 +74,32 @@ pub fn run() {
         scanning: Arc::new(AtomicBool::new(false)),
         rescan_requested: Arc::new(AtomicBool::new(false)),
         warming: Arc::new(AtomicBool::new(false)),
+        data_dir: data_dir.clone(),
       });
       app.manage(watch::Watch::default());
       watch::start(app.handle());
       scanner::spawn_rescan(app.handle().clone());
-      // `maximized` in tauri.conf.json is unreliable on multi-monitor Windows setups.
-      if let Some(win) = app.get_webview_window("main") {
-        let _ = win.maximize();
+      // The window is created here rather than in tauri.conf.json so the graphics setting can be
+      // applied before the browser engine starts.
+      let prefs = settings::load(&data_dir);
+      log::info!("hardware acceleration: {}", if prefs.hardware_acceleration { "on" } else { "off (drawing on the CPU)" });
+      #[cfg(target_os = "linux")]
+      if !prefs.hardware_acceleration {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
       }
+      #[allow(unused_mut)]
+      let mut window = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+        .title("Picaluma")
+        .inner_size(1440.0, 900.0)
+        .min_inner_size(960.0, 600.0)
+        .maximized(true);
+      #[cfg(windows)]
+      {
+        window = window.additional_browser_args(&settings::browser_args(&prefs));
+      }
+      let win = window.build()?;
+      // `maximized` alone is unreliable on multi-monitor Windows setups.
+      let _ = win.maximize();
       Ok(())
     })
     // Thumbnails and full photos are served over custom schemes so the webview can
@@ -112,6 +133,8 @@ pub fn run() {
       share::email_dir,
       share::email_files,
       share::print_window,
+      settings::get_settings,
+      settings::set_hardware_acceleration,
       share::write_text_file,
       share::set_wallpaper,
       fileops::rename_photo,

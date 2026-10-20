@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { api } from "../api";
+import { notify } from "../dialogs";
 import { useStore } from "../store";
 
 const TABS = ["General", "File Types", "Slideshow", "Experimental"] as const;
@@ -11,8 +13,15 @@ export default function OptionsDialog() {
   const setEffects = useStore((s) => s.setEffects);
   const [tab, setTab] = useState<(typeof TABS)[number]>("General");
   const [draft, setDraft] = useState(effects);
+  const [gpu, setGpu] = useState(false);
+  const [gpuDraft, setGpuDraft] = useState(false);
   useEffect(() => {
-    if (open) setDraft(useStore.getState().effects);
+    if (!open) return;
+    setDraft(useStore.getState().effects);
+    api.getSettings().then((s) => {
+      setGpu(s.hardwareAcceleration);
+      setGpuDraft(s.hardwareAcceleration);
+    });
   }, [open]);
 
   if (!open) return null;
@@ -20,7 +29,15 @@ export default function OptionsDialog() {
     setDraft(useStore.getState().effects);
     setOpen(false);
   };
-  const apply = () => setEffects(draft);
+  const apply = () => {
+    setEffects(draft);
+    if (gpuDraft !== gpu) {
+      api.setHardwareAcceleration(gpuDraft).then(() => {
+        setGpu(gpuDraft);
+        notify("Restart Picaluma to apply the graphics setting.");
+      });
+    }
+  };
 
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && close()}>
@@ -49,7 +66,24 @@ export default function OptionsDialog() {
                 </span>
               </label>
             </fieldset>
-          ) : (
+          ) : null}
+          {tab === "General" && (
+            <fieldset>
+              <legend>Graphics</legend>
+              <label className="opt-check">
+                <input type="checkbox" checked={gpuDraft} onChange={(e) => setGpuDraft(e.target.checked)} />
+                <span>
+                  <b>Use the graphics card (hardware acceleration)</b>
+                  <br />
+                  <span className="muted">
+                    Off by default, so Picaluma runs smoothly on older computers and small graphics cards. Turn it on only if
+                    you have a recent graphics card. Takes effect after restarting Picaluma.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+          )}
+          {tab !== "General" && (
             <p className="muted">These settings will arrive in a later release.</p>
           )}
         </div>

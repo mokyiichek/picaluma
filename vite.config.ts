@@ -11,7 +11,8 @@ export default defineConfig({
     watch: { ignored: ["**/src-tauri/**"] },
   },
   build: {
-    target: "chrome110",
+    // WebView2 (Chromium) on Windows, WKWebView on macOS 10.15+, WebKitGTK on Linux.
+    target: ["chrome100", "safari13"],
     sourcemap: false,
   },
 });
