@@ -1,13 +1,56 @@
 import { mod } from "../platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo } from "../api";
-import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, render, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
+import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
+import { hasPixelOps } from "../pixelfx";
+import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
 import { ArrowIcon, BackIcon, BrushIcon, PlayIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
 
 const STAGE_PAD = 14;
+
+type ToolName = "crop" | "straighten" | PixelTool["kind"];
+let lastTab = "fixes";
+/** Effects that open a tool instead of applying straight away. */
+const TOOL_EFFECTS: Record<string, ToolName> = { crop: "crop", straighten: "straighten", redeye: "redeye", retouch: "retouch", text: "text", focalZoom: "focal" };
+
+/** Canvas rendering of the edit stack for effects CSS can't show (Red-eye, Retouch, Text…). */
+function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  const key = enabled ? JSON.stringify(edits) : "";
+  useEffect(() => {
+    if (!enabled) {
+      setUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return null;
+      });
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const canvas = await renderToCanvas(photoUrl(id), edits, 2000);
+        const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.92));
+        canvas.width = 0; // free the render canvas; the preview is the JPEG from here on
+        if (cancelled || !blob) return;
+        const next = URL.createObjectURL(blob);
+        setUrl((old) => {
+          if (old) URL.revokeObjectURL(old);
+          return next;
+        });
+      } catch {
+        /* keep showing the CSS rendering */
+      }
+    }, 150); // let quick successive changes (sliders, clicks) settle before rendering
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [id, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return url;
+}
 
 /** Oriented thumbnail aspect ratios, filled by the grid as thumbnails load. */
 export const aspectCache = new Map<number, number>();
@@ -30,6 +73,14 @@ function useEditStack(id: number | null) {
     },
     [id, edits, setPhotoEdits],
   );
+  const applyEdit = useCallback(
+    (e: Edit) => {
+      if (id == null) return;
+      setPhotoEdits(id, [...edits, e]);
+      setRedo([]);
+    },
+    [id, edits, setPhotoEdits],
+  );
   const undo = useCallback(() => {
     if (id == null || !edits.length) return;
     setRedo((r) => [...r, edits[edits.length - 1]]);
@@ -40,7 +91,7 @@ function useEditStack(id: number | null) {
     setPhotoEdits(id, [...edits, redo[redo.length - 1]]);
     setRedo((r) => r.slice(0, -1));
   }, [id, edits, redo, setPhotoEdits]);
-  return { edits, apply, undo, redo: redoOne, canRedo: redo.length > 0 };
+  return { edits, apply, applyEdit, undo, redo: redoOne, canRedo: redo.length > 0 };
 }
 const EMPTY: Edit[] = [];
 
@@ -125,12 +176,17 @@ export default function EditView({ active }: { active: boolean }) {
   useEffect(() => setTool(null), [id]);
 
   if (id == null) return null;
-  const startTool = (t: "crop" | "straighten") => {
+  const startTool = (t: ToolName) => {
     const r = render(stack.edits);
-    setTool(t === "crop" ? { kind: "crop", rect: r.crop ?? [0, 0, 1, 1], aspect: null } : { kind: "straighten", angle: r.straighten });
+    if (t === "crop") setTool({ kind: "crop", rect: r.crop ?? [0, 0, 1, 1], aspect: null });
+    else if (t === "straighten") setTool({ kind: "straighten", angle: r.straighten });
+    else setTool(newPixelTool(t));
   };
   const applyTool = () => {
-    if (tool?.kind === "crop") {
+    if (tool && PIXEL_TOOLS.has(tool.kind)) {
+      const e = toolEdit(tool as PixelTool);
+      if (e) stack.applyEdit(e);
+    } else if (tool?.kind === "crop") {
       const [, , w, h] = tool.rect;
       if (w < 0.999 || h < 0.999) stack.apply("crop", undefined, tool.rect);
     } else if (tool?.kind === "straighten") stack.apply("straighten", tool.angle);
@@ -141,6 +197,8 @@ export default function EditView({ active }: { active: boolean }) {
     <>
       {tool?.kind === "crop" ? (
         <CropPanel id={id} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
+      ) : tool && PIXEL_TOOLS.has(tool.kind) ? (
+        <PixelToolPanel tool={tool as PixelTool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
       ) : (
         <EditPanel id={id} photo={photo} stack={stack} onTool={startTool} disabled={tool != null} />
       )}
@@ -156,7 +214,9 @@ export default function EditView({ active }: { active: boolean }) {
 /** While a tool is open the stage previews the photo without the edit being changed. */
 function previewEdits(edits: Edit[], tool: Tool): Edit[] {
   if (!tool) return edits;
-  if (tool.kind === "crop") return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
+  const original = tool.kind === "crop" || (PIXEL_TOOLS.has(tool.kind) && worksOnOriginal(tool as PixelTool));
+  if (original) return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
+  if (tool.kind !== "straighten") return edits;
   return [...edits.filter((e) => e.op !== "straighten"), { op: "straighten", v: tool.angle }];
 }
 
@@ -168,8 +228,10 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
   const [fullReady, setFullReady] = useState(false);
   const flight = useStore((s) => s.flight);
   const endFlight = useStore((s) => s.endFlight);
-  const r = render(previewEdits(edits, tool));
+  const shown = previewEdits(edits, tool);
+  const r = render(shown);
   const rot90 = r.rotate === 90 || r.rotate === 270;
+  const preview = usePixelPreview(id, shown, hasPixelOps(shown));
 
   useLayoutEffect(() => {
     const el = stageRef.current!;
@@ -253,11 +315,17 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
     <div className="edit-stage" ref={stageRef} onDoubleClick={tool ? undefined : backToLibrary}>
       {box && (
         <div ref={boxRef} className={`edit-photo${frameClass}`} style={{ left: box.x, top: box.y, width: box.w, height: box.h, transformOrigin: "0 0" }}>
-          <div style={inner}>
-            <img src={thumbUrl(id)} style={imgStyle} alt="" draggable={false} />
-            <img key={id} className={`full${fullReady ? " ready" : ""}`} src={photoUrl(id)} style={imgStyle} onLoad={() => setFullReady(true)} alt="" draggable={false} />
-          </div>
-          {!tool && <Overlays r={r} />}
+          {preview ? (
+            // Pixel effects: a canvas rendering of the whole edit stack (crop, rotation and filters included).
+            <img className="pixel-preview" src={preview} alt="" draggable={false} />
+          ) : (
+            <div style={inner}>
+              <img src={thumbUrl(id)} style={imgStyle} alt="" draggable={false} />
+              <img key={id} className={`full${fullReady ? " ready" : ""}`} src={photoUrl(id)} style={imgStyle} onLoad={() => setFullReady(true)} alt="" draggable={false} />
+            </div>
+          )}
+          {(!tool || PIXEL_TOOLS.has(tool.kind)) && <Overlays r={r} drawn={!!preview} />}
+          {tool && PIXEL_TOOLS.has(tool.kind) && <PixelToolOverlay tool={tool as PixelTool} setTool={setTool} />}
           {tool?.kind === "straighten" && <div className="straighten-grid" />}
           {tool?.kind === "crop" && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
         </div>
@@ -266,16 +334,17 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
   );
 }
 
-function Overlays({ r }: { r: ReturnType<typeof render> }) {
+/** CSS overlays for display; `drawn` when the canvas preview already painted the vignette and tints. */
+function Overlays({ r, drawn = false }: { r: ReturnType<typeof render>; drawn?: boolean }) {
   return (
     <>
-      {r.vignette > 0 && (
+      {!drawn && r.vignette > 0 && (
         <div className="fx-overlay" style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,${r.vignette}) 100%)` }} />
       )}
-      {r.overlays.includes("gradTint") && (
+      {!drawn && r.overlays.includes("gradTint") && (
         <div className="fx-overlay" style={{ background: "linear-gradient(rgba(255,140,40,0.35), rgba(255,140,40,0) 60%)" }} />
       )}
-      {r.overlays.includes("cinemascope") && (
+      {!drawn && r.overlays.includes("cinemascope") && (
         <div className="fx-overlay" style={{ background: "linear-gradient(#000 12%, transparent 12%, transparent 88%, #000 88%)" }} />
       )}
       {r.overlays.includes("grain") && (
@@ -321,10 +390,15 @@ function EditPanel({
   id: number;
   photo: Photo | null;
   stack: Stack;
-  onTool: (t: "crop" | "straighten") => void;
+  onTool: (t: ToolName) => void;
   disabled: boolean;
 }) {
-  const [tab, setTab] = useState("fixes");
+  // Remembered across tools (the panel is replaced while a tool is open).
+  const [tab, setTabState] = useState(lastTab);
+  const setTab = (t: string) => {
+    lastTab = t;
+    setTabState(t);
+  };
   const tabIcons: Record<string, React.ReactNode> = {
     fixes: <WrenchIcon />,
     tuning: <SunIcon />,
@@ -355,7 +429,7 @@ function EditPanel({
                   className="fix-btn"
                   disabled={def.todo || disabled}
                   title={def.todo ? `${def.label} — coming soon` : def.label}
-                  onClick={() => (e === "crop" || e === "straighten" ? onTool(e) : stack.apply(e))}
+                  onClick={() => (TOOL_EFFECTS[e] ? onTool(TOOL_EFFECTS[e]) : stack.apply(e))}
                 >
                   <span className="ico">
                     <img src={thumbUrl(id)} style={{ filter: def.filter?.(1) }} alt="" />
@@ -383,7 +457,7 @@ function EditPanel({
             const r = render([{ op: e }]);
             const count = stack.edits.filter((x) => x.op === e).length;
             return (
-              <div key={e} className={`fx-tile${def.todo ? " todo" : ""}`} title={def.todo ? `${def.label} — coming soon` : def.label} onClick={() => !def.todo && stack.apply(e)}>
+              <div key={e} className={`fx-tile${def.todo ? " todo" : ""}`} title={def.todo ? `${def.label} — coming soon` : def.label} onClick={() => !def.todo && (TOOL_EFFECTS[e] ? onTool(TOOL_EFFECTS[e]) : stack.apply(e, e === "pixelate" ? 1 : undefined))}>
                 <div className="preview">
                   <img src={thumbUrl(id)} style={{ filter: r.filter || undefined }} alt="" />
                   <Overlays r={r} />

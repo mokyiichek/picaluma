@@ -1,3 +1,5 @@
+import { applyFinalOps, applySourceOps, SOURCE_OPS } from "./pixelfx";
+
 // Non-destructive edits. Each edit is rendered as CSS filters (+ optional overlay/frame) for
 // display, and replayed onto a canvas for export. Originals on disk are never modified.
 
@@ -6,6 +8,12 @@ export interface Edit {
   v?: number;
   /** Crop rectangle as fractions of the (unrotated) image: [x, y, w, h]. */
   r?: [number, number, number, number];
+  /** Red-eye ellipses [x, y, w, h] / Retouch spots [x, y, radius], as fractions of the original. */
+  pts?: number[][];
+  /** Text to draw, its position (fractions of the finished picture) and colour. */
+  t?: string;
+  p?: [number, number];
+  c?: string;
 }
 
 export type CropRect = [number, number, number, number];
@@ -30,12 +38,12 @@ export const EFFECTS: Record<string, EffectDef> = {
   // Basic fixes
   crop: { id: "crop", label: "Crop" },
   straighten: { id: "straighten", label: "Straighten" },
-  redeye: { id: "redeye", label: "Redeye", todo: true },
+  redeye: { id: "redeye", label: "Redeye" },
   lucky: { id: "lucky", label: "I'm Feeling Lucky", filter: f("contrast(1.12) saturate(1.12) brightness(1.04)") },
   autoContrast: { id: "autoContrast", label: "Auto Contrast", filter: f("contrast(1.2)") },
   autoColor: { id: "autoColor", label: "Auto Color", filter: f("saturate(1.15) hue-rotate(-3deg)") },
-  retouch: { id: "retouch", label: "Retouch", todo: true },
-  text: { id: "text", label: "Text", todo: true },
+  retouch: { id: "retouch", label: "Retouch" },
+  text: { id: "text", label: "Text" },
   // Tuning sliders (v in 0..1, temp in -1..1)
   fillLight: { id: "fillLight", label: "Fill Light", filter: (v) => `brightness(${1 + 0.35 * v}) contrast(${1 - 0.1 * v})` },
   highlights: { id: "highlights", label: "Highlights", filter: (v) => `brightness(${1 + 0.12 * v}) contrast(${1 + 0.12 * v})` },
@@ -75,8 +83,8 @@ export const EFFECTS: Record<string, EffectDef> = {
   boost: { id: "boost", label: "Boost", filter: f("contrast(1.15) saturate(1.35) brightness(1.03)") },
   soften: { id: "soften", label: "Soften", filter: f("blur(0.7px)") },
   vignette: { id: "vignette", label: "Vignette", vignette: 0.55 },
-  pixelate: { id: "pixelate", label: "Pixelate", todo: true },
-  focalZoom: { id: "focalZoom", label: "Focal Zoom", todo: true },
+  pixelate: { id: "pixelate", label: "Pixelate" },
+  focalZoom: { id: "focalZoom", label: "Focal Zoom" },
   pencilSketch: { id: "pencilSketch", label: "Pencil Sketch", filter: f("grayscale(1) contrast(2.2) brightness(1.3)") },
   neon: { id: "neon", label: "Neon", filter: f("invert(1) hue-rotate(90deg) saturate(5) contrast(2)") },
   comicBook: { id: "comicBook", label: "Comic Book", filter: f("contrast(1.9) saturate(1.8)") },
@@ -181,15 +189,33 @@ export function sliderValue(edits: Edit[], op: string, fallback = 0): number {
   return fallback;
 }
 
-/** Replays edits onto a canvas at full resolution for Export. */
-export async function renderToCanvas(src: string, edits: Edit[]): Promise<HTMLCanvasElement> {
-  const img = await loadImage(src);
+/**
+ * Replays edits onto a canvas at full resolution for Export (or, with maxSource, a smaller
+ * preview for the editor when pixel effects are present).
+ */
+export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0): Promise<HTMLCanvasElement> {
+  let img: HTMLImageElement | HTMLCanvasElement = await loadImage(src);
+  const natural = (i: HTMLImageElement | HTMLCanvasElement) => (i instanceof HTMLImageElement ? [i.naturalWidth, i.naturalHeight] : [i.width, i.height]);
+  const [nw0, nh0] = natural(img);
+  const shrink = maxSource > 0 ? Math.min(1, maxSource / Math.max(nw0, nh0)) : 1;
+  if (shrink < 1 || edits.some((e) => SOURCE_OPS.has(e.op))) {
+    // Work on a copy: scaled down for previews, and with Red-eye / Retouch painted in.
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(nw0 * shrink));
+    c.height = Math.max(1, Math.round(nh0 * shrink));
+    // CPU-backed: Red-eye and Retouch read pixels back, which on a GPU canvas costs video memory.
+    const cx = c.getContext("2d", { willReadFrequently: edits.some((e) => SOURCE_OPS.has(e.op)) })!;
+    cx.drawImage(img, 0, 0, c.width, c.height);
+    applySourceOps(cx, edits);
+    img = c;
+  }
+  const [naturalWidth, naturalHeight] = natural(img);
   const r = render(edits);
   const [cx, cy, cw, ch] = r.crop ?? [0, 0, 1, 1];
-  const sx = cx * img.naturalWidth;
-  const sy = cy * img.naturalHeight;
-  const sw = Math.max(1, cw * img.naturalWidth);
-  const sh = Math.max(1, ch * img.naturalHeight);
+  const sx = cx * naturalWidth;
+  const sy = cy * naturalHeight;
+  const sw = Math.max(1, cw * naturalWidth);
+  const sh = Math.max(1, ch * naturalHeight);
   const swap = r.rotate === 90 || r.rotate === 270;
   const w = Math.round(swap ? sh : sw);
   const h = Math.round(swap ? sw : sh);
@@ -227,6 +253,7 @@ export async function renderToCanvas(src: string, edits: Edit[]): Promise<HTMLCa
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
   }
+  applyFinalOps(canvas, edits);
   return canvas;
 }
 

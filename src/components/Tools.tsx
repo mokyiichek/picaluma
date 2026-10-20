@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { thumbUrl } from "../api";
 import { CropRect, cropViewBox } from "../effects";
+import type { PixelTool } from "./PixelTools";
 
-export type Tool = { kind: "crop"; rect: CropRect; aspect: number | null } | { kind: "straighten"; angle: number } | null;
+export type Tool = { kind: "crop"; rect: CropRect; aspect: number | null } | { kind: "straighten"; angle: number } | PixelTool | null;
 type CropTool = Extract<Tool, { kind: "crop" }>;
 type StraightenTool = Extract<Tool, { kind: "straighten" }>;
 
