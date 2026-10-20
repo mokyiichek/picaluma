@@ -9,6 +9,8 @@ export interface Folder {
   dateMax: number;
   updated: number;
   bytes: number;
+  /** Sort Folder By: "" (date taken), "modified", "name" or "size". */
+  sort: string;
   photos: number[];
 }
 
@@ -17,6 +19,8 @@ export interface Album {
   name: string;
   description: string;
   created: number;
+  /** Sort Album By: "" (as arranged), "date", "modified", "name" or "size". */
+  sort: string;
   photos: number[];
 }
 
@@ -28,6 +32,7 @@ export interface Snapshot {
   edits: [number, string][];
   totalPhotos: number;
   libraryId: string;
+  videos: number[];
 }
 
 export interface Photo {
@@ -109,7 +114,10 @@ export const api = {
   renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
   removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
   prioritizeFolder: (id: number) => invoke<void>("prioritize_folder", { id }),
-  getSettings: () => invoke<{ hardwareAcceleration: boolean }>("get_settings"),
+  getSettings: () => invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes }>("get_settings"),
+  setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
+  /** Folder or album (negative id) sort order. */
+  setSort: (id: number, sort: string) => invoke<void>("set_sort", { id, sort }),
   setHardwareAcceleration: (on: boolean) => invoke<void>("set_hardware_acceleration", { on }),
   setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),
   getTags: (ids: number[]) => invoke<TagCount[]>("get_tags", { ids }),
@@ -128,6 +136,16 @@ export const api = {
   moveFolder: (id: number, destParent: string) => invoke<string>("move_folder", { id, destParent }),
   deleteFolder: (id: number) => invoke<void>("delete_folder", { id }),
 };
+
+/** Tools › Options › File Types: optional formats (JPEG, PNG, GIF, BMP, TIFF, WebP are always on). */
+export interface FileTypes {
+  heif: boolean;
+  avif: boolean;
+  raw: boolean;
+  psd: boolean;
+  tga: boolean;
+  videos: boolean;
+}
 
 export interface OpResult {
   done: number;

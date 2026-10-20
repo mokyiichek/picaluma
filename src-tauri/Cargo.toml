@@ -1,6 +1,6 @@
 [package]
 name = "picaluma"
-version = "0.7.6"
+version = "0.7.7"
 description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
 authors = ["mokyiichek"]
 license = "Apache-2.0 OR MIT"
@@ -25,13 +25,18 @@ rayon = "1"
 kamadak-exif = "0.5"
 imagesize = "0.13"
 jpeg-decoder = "0.3"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp", "tiff"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp", "tiff", "tga"] }
 chrono = "0.4"
 base64 = "0.22"
 trash = "5"
 log = "0.4"
 env_logger = "0.11"
 notify = "8"
+
+# Windows' own thumbnail engine (Explorer's): HEIC, AVIF, RAW and video thumbnails with the
+# codecs the PC has. Same version Tauri already uses, so nothing extra is compiled.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_System_Com", "Win32_Graphics_Gdi"] }
 
 [profile.release]
 codegen-units = 1

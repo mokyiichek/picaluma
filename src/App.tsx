@@ -30,6 +30,7 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import TextPrompt from "./components/TextPrompt";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -55,7 +56,14 @@ export default function App() {
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
       if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
       const sel = [...st.selected];
-      if (mod(e) && e.shiftKey && (e.key === "8" || e.key === "*")) {
+      if (e.key === "F11") {
+        e.preventDefault();
+        const win = getCurrentWindow();
+        win.isFullscreen().then((full) => win.setFullscreen(!full)).catch(() => {});
+      } else if (e.key === "F1") {
+        e.preventDefault();
+        st.setShortcutsOpen(true);
+      } else if (mod(e) && e.shiftKey && (e.key === "8" || e.key === "*")) {
         e.preventDefault();
         st.toggleStar(sel);
       } else if (mod(e) && e.key === "3" && sel.length === 1) {
@@ -75,8 +83,8 @@ export default function App() {
         // Select All: the pictures of the current folder or album, wherever the focus is.
         e.preventDefault();
         st.selectOnly(folderIds());
-      } else if (mod(e) && e.key.toLowerCase() === "i" && (isMac ? e.shiftKey : !e.shiftKey)) {
-        // Invert Selection: Ctrl+I on Windows; ⇧⌘I on Mac, where ⌘I is Get Info.
+      } else if ((mod(e) && e.key.toLowerCase() === "i" && (isMac ? e.shiftKey : !e.shiftKey)) || (isMac && e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "i")) {
+        // Invert Selection: Ctrl+I on Windows; ⇧⌘I or Control-I on Mac, where ⌘I is Get Info.
         e.preventDefault();
         const folder = folderIds();
         st.selectOnly(folder.filter((p) => !st.selected.has(p)));
@@ -111,7 +119,7 @@ export default function App() {
         } else {
           deletePhotos(sel, permanent);
         }
-      } else if (e.key === "F2" && trayIds().length === 1) {
+      } else if ((e.key === "F2" || (isMac && e.key === "F3")) && trayIds().length === 1) {
         e.preventDefault();
         renamePhoto(trayIds()[0]);
       } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "s") {

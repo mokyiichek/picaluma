@@ -2843,7 +2843,7 @@ dependencies = [
 
 [[package]]
 name = "picaluma"
-version = "0.7.6"
+version = "0.7.7"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2864,6 +2864,7 @@ dependencies = [
  "tauri-plugin-opener",
  "trash",
  "walkdir",
+ "windows",
 ]
 
 [[package]]

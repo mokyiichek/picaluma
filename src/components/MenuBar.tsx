@@ -215,13 +215,13 @@ function focusDescription(folderId: number) {
   setTimeout(() => (document.querySelector(`[data-desc="${folderId}"]`) as HTMLInputElement | null)?.focus(), 80);
 }
 
-function Item({ e, close }: { e: MenuEntry; close: () => void }) {
+export function Item({ e, close, bold }: { e: MenuEntry; close: () => void; bold?: boolean }) {
   const [sub, setSub] = useState(false);
   const p = platformItem(e.label, e.shortcut);
   const enabled = !!e.action || !!e.submenu?.some((x) => x.action);
   return (
     <div
-      className={`menu-item${enabled ? "" : " disabled"}${e.checked ? " checked" : ""}${e.submenu ? " has-sub" : ""}`}
+      className={`menu-item${enabled ? "" : " disabled"}${e.checked ? " checked" : ""}${e.submenu ? " has-sub" : ""}${bold ? " bold" : ""}`}
       onMouseEnter={() => e.submenu && setSub(true)}
       onMouseLeave={() => e.submenu && setSub(false)}
       onMouseUp={() => {

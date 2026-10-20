@@ -1,10 +1,10 @@
-import { fmtShortcut, isMac, platformItem } from "../platform";
+import { isMac } from "../platform";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
 import { Edit } from "../effects";
 import { selectVisible, useStore } from "../store";
-import { MenuEntry } from "./MenuBar";
+import { Item, MenuEntry } from "./MenuBar";
 import {
   copyEffects,
   deleteFolder,
@@ -27,9 +27,30 @@ import { askText, confirmAsk } from "../dialogs";
 
 const sep: MenuEntry = { label: "", sep: true };
 
+/** Folder › Sort Folder By / Album › Sort Album By. `id` < 0 is an album; the order is kept per folder. */
+function sortEntry(id: number, current: string): MenuEntry {
+  const album = id < 0;
+  const opts: [string, string][] = [
+    ...(album ? ([["Order Added", ""]] as [string, string][]) : []),
+    ["Date Taken", album ? "date" : ""],
+    ["Recent Changes", "modified"],
+    ["Size", "size"],
+    ["Name", "name"],
+  ];
+  return {
+    label: album ? "Sort Album By" : "Sort Folder By",
+    submenu: opts.map(([label, sort]) => ({
+      label,
+      checked: current === sort,
+      action: () => api.setSort(id, sort).then(() => useStore.getState().loadSnapshot()),
+    })),
+  };
+}
+
 export function rotateSelected(deg: number) {
   const s = useStore.getState();
   for (const id of s.selected) {
+    if (s.videos.has(id)) continue;
     const list: Edit[] = [...(s.edits.get(id) ?? []), { op: "rotate", v: deg }];
     s.setPhotoEdits(id, list);
   }
@@ -69,24 +90,7 @@ export default function ContextMenu() {
 
   return (
     <div className="menu-drop context" ref={ref} style={{ left: pos.x, top: pos.y, position: "fixed" }}>
-      {entries.map((e, i) =>
-        e.sep ? (
-          <div key={i} className="menu-sep" />
-        ) : (
-          <div
-            key={i}
-            className={`menu-item${e.action ? "" : " disabled"}${i === 0 ? " bold" : ""}`}
-            onMouseUp={() => {
-              if (!e.action) return;
-              close();
-              e.action();
-            }}
-          >
-            <span>{platformItem(e.label).label}</span>
-            {platformItem(e.label, e.shortcut).shortcut && <span className="shortcut">{fmtShortcut(platformItem(e.label, e.shortcut).shortcut!)}</span>}
-          </div>
-        ),
-      )}
+      {entries.map((e, i) => (e.sep ? <div key={i} className="menu-sep" /> : <Item key={i} e={e} close={close} bold={i === 0} />))}
     </div>
   );
 }
@@ -142,6 +146,7 @@ function albumEntries(albumId: number): MenuEntry[] {
   return [
     { label: "View Album", action: () => s.openAlbum(albumId) },
     { label: "View Slideshow", shortcut: "Ctrl+4", action: album.photos.length ? () => s.startSlideshow(album.photos) : undefined },
+    sortEntry(-albumId, album.sort ?? ""),
     sep,
     {
       label: "Rename Album...",
@@ -177,6 +182,7 @@ function folderEntries(folderId: number): MenuEntry[] {
     { label: "Invert Selection", shortcut: isMac ? "Ctrl+Shift+I" : "Ctrl+I", action: () => s.selectOnly(photos.filter((p) => !s.selected.has(p))) },
     sep,
     { label: "View Slideshow", shortcut: "Ctrl+4", action: () => s.startSlideshow(photos) },
+    ...(folder ? [sortEntry(folderId, folder.sort ?? "")] : []),
     { label: "Refresh Thumbnails", action: () => api.rescan() },
     { label: "Picture Collage...", action: photos.length > 1 ? () => s.setCollage(photos) : undefined },
     sep,

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.7 — 2026-10-21
+
+- **More photo formats** — HEIC/HEIF (iPhone), AVIF, camera RAW from Canon, Nikon, Sony,
+  Fujifilm, Olympus, Panasonic, Pentax, Leica, DNG and more (shown from the camera's own
+  preview), Photoshop and Targa, alongside JPEG, PNG, GIF, BMP, TIFF and WebP. HEIC, AVIF and
+  movie thumbnails come from the computer's own codecs (Windows thumbnails, macOS ImageIO and
+  Quick Look).
+- **Movies** — MP4, MOV, AVI, MKV, WMV, MPEG, 3GP, AVCHD and WebM appear in their folders with a
+  play badge. Double-click to play in the viewer (streamed, so long clips start at once); `/`
+  plays or pauses, `,` and `.` jump 5 seconds. Codecs the viewer can't play open in your default
+  player. Movies are skipped by slideshows, prints and effects, and exported or e-mailed as they
+  are.
+- **Tools › Options › File Types** — choose which kinds of files Picaluma looks for, as in
+  Picasa. Unticked types leave the library; ticking them again brings them back.
+- **Sort Folder By / Sort Album By** — right-click a folder to order its pictures by date taken,
+  recent changes, size or name, as in Picasa. Albums can also keep the order pictures were added.
+- **Zoom in Edit view** — ↑/↓ (as in Picasa), Page Up/Down, +/− or the mouse wheel; 1 shows
+  actual size, 0 fits the window; drag to move around.
+- **Shortcuts** — F11 full screen, F1 keyboard shortcuts, and on Mac Control-I inverts the
+  selection and F3 renames.
+
 ## 0.7.6 — 2026-10-21
 
 - **Steady while scanning** — clicking a folder mid-scan no longer makes the highlight jump to

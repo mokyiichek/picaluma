@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, FileTypes } from "../api";
 import { notify } from "../dialogs";
 import { useStore } from "../store";
 
 const TABS = ["General", "File Types", "Slideshow", "Experimental"] as const;
+
+const ALL_TYPES: FileTypes = { heif: true, avif: true, raw: true, psd: true, tga: true, videos: true };
+
+/** Tools › Options › File Types, like Picasa's: which kinds of files Picaluma looks for. */
+const TYPE_ROWS: [keyof FileTypes, string, string][] = [
+  ["heif", "HEIC / HEIF", "iPhone, iPad and Mac photos (.heic, .heif)"],
+  ["avif", "AVIF", "Modern web and phone photos (.avif)"],
+  ["raw", "Camera RAW", "Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, Leica, Adobe DNG and more"],
+  ["psd", "Photoshop", "Photoshop documents (.psd)"],
+  ["tga", "Targa", "Targa images (.tga)"],
+  ["videos", "Movies", "MP4, MOV, AVI, MKV, WMV, MPEG, 3GP, AVCHD (.mts), WebM and more"],
+];
 
 /** Tools › Options. Mirrors Picasa's tabbed Options dialog; General holds Special effects. */
 export default function OptionsDialog() {
@@ -15,12 +27,17 @@ export default function OptionsDialog() {
   const [draft, setDraft] = useState(effects);
   const [gpu, setGpu] = useState(false);
   const [gpuDraft, setGpuDraft] = useState(false);
+  const [types, setTypes] = useState<FileTypes>(ALL_TYPES);
+  const [typesDraft, setTypesDraft] = useState<FileTypes>(ALL_TYPES);
   useEffect(() => {
     if (!open) return;
     setDraft(useStore.getState().effects);
     api.getSettings().then((s) => {
       setGpu(s.hardwareAcceleration);
       setGpuDraft(s.hardwareAcceleration);
+      const t = { ...ALL_TYPES, ...s.fileTypes };
+      setTypes(t);
+      setTypesDraft(t);
     });
   }, [open]);
 
@@ -36,6 +53,10 @@ export default function OptionsDialog() {
         setGpu(gpuDraft);
         notify("Restart Picaluma to apply the graphics setting.");
       });
+    }
+    if (TYPE_ROWS.some(([k]) => types[k] !== typesDraft[k])) {
+      // Saving rescans: newly ticked types are found, unticked ones leave the library.
+      api.setFileTypes(typesDraft).then(() => setTypes(typesDraft));
     }
   };
 
@@ -83,7 +104,34 @@ export default function OptionsDialog() {
               </label>
             </fieldset>
           )}
-          {tab !== "General" && (
+          {tab === "File Types" && (
+            <fieldset>
+              <legend>Look for these file types</legend>
+              <label className="opt-check">
+                <input type="checkbox" checked disabled />
+                <span>
+                  <b>JPEG, PNG, GIF, BMP, TIFF, WebP</b>
+                  <br />
+                  <span className="muted">Always included.</span>
+                </span>
+              </label>
+              {TYPE_ROWS.map(([k, name, desc]) => (
+                <label key={k} className="opt-check">
+                  <input type="checkbox" checked={typesDraft[k]} onChange={(e) => setTypesDraft({ ...typesDraft, [k]: e.target.checked })} />
+                  <span>
+                    <b>{name}</b>
+                    <br />
+                    <span className="muted">{desc}</span>
+                  </span>
+                </label>
+              ))}
+              <p className="muted">
+                HEIC, AVIF and movies use your computer's own codecs. On Windows, install the free HEIF and AV1 extensions from the
+                Microsoft Store if their thumbnails stay blank.
+              </p>
+            </fieldset>
+          )}
+          {tab !== "General" && tab !== "File Types" && (
             <p className="muted">These settings will arrive in a later release.</p>
           )}
         </div>

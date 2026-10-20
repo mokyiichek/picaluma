@@ -11,7 +11,7 @@ Top to bottom:
 | Region            | Height | Contents                                                                                     | Status |
 |-------------------|--------|----------------------------------------------------------------------------------------------|--------|
 | Menu bar          | 22     | File · Edit · View · Folder · Picture · Create · Tools · Help; account link at right          | ✅      |
-| Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆ and geotag ✅; faces ⬜; uploaded/movies dropped — Google Web Albums, no video support) |
+| Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆ and geotag ✅; faces ⬜; uploaded dropped — Google Web Albums; movies are shown with a play badge and play in the viewer) |
 | Main              | flex   | Left tree (≈505 px, resizable) · splitter · thumbnail grid · Properties panel (≈278 px, toggle) | ✅ |
 | Status bar        | 17     | Blue `#568FB7`, white bold 11 px, centered: `252 pictures   Apr 12, 2013 to Aug 4, 2026   92.7MB on disk` | ✅ |
 | Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ⬜; Share and Places dropped — Google+ and Google Maps) |

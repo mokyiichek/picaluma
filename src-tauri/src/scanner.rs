@@ -31,10 +31,7 @@ use crate::db;
 use crate::thumbs;
 use crate::AppState;
 
-#[cfg(target_os = "macos")]
-const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "png", "gif", "bmp", "webp", "tif", "tiff", "heic", "heif"];
-#[cfg(not(target_os = "macos"))]
-const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "jpe", "png", "gif", "bmp", "webp", "tif", "tiff"];
+use crate::formats;
 
 /// Directory names never worth descending into, even when a whole drive is watched.
 const SKIP_DIRS: &[&str] = &[
@@ -379,8 +376,7 @@ fn list_images(dir: &Path, streaming: bool) -> Vec<FileInfo> {
   rd.filter_map(Result::ok)
     .filter_map(|e| {
       let path = e.path();
-      let ext = path.extension()?.to_string_lossy().to_lowercase();
-      if !IMAGE_EXTS.contains(&ext.as_str()) {
+      if !formats::is_media(&path) {
         return None;
       }
       let md = e.metadata().ok()?;
@@ -556,9 +552,27 @@ fn index_file(p: &Pending) -> Meta {
   if file.take(HEADER_BYTES).read_to_end(&mut bytes).is_err() {
     return meta;
   }
+  if formats::is_video(&p.path) {
+    // MP4/MOV keep their 'moov' header at the start or, when not "fast start", at the end.
+    let (mut taken, mut w, mut h) = formats::video_info(&bytes);
+    if taken.is_none() && w == 0 {
+      if let Ok(mut f) = std::fs::File::open(&p.path) {
+        use std::io::{Seek, SeekFrom};
+        let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+        let mut tail = Vec::new();
+        if f.seek(SeekFrom::Start(len.saturating_sub(4 << 20))).is_ok() && f.read_to_end(&mut tail).is_ok() {
+          (taken, w, h) = formats::video_info(&tail);
+        }
+      }
+    }
+    meta.taken = taken.map(|t| local_naive_secs(SystemTime::UNIX_EPOCH + Duration::from_secs(t.max(0) as u64)));
+    meta.width = w;
+    meta.height = h;
+    return meta;
+  }
   let mut ex = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes));
   let ext = Path::new(&p.path).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-  if ex.is_err() && bytes.len() as u64 == HEADER_BYTES && matches!(ext.as_str(), "tif" | "tiff" | "heic" | "heif") {
+  if ex.is_err() && bytes.len() as u64 == HEADER_BYTES && matches!(ext.as_str(), "tif" | "tiff" | "heic" | "heif" | "hif" | "avif" | "cr3") {
     if let Ok(all) = std::fs::read(&p.path) {
       bytes = all;
       ex = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes));
@@ -671,8 +685,9 @@ fn is_excluded(path: &Path, excluded: &[String]) -> bool {
 // Live updates (see watch.rs)
 // ---------------------------------------------------------------------------------------------
 
+/// A picture or video of an enabled file type (Options › File Types).
 pub(crate) fn is_image(path: &Path) -> bool {
-  path.extension().map(|e| IMAGE_EXTS.contains(&e.to_string_lossy().to_lowercase().as_str())).unwrap_or(false)
+  formats::is_media(path)
 }
 
 /// Inside a watched folder, not excluded, and not inside a folder the scanner skips.
@@ -881,6 +896,6 @@ mod tests {
     let thumb = walkdir::WalkDir::new(d.join("thumbs")).into_iter().filter_map(Result::ok).find(|e| e.file_type().is_file()).expect("thumbnail written");
     let img = image::open(thumb.path()).unwrap();
     assert!(img.width() <= 360 && img.height() <= 360 && img.width() > 0);
-    assert!(thumbs::system_jpeg(&p.path, 1200).unwrap().starts_with(&[0xFF, 0xD8]), "HEIC converts to JPEG for display");
+    assert!(crate::sysimg::system_image(&p.path, 1200).is_ok(), "HEIC converts for display");
   }
 }

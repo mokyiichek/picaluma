@@ -5,6 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::formats::FileTypes;
 use crate::AppState;
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -14,6 +15,8 @@ pub struct Settings {
   /// thumbnails can exhaust a small graphics card, and old drivers then crash Windows
   /// (VIDEO_TDR_FAILURE) instead of recovering. Drawing on the CPU is plenty fast for a photo grid.
   pub hardware_acceleration: bool,
+  /// Options › File Types.
+  pub file_types: FileTypes,
 }
 
 pub fn load(dir: &Path) -> Settings {
@@ -32,6 +35,19 @@ fn save(dir: &Path, s: &Settings) -> Result<(), String> {
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Settings {
   load(&state.data_dir)
+}
+
+/// Options › File Types: saved, applied, and the library rescanned to add or drop those files.
+#[tauri::command]
+pub fn set_file_types(app: tauri::AppHandle, state: State<'_, AppState>, types: FileTypes) -> Result<(), String> {
+  let mut s = load(&state.data_dir);
+  if s.file_types != types {
+    s.file_types = types;
+    save(&state.data_dir, &s)?;
+    crate::formats::configure(&types);
+    crate::scanner::spawn_rescan(app);
+  }
+  Ok(())
 }
 
 /// Takes effect the next time Picaluma starts.
@@ -63,7 +79,7 @@ mod tests {
     std::fs::create_dir_all(&dir).unwrap();
     let _ = std::fs::remove_file(dir.join("settings.json"));
     assert!(!load(&dir).hardware_acceleration, "graphics card off unless switched on");
-    save(&dir, &Settings { hardware_acceleration: true }).unwrap();
+    save(&dir, &Settings { hardware_acceleration: true, ..Settings::default() }).unwrap();
     assert!(load(&dir).hardware_acceleration);
     std::fs::write(dir.join("settings.json"), "\u{feff}{\"hardwareAcceleration\": true}").unwrap();
     assert!(load(&dir).hardware_acceleration, "a byte-order mark is ignored");

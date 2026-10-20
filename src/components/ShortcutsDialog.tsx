@@ -14,7 +14,7 @@ const GROUPS: [string, [string, string][]][] = [
     [
       ["Search", "Ctrl+F"],
       ["Select all pictures in the folder", "Ctrl+A"],
-      ["Invert selection", isMac ? "Ctrl+Shift+I" : "Ctrl+I"],
+      ["Invert selection", isMac ? "Ctrl+Shift+I / Control-I" : "Ctrl+I"],
       ["Clear selection", "Ctrl+D"],
       ["Add / remove star", "Ctrl+Shift+8"],
       ["Rotate clockwise / counterclockwise", "Ctrl+R / Ctrl+Shift+R"],
@@ -23,13 +23,15 @@ const GROUPS: [string, [string, string][]][] = [
       ["Tags panel", "Ctrl+T"],
       [isMac ? "Get Info" : "Properties", isMac ? "Ctrl+I" : "Alt+Enter"],
       ["New album from selection", "Ctrl+N"],
+      ["Full screen", "F11"],
+      ["Keyboard shortcuts", "F1"],
     ],
   ],
   [
     "Pictures",
     [
       ["View and edit", "Enter / Ctrl+3"],
-      ["Rename", "F2"],
+      ["Rename", isMac ? "F2 / F3" : "F2"],
       ["Save a copy with edits", "Ctrl+S"],
       ["Export to folder", "Ctrl+Shift+S"],
       ["Print", "Ctrl+P"],
@@ -45,6 +47,11 @@ const GROUPS: [string, [string, string][]][] = [
     "Edit view",
     [
       ["Previous / next picture", "Left / Right"],
+      ["Zoom in / out (also Page Up / Down, + / − and the mouse wheel)", "Up / Down"],
+      ["Fit to window / actual size", "0 / 1"],
+      ["Drag to move around a zoomed picture", ""],
+      ["Movie: play / pause", "/"],
+      ["Movie: back / forward 5 seconds", ", / ."],
       ["Undo / redo", isMac ? "Ctrl+Z / Ctrl+Shift+Z" : "Ctrl+Z / Ctrl+Y"],
       ["Back to library", "Esc"],
     ],

@@ -33,6 +33,8 @@ interface State {
   folderOfPhoto: Map<number, number>;
   starred: Set<number>;
   geotagged: Set<number>;
+  /** Videos in the library (play badge, player instead of the editor). */
+  videos: Set<number>;
   edits: Map<number, Edit[]>;
 
   view: "library" | "edit";
@@ -144,6 +146,7 @@ export const useStore = create<State>((set, get) => ({
   folderOfPhoto: new Map(),
   starred: new Set(),
   geotagged: new Set(),
+  videos: new Set(),
   edits: new Map(),
 
   view: "library",
@@ -202,6 +205,7 @@ export const useStore = create<State>((set, get) => ({
       folderOfPhoto,
       starred: new Set(snapshot.starred),
       geotagged: new Set(snapshot.geotagged),
+      videos: new Set(snapshot.videos ?? []),
       edits,
       albumView: albumAlive ? albumView : null,
       currentFolderId: albumAlive ? -albumView! : cur != null && folderById.has(cur) ? cur : snapshot.folders[0]?.id ?? null,
@@ -364,7 +368,13 @@ export const useStore = create<State>((set, get) => ({
     api.setEdits(id, list.length ? JSON.stringify(list) : "");
   },
 
-  startSlideshow: (photos, index = 0) => photos.length && set({ slideshow: { photos, index } }),
+  startSlideshow: (photos, index = 0) => {
+    // Slideshows show pictures only; movies are skipped.
+    const videos = get().videos;
+    const start = photos[index];
+    const pics = videos.size ? photos.filter((p) => !videos.has(p)) : photos;
+    if (pics.length) set({ slideshow: { photos: pics, index: Math.max(0, pics.indexOf(start)) } });
+  },
   setSlideshowIndex: (index) => {
     const s = get().slideshow;
     if (s) set({ slideshow: { ...s, index } });
@@ -442,7 +452,7 @@ function homeFolder(s: State, photoId: number): number | null {
 
 /** An album presented with the Folder shape so the grid can render it like a folder. */
 export function albumAsFolder(a: Album): Folder {
-  return { id: -a.id, name: a.name, path: "Album", description: a.description, dateMin: a.created, dateMax: a.created, updated: a.created, bytes: 0, photos: a.photos };
+  return { id: -a.id, name: a.name, path: "Album", description: a.description, dateMin: a.created, dateMax: a.created, updated: a.created, bytes: 0, sort: a.sort, photos: a.photos };
 }
 
 export function selectAlbum(s: State): Album | undefined {

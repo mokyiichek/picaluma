@@ -43,7 +43,13 @@ import your old Picasa folder list in one click.
   Ctrl+N). Albums never move or copy your files.
 - **Tags, stars and captions** — Tags panel (Ctrl+T) with one-click Quick Tags.
 - **Flat or tree folder view** — Picasa's date-grouped list or your disk's folder tree;
-  sort by creation date, recent changes, size or name. Filters for starred and geotagged photos.
+  sort by creation date, recent changes, size or name, and sort the pictures inside each folder
+  or album (right-click › Sort Folder By). Filters for starred and geotagged photos.
+- **Every common format** — JPEG, PNG, GIF, BMP, TIFF and WebP, plus HEIC/HEIF, AVIF, camera
+  RAW (Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, Leica, DNG…), Photoshop and
+  Targa — choose which in *Tools › Options › File Types*.
+- **Movies** — MP4, MOV, AVI, MKV, WMV, MPEG, 3GP, AVCHD and WebM show up with a play badge and
+  play in the viewer (or open in your default player for codecs the viewer can't play).
 - **File management** — Move to Folder, Copy to Folder, Move to New Folder, Delete from
   Disk, Rename / Move / Delete Folder. Delete sends pictures to the Recycle Bin / Trash;
   Shift+Delete (⌥⌘⌫ on Mac) deletes permanently. Moved pictures keep their stars, tags,
@@ -53,6 +59,7 @@ import your old Picasa folder list in one click.
   Picaluma at the folders where you keep your pictures.)
 
 **Editing** — non-destructive; originals are never modified
+- Zoom with ↑/↓, Page Up/Down, +/− or the mouse wheel; 1 for actual size, 0 to fit; drag to pan.
 - Crop (with print and screen aspect presets) and Straighten.
 - I'm Feeling Lucky, Auto Contrast, Auto Color, Fill Light, Highlights, Shadows,
   Color Temperature.
@@ -78,7 +85,7 @@ import your old Picasa folder list in one click.
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned: People (local face grouping), Places map, movies, red-eye/retouch, hide/unhide,
+Planned: People (local face grouping), Places map, Movie maker, Hold, hide/unhide,
 `.picasa.ini` import, Folder Manager redesign.
 
 ## Build from source

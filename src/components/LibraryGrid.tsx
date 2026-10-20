@@ -410,6 +410,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const selected = useStore((s) => s.selected.has(id));
   const starred = useStore((s) => s.starred.has(id));
   const geo = useStore((s) => s.geotagged.has(id));
+  const video = useStore((s) => s.videos.has(id));
   const edits = useStore((s) => s.edits.get(id));
   const clickPhoto = useStore((s) => s.clickPhoto);
   const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
@@ -452,6 +453,13 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
         }}
         alt=""
       />
+      {video && (
+        <span className="play-badge">
+          <svg viewBox="0 0 24 24" width="12" height="12">
+            <path d="M8 5v14l11-7z" fill="#fff" />
+          </svg>
+        </span>
+      )}
       {starred && <StarIcon size={14} className="star" />}
       {geo && (
         <span className="badges">

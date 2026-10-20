@@ -9,6 +9,8 @@ use rayon::prelude::*;
 use tauri::http::{Request, Response};
 use tauri::{AppHandle, Manager, UriSchemeResponder};
 
+use crate::formats::{self, Kind};
+use crate::sysimg;
 use crate::AppState;
 
 /// Longest edge of cached thumbnails. Large enough for the biggest grid slider setting.
@@ -83,16 +85,52 @@ pub fn handle_thumb(app: AppHandle, req: Request<Vec<u8>>, responder: UriSchemeR
   });
 }
 
+/// Files whose thumbnail couldn't be made this session (unsupported codec, damaged file), so
+/// the grid doesn't ask for them again and again.
+static FAILED: Mutex<Option<HashSet<PathBuf>>> = Mutex::new(None);
+
 fn ensure_thumb(cache: &Path, photo: &PhotoRef) -> Result<Vec<u8>, String> {
   if let Ok(bytes) = std::fs::read(cache) {
     return Ok(bytes);
   }
-  let src = std::fs::read(&photo.path).map_err(|e| e.to_string())?;
-  // Orientation comes from the file itself: indexing may not have recorded it yet.
-  let orientation = exif_orientation(&src).unwrap_or(photo.orientation);
-  let bytes = build_thumb(&src, &photo.path, orientation)?;
-  store(cache, &bytes);
-  Ok(bytes)
+  if FAILED.lock().unwrap().as_ref().is_some_and(|f| f.contains(cache)) {
+    return Err("no thumbnail (failed earlier)".into());
+  }
+  match make_thumb(&photo.path, photo.orientation) {
+    Ok(bytes) => {
+      store(cache, &bytes);
+      Ok(bytes)
+    }
+    Err(e) => {
+      FAILED.lock().unwrap().get_or_insert_with(HashSet::new).insert(cache.to_path_buf());
+      Err(e)
+    }
+  }
+}
+
+/// A thumbnail for any supported file: pictures decoded here, RAW from its embedded preview,
+/// HEIC/AVIF/PSD and video frames from the operating system.
+fn make_thumb(path: &str, orientation_hint: i64) -> Result<Vec<u8>, String> {
+  match formats::kind(path) {
+    Kind::Video => encode_thumb(sysimg::video_frame(path, THUMB_EDGE * 2)?, 1),
+    Kind::System => encode_thumb(sysimg::system_image(path, THUMB_EDGE * 2)?, 1),
+    Kind::Raw => {
+      let src = std::fs::read(path).map_err(|e| e.to_string())?;
+      match formats::raw_preview(&src) {
+        Some(jpeg) => {
+          let orientation = exif_orientation(&src).unwrap_or(orientation_hint);
+          encode_thumb(decode_scaled(jpeg, "preview.jpg")?, orientation)
+        }
+        None => encode_thumb(sysimg::system_image(path, THUMB_EDGE * 2)?, 1),
+      }
+    }
+    Kind::Image => {
+      let src = std::fs::read(path).map_err(|e| e.to_string())?;
+      // Orientation comes from the file itself: indexing may not have recorded it yet.
+      let orientation = exif_orientation(&src).unwrap_or(orientation_hint);
+      build_thumb(&src, path, orientation)
+    }
+  }
 }
 
 /// Writes a thumbnail from bytes already in memory (the macOS HEIC test).
@@ -115,7 +153,7 @@ fn store(cache: &Path, bytes: &[u8]) {
   let _ = std::fs::write(cache, bytes);
 }
 
-fn exif_orientation(src: &[u8]) -> Option<i64> {
+pub(crate) fn exif_orientation(src: &[u8]) -> Option<i64> {
   let ex = exif::Reader::new().read_from_container(&mut Cursor::new(src)).ok()?;
   ex.get_field(exif::Tag::Orientation, exif::In::PRIMARY)?.value.get_uint(0).map(|v| v as i64)
 }
@@ -218,6 +256,9 @@ fn prune_cache(db: &Arc<Mutex<rusqlite::Connection>>, dir: &Path) {
 pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
   let Some(id) = parse_id(req) else { return not_found() };
   let Some(photo) = lookup(app, id) else { return not_found() };
+  if formats::is_video(&photo.path) {
+    return video_response(&photo.path, req);
+  }
   if needs_display_conversion(&photo.path) {
     let dir = app.state::<AppState>().thumb_dir.clone();
     return match display_jpeg(&dir, &photo.path, photo.mtime) {
@@ -260,13 +301,8 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 fn build_thumb(src: &[u8], path: &str, orientation: i64) -> Result<Vec<u8>, String> {
-  // HEIC/HEIF (iPhone, Mac) goes through the system converter; trust the converted JPEG's own
-  // orientation tag, since the converter may or may not have rotated the pixels already.
-  if is_heif(path) {
-    let jpeg = system_jpeg(path, THUMB_EDGE * 2)?;
-    let orientation = exif_orientation(&jpeg).unwrap_or(1);
-    let img = decode_scaled(&jpeg, "x.jpg")?;
-    return encode_thumb(img, orientation);
+  if formats::kind(path) == Kind::System {
+    return encode_thumb(sysimg::system_image(path, THUMB_EDGE * 2)?, 1);
   }
   let img = decode_scaled(src, path)?;
   encode_thumb(img, orientation)
@@ -313,7 +349,7 @@ fn decode_jpeg_scaled(src: &[u8]) -> Result<DynamicImage, String> {
   }
 }
 
-fn apply_orientation(img: DynamicImage, orientation: i64) -> DynamicImage {
+pub(crate) fn apply_orientation(img: DynamicImage, orientation: i64) -> DynamicImage {
   match orientation {
     2 => DynamicImage::from(imageops::flip_horizontal(&img)),
     3 => img.rotate180(),
@@ -326,15 +362,13 @@ fn apply_orientation(img: DynamicImage, orientation: i64) -> DynamicImage {
   }
 }
 
-pub fn is_heif(path: &str) -> bool {
-  let lower = path.to_lowercase();
-  lower.ends_with(".heic") || lower.ends_with(".heif")
-}
-
-/// Formats the webview can't display natively: HEIC everywhere, TIFF in WebView2 (Windows).
+/// Formats the webview can't display natively: RAW, HEIC/AVIF/PSD and TGA everywhere, TIFF in
+/// WebView2 (Windows) and WebKitGTK.
 fn needs_display_conversion(path: &str) -> bool {
   let lower = path.to_lowercase();
-  is_heif(path) || (!cfg!(target_os = "macos") && (lower.ends_with(".tif") || lower.ends_with(".tiff")))
+  matches!(formats::kind(path), Kind::Raw | Kind::System)
+    || lower.ends_with(".tga")
+    || (!cfg!(target_os = "macos") && (lower.ends_with(".tif") || lower.ends_with(".tiff")))
 }
 
 /// Largest edge of converted full-size photos (HEIC/TIFF shown in the editor and slideshow).
@@ -346,8 +380,21 @@ fn display_jpeg(thumb_dir: &Path, path: &str, mtime: i64) -> Result<Vec<u8>, Str
   if let Ok(b) = std::fs::read(&cache) {
     return Ok(b);
   }
-  let bytes = if is_heif(path) {
-    system_jpeg(path, DISPLAY_EDGE)?
+  let bytes = if formats::kind(path) != Kind::Image {
+    let img = match formats::kind(path) {
+      Kind::Raw => {
+        let src = std::fs::read(path).map_err(|e| e.to_string())?;
+        match formats::raw_preview(&src) {
+          Some(jpeg) => apply_orientation(image::load_from_memory(jpeg).map_err(|e| e.to_string())?, exif_orientation(&src).unwrap_or(1)),
+          None => sysimg::system_image(path, DISPLAY_EDGE)?,
+        }
+      }
+      _ => sysimg::system_image(path, DISPLAY_EDGE)?,
+    };
+    let img = if img.width().max(img.height()) > DISPLAY_EDGE { img.resize(DISPLAY_EDGE, DISPLAY_EDGE, imageops::FilterType::Triangle) } else { img };
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 90).encode_image(&img.to_rgb8()).map_err(|e| e.to_string())?;
+    out
   } else {
     let img = image::open(path).map_err(|e| e.to_string())?;
     let img = if img.width().max(img.height()) > DISPLAY_EDGE { img.resize(DISPLAY_EDGE, DISPLAY_EDGE, imageops::FilterType::Triangle) } else { img };
@@ -359,30 +406,6 @@ fn display_jpeg(thumb_dir: &Path, path: &str, mtime: i64) -> Result<Vec<u8>, Str
   Ok(bytes)
 }
 
-/// Convert an image to JPEG with the OS's own codecs (`sips`/ImageIO on macOS, which handles
-/// HEIC). Other platforms report HEIC as unsupported rather than failing silently.
-#[cfg(target_os = "macos")]
-pub fn system_jpeg(path: &str, max_edge: u32) -> Result<Vec<u8>, String> {
-  use std::sync::atomic::AtomicU64;
-  static SEQ: AtomicU64 = AtomicU64::new(0);
-  let out = std::env::temp_dir().join(format!("picaluma-{}-{}.jpg", std::process::id(), SEQ.fetch_add(1, Ordering::Relaxed)));
-  let status = std::process::Command::new("sips")
-    .args(["-s", "format", "jpeg", "-s", "formatOptions", "85", "-Z", &max_edge.to_string(), path, "--out"])
-    .arg(&out)
-    .stdout(std::process::Stdio::null())
-    .stderr(std::process::Stdio::null())
-    .status()
-    .map_err(|e| format!("sips: {e}"))?;
-  let bytes = std::fs::read(&out).map_err(|e| format!("sips produced no output ({status}): {e}"));
-  let _ = std::fs::remove_file(&out);
-  bytes
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn system_jpeg(_path: &str, _max_edge: u32) -> Result<Vec<u8>, String> {
-  Err("HEIC pictures are supported on macOS only".into())
-}
-
 fn mime_for(path: &str) -> &'static str {
   let lower = path.to_lowercase();
   match lower.rsplit('.').next().unwrap_or("") {
@@ -392,6 +415,56 @@ fn mime_for(path: &str) -> &'static str {
     "webp" => "image/webp",
     "tif" | "tiff" => "image/tiff",
     _ => "image/jpeg",
+  }
+}
+
+/// Videos are streamed in pieces with HTTP range requests, so the player can start at once and
+/// seek, and a 4 GB clip never has to be loaded into memory.
+fn video_response(path: &str, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+  use std::io::{Read, Seek, SeekFrom};
+  const CHUNK: u64 = 4 << 20;
+  let Ok(mut file) = std::fs::File::open(path) else { return not_found() };
+  let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+  if len == 0 {
+    return not_found();
+  }
+  let range = req.headers().get("range").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("bytes="));
+  let (start, end) = match range.and_then(|r| r.split_once('-')) {
+    Some((a, b)) => {
+      let start = a.trim().parse::<u64>().unwrap_or(0).min(len - 1);
+      let end = b.trim().parse::<u64>().ok().unwrap_or(len - 1).min(len - 1);
+      (start, end.min(start + CHUNK - 1))
+    }
+    None => (0, (len - 1).min(CHUNK - 1)),
+  };
+  let mut buf = vec![0u8; (end - start + 1) as usize];
+  if file.seek(SeekFrom::Start(start)).is_err() || file.read_exact(&mut buf).is_err() {
+    return not_found();
+  }
+  Response::builder()
+    .status(206)
+    .header("Content-Type", video_mime(path))
+    .header("Accept-Ranges", "bytes")
+    .header("Content-Range", format!("bytes {start}-{end}/{len}"))
+    .header("Content-Length", buf.len().to_string())
+    .header("Access-Control-Allow-Origin", "*")
+    .body(buf)
+    .unwrap()
+}
+
+fn video_mime(path: &str) -> &'static str {
+  match path.to_lowercase().rsplit('.').next().unwrap_or("") {
+    "mov" | "qt" => "video/quicktime",
+    "webm" => "video/webm",
+    "mkv" => "video/x-matroska",
+    "avi" => "video/x-msvideo",
+    "wmv" | "asf" => "video/x-ms-wmv",
+    "mpg" | "mpeg" | "m2v" | "mod" | "tod" => "video/mpeg",
+    "3gp" => "video/3gpp",
+    "3g2" => "video/3gpp2",
+    "mts" | "m2ts" => "video/mp2t",
+    "flv" => "video/x-flv",
+    _ => "video/mp4",
   }
 }
 

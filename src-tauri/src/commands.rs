@@ -28,6 +28,8 @@ pub struct FolderDto {
   date_max: i64,
   updated: i64,
   bytes: i64,
+  /// Sort Folder By: "" (date taken), "modified", "name" or "size".
+  sort: String,
   photos: Vec<i64>,
 }
 
@@ -39,6 +41,8 @@ pub struct AlbumDto {
   description: String,
   created: i64,
   photos: Vec<i64>,
+  /// Sort Album By: "" (as arranged), "date", "modified", "name" or "size".
+  sort: String,
 }
 
 #[derive(Serialize)]
@@ -51,6 +55,8 @@ pub struct Snapshot {
   edits: Vec<(i64, String)>,
   total_photos: i64,
   library_id: String,
+  /// Videos (shown with a play badge and opened in the player).
+  videos: Vec<i64>,
 }
 
 #[derive(Serialize)]
@@ -101,7 +107,7 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   let mut folders: Vec<FolderDto> = {
     let mut stmt = conn
       .prepare(
-        "SELECT id, name, path, description, date_min, date_max, updated, bytes FROM folders
+        "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort FROM folders
          WHERE photo_count > 0 ORDER BY updated DESC, name",
       )
       .map_err(err)?;
@@ -116,6 +122,7 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
           date_max: r.get(5)?,
           updated: r.get(6)?,
           bytes: r.get(7)?,
+          sort: r.get(8)?,
           photos: Vec::new(),
         })
       })
@@ -128,8 +135,16 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   let mut geotagged = Vec::new();
   let mut edits = Vec::new();
   let mut total = 0i64;
+  let mut videos = Vec::new();
   let mut stmt = conn
-    .prepare("SELECT id, folder_id, starred, has_gps, edits FROM photos ORDER BY folder_id, COALESCE(taken, mtime), name")
+    .prepare(
+      "SELECT p.id, p.folder_id, p.starred, p.has_gps, p.edits, p.path FROM photos p JOIN folders f ON f.id = p.folder_id
+       ORDER BY p.folder_id,
+         CASE WHEN f.sort = 'name' THEN p.name END COLLATE NOCASE,
+         CASE WHEN f.sort = 'size' THEN p.size END DESC,
+         CASE WHEN f.sort = 'modified' THEN p.mtime END DESC,
+         COALESCE(p.taken, p.mtime), p.name",
+    )
     .map_err(err)?;
   let mut rows = stmt.query([]).map_err(err)?;
   while let Some(r) = rows.next().map_err(err)? {
@@ -145,6 +160,10 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
     if r.get::<_, i64>(3).map_err(err)? != 0 {
       geotagged.push(id);
     }
+    let path: String = r.get(5).map_err(err)?;
+    if crate::formats::is_video(&path) {
+      videos.push(id);
+    }
     let e: String = r.get(4).map_err(err)?;
     if !e.is_empty() {
       edits.push((id, e));
@@ -154,19 +173,28 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   drop(stmt);
   let library_id = db::library_id(&conn);
   let albums = load_albums(&conn).map_err(err)?;
-  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id })
+  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos })
 }
 
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
   let mut albums: Vec<AlbumDto> = {
-    let mut stmt = conn.prepare("SELECT id, name, description, created FROM albums ORDER BY created DESC, id DESC")?;
+    let mut stmt = conn.prepare("SELECT id, name, description, created, sort FROM albums ORDER BY created DESC, id DESC")?;
     let rows = stmt.query_map([], |r| {
-      Ok(AlbumDto { id: r.get(0)?, name: r.get(1)?, description: r.get(2)?, created: r.get(3)?, photos: Vec::new() })
+      Ok(AlbumDto { id: r.get(0)?, name: r.get(1)?, description: r.get(2)?, created: r.get(3)?, sort: r.get(4)?, photos: Vec::new() })
     })?;
     rows.filter_map(Result::ok).collect()
   };
   let index: HashMap<i64, usize> = albums.iter().enumerate().map(|(i, a)| (a.id, i)).collect();
-  let mut stmt = conn.prepare("SELECT album_id, photo_id FROM album_photos ORDER BY album_id, pos")?;
+  // Sort Album By: the album's own order (as arranged) unless a sort was chosen.
+  let mut stmt = conn.prepare(
+    "SELECT ap.album_id, ap.photo_id FROM album_photos ap JOIN albums a ON a.id = ap.album_id JOIN photos p ON p.id = ap.photo_id
+     ORDER BY ap.album_id,
+       CASE WHEN a.sort = 'name' THEN p.name END COLLATE NOCASE,
+       CASE WHEN a.sort = 'size' THEN p.size END DESC,
+       CASE WHEN a.sort = 'modified' THEN p.mtime END DESC,
+       CASE WHEN a.sort = 'date' THEN COALESCE(p.taken, p.mtime) END,
+       ap.pos",
+  )?;
   let mut rows = stmt.query([])?;
   while let Some(r) = rows.next()? {
     if let Some(&i) = index.get(&r.get::<_, i64>(0)?) {
@@ -540,4 +568,21 @@ pub fn prioritize_folder(app: AppHandle, id: i64) {
     return; // albums aren't folders on disk
   }
   std::thread::spawn(move || scanner::scan_folder_now(&app, id));
+}
+
+/// Folder › Sort Folder By / Album › Sort Album By. `id` < 0 is an album (as in the UI).
+#[tauri::command]
+pub fn set_sort(state: State<'_, AppState>, id: i64, sort: String) -> CmdResult<()> {
+  let allowed = ["", "date", "modified", "name", "size"];
+  if !allowed.contains(&sort.as_str()) {
+    return Err(format!("unknown sort {sort}"));
+  }
+  let conn = state.db.lock().map_err(err)?;
+  if id < 0 {
+    conn.execute("UPDATE albums SET sort = ?1 WHERE id = ?2", params![sort, -id]).map_err(err)?;
+  } else {
+    let sort = if sort == "date" { "" } else { sort.as_str() };
+    conn.execute("UPDATE folders SET sort = ?1 WHERE id = ?2", params![sort, id]).map_err(err)?;
+  }
+  Ok(())
 }

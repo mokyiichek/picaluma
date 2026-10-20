@@ -1,4 +1,5 @@
 import { mod } from "../platform";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo } from "../api";
 import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
@@ -10,6 +11,10 @@ import { ArrowIcon, BackIcon, BrushIcon, PlayIcon, SunIcon, WrenchIcon } from ".
 import { usePhoto } from "./PropertiesPanel";
 
 const STAGE_PAD = 14;
+/** Edit view zoom steps, as multiples of the fitted size. */
+const ZOOMS = [1, 1.25, 1.5, 2, 3, 4, 6, 8];
+type Zoom = { z: number; x: number; y: number };
+const FIT: Zoom = { z: 1, x: 0, y: 0 };
 
 type ToolName = "crop" | "straighten" | PixelTool["kind"];
 let lastTab = "fixes";
@@ -118,7 +123,7 @@ export function EditToolbar() {
         </button>
         <div className="strip">
           {strip.map((p) => (
-            <img key={p} src={thumbUrl(p)} className={p === id ? "cur" : ""} onClick={() => setEditId(p)} alt="" draggable={false} />
+            <img key={p} src={thumbUrl(p)} className={p === id ? "cur" : ""} onClick={() => setEditId(p)} alt="" draggable={false} onError={hideBroken} />
           ))}
         </div>
         <button className="arrow" onClick={() => idx < seq.length - 1 && setEditId(seq[idx + 1])} title="Next (→)">
@@ -148,6 +153,7 @@ export default function EditView({ active }: { active: boolean }) {
   const id = useStore((s) => s.editId);
   const photo = usePhoto(id);
   const stack = useEditStack(id);
+  const isVideo = useStore((s) => id != null && s.videos.has(id));
 
   useEffect(() => {
     if (!active) return;
@@ -176,6 +182,17 @@ export default function EditView({ active }: { active: boolean }) {
   useEffect(() => setTool(null), [id]);
 
   if (id == null) return null;
+  if (isVideo) {
+    return (
+      <>
+        <VideoPanel photo={photo} />
+        <div className="edit-center">
+          <VideoStage id={id} photo={photo} active={active} />
+          <CaptionBar photo={photo} />
+        </div>
+      </>
+    );
+  }
   const startTool = (t: ToolName) => {
     const r = render(stack.edits);
     if (t === "crop") setTool({ kind: "crop", rect: r.crop ?? [0, 0, 1, 1], aspect: null });
@@ -208,6 +225,78 @@ export default function EditView({ active }: { active: boolean }) {
         <CaptionBar photo={photo} />
       </div>
     </>
+  );
+}
+
+const fmtBytes = (n: number) =>
+  n >= 1 << 30 ? `${(n / (1 << 30)).toFixed(2)} GB` : n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const hideBroken = (e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.visibility = "hidden");
+
+/** Left panel for movies: there are no effects to apply, so it offers the file itself. */
+function VideoPanel({ photo }: { photo: Photo | null }) {
+  return (
+    <div className="edit-left">
+      <div className="video-panel">
+        <b>{photo?.name ?? ""}</b>
+        {photo && (
+          <span className="muted">
+            {photo.width ? `${photo.width} × ${photo.height} · ` : ""}
+            {fmtBytes(photo.size)}
+          </span>
+        )}
+        <span className="muted">Movies play here as they are; effects are for pictures only.</span>
+        <button className="tbtn" disabled={!photo} onClick={() => photo && api.openInDefaultApp(photo.path)}>
+          Open in Default Player
+        </button>
+        <button className="tbtn" disabled={!photo} onClick={() => photo && revealItemInDir(photo.path)}>
+          Locate on Disk
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Plays a movie straight from disk (streamed in pieces). `/` plays or pauses, `,` and `.` jump 5 seconds. */
+function VideoStage({ id, photo, active }: { id: number; photo: Photo | null; active: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [failed, setFailed] = useState(false);
+  const flight = useStore((s) => s.flight);
+  useEffect(() => setFailed(false), [id]);
+  useEffect(() => {
+    if (flight) useStore.getState().endFlight();
+  }, [flight]);
+  useEffect(() => {
+    if (!active) ref.current?.pause();
+  }, [active]);
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      const v = ref.current;
+      if (!v || (e.target as HTMLElement).tagName === "INPUT") return;
+      if (e.key === "/") v.paused ? v.play() : v.pause();
+      else if (e.key === ",") v.currentTime = Math.max(0, v.currentTime - 5);
+      else if (e.key === ".") v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active]);
+
+  return (
+    <div className="edit-stage video-stage" onDoubleClick={(e) => e.target === e.currentTarget && backToLibrary()}>
+      {failed ? (
+        <div className="video-fail">
+          <img src={thumbUrl(id)} alt="" draggable={false} onError={hideBroken} />
+          <span>This movie's format can't be played inside Picaluma.</span>
+          <button className="tbtn" disabled={!photo} onClick={() => photo && api.openInDefaultApp(photo.path)}>
+            Open in Default Player
+          </button>
+        </div>
+      ) : (
+        <video key={id} ref={ref} src={photoUrl(id)} poster={thumbUrl(id)} controls autoPlay={active} onError={() => setFailed(true)} />
+      )}
+    </div>
   );
 }
 
@@ -291,6 +380,67 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
     anim.onfinish = anim.oncancel = () => endFlight();
   }, [flight?.nonce, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Zoom (↑/↓, Page Up/Down, +/−, wheel; 0 fits, 1 is actual size) and drag to pan. Tools work on the fitted view.
+  const [zoom, setZoom] = useState<Zoom>(FIT);
+  const [dragging, setDragging] = useState(false);
+  const wheelAcc = useRef(0);
+  useEffect(() => setZoom(FIT), [id, tool != null]);
+  const actual = photo?.width && box ? Math.max(photo.width, photo.height) / Math.max(box.w, box.h) : 1;
+  const clampPan = useCallback(
+    (zm: Zoom): Zoom => {
+      if (zm.z <= 1 || !box) return FIT;
+      const mx = Math.max(0, (box.w * zm.z - stage.w) / 2 + STAGE_PAD);
+      const my = Math.max(0, (box.h * zm.z - stage.h) / 2 + STAGE_PAD);
+      return { z: zm.z, x: Math.max(-mx, Math.min(mx, zm.x)), y: Math.max(-my, Math.min(my, zm.y)) };
+    },
+    [box, stage],
+  );
+  const zoomTo = useCallback((z: number) => setZoom((cur) => clampPan({ z, x: (cur.x * z) / cur.z, y: (cur.y * z) / cur.z })), [clampPan]);
+  const zoomStep = useCallback(
+    (dir: 1 | -1) =>
+      setZoom((cur) => {
+        const z = dir > 0 ? ZOOMS.find((v) => v > cur.z + 0.01) ?? cur.z : [...ZOOMS].reverse().find((v) => v < cur.z - 0.01) ?? 1;
+        return clampPan({ z, x: (cur.x * z) / cur.z, y: (cur.y * z) / cur.z });
+      }),
+    [clampPan],
+  );
+  useEffect(() => {
+    if (!active || tool) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || mod(e) || e.altKey || useStore.getState().slideshow) return;
+      if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "+" || e.key === "=") zoomStep(1);
+      else if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === "-" || e.key === "_") zoomStep(-1);
+      else if (e.key === "0") setZoom(FIT);
+      else if (e.key === "1") zoomTo(Math.max(1, actual));
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, tool, zoomStep, zoomTo, actual]);
+  const onWheel = (e: React.WheelEvent) => {
+    if (tool) return;
+    wheelAcc.current += e.deltaY;
+    if (Math.abs(wheelAcc.current) < 60) return;
+    zoomStep(wheelAcc.current < 0 ? 1 : -1);
+    wheelAcc.current = 0;
+  };
+  const onPanStart = (e: React.MouseEvent) => {
+    if (tool || zoom.z <= 1 || e.button !== 0) return;
+    e.preventDefault();
+    const start = { mx: e.clientX, my: e.clientY, ...zoom };
+    setDragging(true);
+    const move = (ev: MouseEvent) => setZoom(clampPan({ z: start.z, x: start.x + ev.clientX - start.mx, y: start.y + ev.clientY - start.my }));
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+
   const frameClass = r.frame ? ` frame-${r.frame}` : "";
   const innerW = box ? (rot90 ? box.h : box.w) : 0;
   const innerH = box ? (rot90 ? box.w : box.h) : 0;
@@ -312,7 +462,14 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
   } as React.CSSProperties;
 
   return (
-    <div className="edit-stage" ref={stageRef} onDoubleClick={tool ? undefined : backToLibrary}>
+    <div
+      className={`edit-stage${zoom.z > 1 ? " zoomed" : ""}${dragging ? " dragging" : ""}`}
+      ref={stageRef}
+      onDoubleClick={tool ? undefined : backToLibrary}
+      onWheel={onWheel}
+      onMouseDown={onPanStart}
+    >
+      <div className="zoom-layer" style={zoom.z > 1 ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.z})` } : undefined}>
       {box && (
         <div ref={boxRef} className={`edit-photo${frameClass}`} style={{ left: box.x, top: box.y, width: box.w, height: box.h, transformOrigin: "0 0" }}>
           {preview ? (
@@ -329,6 +486,12 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
           {tool?.kind === "straighten" && <div className="straighten-grid" />}
           {tool?.kind === "crop" && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
         </div>
+      )}
+      </div>
+      {zoom.z > 1 && (
+        <button className="zoom-badge" title="Fit to window (0)" onMouseDown={(e) => e.stopPropagation()} onClick={() => setZoom(FIT)}>
+          {Math.round((zoom.z / actual) * 100)}% · Fit
+        </button>
       )}
     </div>
   );

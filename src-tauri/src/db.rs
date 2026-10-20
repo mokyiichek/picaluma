@@ -144,6 +144,14 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN meta_done INTEGER NOT NULL DEFAULT 1")?;
   }
   conn.execute_batch("CREATE INDEX IF NOT EXISTS photos_pending ON photos(meta_done) WHERE meta_done = 0")?;
+  // v0.7.7: Folder › Sort Folder By / Sort Album By ('' = date taken, 'modified', 'name', 'size').
+  let has_col = |table: &str, col: &str| -> rusqlite::Result<bool> {
+    let mut stmt = conn.prepare(&format!("SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1"))?;
+    stmt.exists([col])
+  };
+  if !has_col("folders", "sort")? {
+    conn.execute_batch("ALTER TABLE folders ADD COLUMN sort TEXT NOT NULL DEFAULT ''")?;
+  }
   // v0.7.1: online-only cloud files (OneDrive / Synology / Dropbox placeholders, Google Drive
   // streaming). They're listed but never read in the background, so scanning doesn't download them.
   if !has("cloud")? {
@@ -168,6 +176,9 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   conn.execute_batch("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")?;
   let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
   conn.execute("INSERT OR IGNORE INTO meta(key, value) VALUES ('library_id', ?1)", [format!("{nanos:x}")])?;
+  if !has_col("albums", "sort")? {
+    conn.execute_batch("ALTER TABLE albums ADD COLUMN sort TEXT NOT NULL DEFAULT ''")?;
+  }
   Ok(())
 }
 

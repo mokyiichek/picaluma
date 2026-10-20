@@ -17,7 +17,10 @@ export function emailPhotos(ids: number[]) {
 
 /** Print screen, optionally starting on a layout ("index" = contact sheet, "poster"). */
 export function printPhotos(ids: number[], layout?: "index" | "poster") {
-  useStore.getState().setPrint({ ids, layout });
+  const s = useStore.getState();
+  const pictures = ids.filter((id) => !s.videos.has(id));
+  if (!pictures.length) return void notify("Movies can't be printed. Select some pictures to print.");
+  s.setPrint({ ids: pictures, layout });
 }
 
 const plural = (n: number) => `${n} picture${n === 1 ? "" : "s"}`;
@@ -178,13 +181,13 @@ export function pasteEffects(ids: number[]) {
   const s = useStore.getState();
   const copied = s.copiedEdits;
   if (!copied) return;
-  for (const id of ids) s.setPhotoEdits(id, [...copied]);
+  for (const id of ids) if (!s.videos.has(id)) s.setPhotoEdits(id, [...copied]);
 }
 
 /** Picture › Batch Edit: apply one effect to every selected picture. */
 export function batchEdit(ids: number[], op: string, v?: number) {
   const s = useStore.getState();
-  for (const id of ids) s.setPhotoEdits(id, [...(s.edits.get(id) ?? []), v == null ? { op } : { op, v }]);
+  for (const id of ids) if (!s.videos.has(id)) s.setPhotoEdits(id, [...(s.edits.get(id) ?? []), v == null ? { op } : { op, v }]);
 }
 
 /** Create › Set as Desktop. */

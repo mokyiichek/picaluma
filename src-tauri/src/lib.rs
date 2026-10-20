@@ -1,9 +1,11 @@
 mod commands;
 mod db;
 mod fileops;
+mod formats;
 mod scanner;
 mod settings;
 mod share;
+mod sysimg;
 mod thumbs;
 mod watch;
 
@@ -61,6 +63,8 @@ pub fn run() {
       };
       std::fs::create_dir_all(&data_dir)?;
       init_logging(&data_dir);
+      // File Types must be known before the first scan, or it would drop those files.
+      formats::configure(&settings::load(&data_dir).file_types);
       let thumb_dir = data_dir.join("thumbs");
       std::fs::create_dir_all(&thumb_dir)?;
       let conn = db::open(&data_dir.join("library.db"))?;
@@ -129,6 +133,7 @@ pub fn run() {
       commands::set_edits,
       commands::export_picture,
       commands::prioritize_folder,
+      commands::set_sort,
       share::make_export_dir,
       share::copy_into,
       share::email_dir,
@@ -136,6 +141,7 @@ pub fn run() {
       share::print_window,
       settings::get_settings,
       settings::set_hardware_acceleration,
+      settings::set_file_types,
       share::write_text_file,
       share::set_wallpaper,
       fileops::rename_photo,

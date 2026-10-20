@@ -45,8 +45,9 @@ export async function renderJpegBase64(id: number, opts: RenderOptions): Promise
   return url.slice(url.indexOf(",") + 1);
 }
 
-/** Writes the picture into dir as JPEG, or copies the original untouched when nothing would change it. */
+/** Writes the picture into dir as JPEG, or copies the original untouched when nothing would change it. Movies are always copied as they are. */
 export async function writePicture(photo: Photo, dir: string, opts: RenderOptions): Promise<string> {
+  if (useStore.getState().videos.has(photo.id)) return api.copyInto(photo.path, dir);
   const isJpeg = /\.jpe?g$/i.test(photo.name);
   const untouched = !hasEdits(photo.id) && !opts.watermark?.trim();
   const fits = opts.maxEdge === 0 || Math.max(photo.width, photo.height) <= opts.maxEdge;
