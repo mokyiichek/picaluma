@@ -138,6 +138,22 @@ export const setLibraryTag = (id: string) => (libraryTag = id);
 export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}`;
 export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}`;
 export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;
+/** Thumbnail of a file being imported (not in the library yet). */
+export const importThumbUrl = (path: string) => `${THUMB}file?p=${encodeURIComponent(path)}`;
+
+export interface ImportSource {
+  path: string;
+  label: string;
+}
+
+export interface ImportItem {
+  path: string;
+  name: string;
+  size: number;
+  date: number;
+  duplicate: boolean;
+  video: boolean;
+}
 
 export const api = {
   snapshot: () => invoke<Snapshot>("library_snapshot"),
@@ -191,6 +207,12 @@ export const api = {
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
   setSort: (id: number, sort: string) => invoke<void>("set_sort", { id, sort }),
+  importSources: () => invoke<ImportSource[]>("import_sources"),
+  scanImport: (path: string) => invoke<ImportItem[]>("scan_import", { path }),
+  importDefaultDest: () => invoke<string>("import_default_dest"),
+  importFiles: (files: string[], dest: string, folder: string, deleteAfter: boolean) =>
+    invoke<{ folder: string; copied: number; failed: string[]; deleted: number }>("import_files", { files, dest, folder, deleteAfter }),
+  places: (ids: number[] | null) => invoke<[number, number, number][]>("places", { ids }),
   setHidden: (ids: number[], hidden: boolean) => invoke<void>("set_hidden", { ids, hidden }),
   photosSince: (since: number) => invoke<{ ids: number[]; exclude: boolean }>("photos_since", { since }),
   setHardwareAcceleration: (on: boolean) => invoke<void>("set_hardware_acceleration", { on }),

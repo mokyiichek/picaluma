@@ -192,6 +192,9 @@ pub struct Meta {
   pub make: String,
   pub model: String,
   pub has_gps: bool,
+  /// Where it was taken (EXIF GPS), in degrees.
+  pub lat: Option<f64>,
+  pub lon: Option<f64>,
   pub exif: String,
 }
 
@@ -247,6 +250,7 @@ fn run_scan(app: &AppHandle) {
     log::warn!("compact: {e}");
   }
   thumbs::spawn_warmer(app.clone());
+  backfill_places(app);
   // Then look for faces in new pictures (it waits for the thumbnails to finish).
   crate::people::kick(app);
 }
@@ -497,8 +501,8 @@ fn save_metas(db: &Arc<Mutex<Connection>>, metas: &[(&Pending, Meta)]) {
   for (p, m) in metas {
     let _ = tx.execute(
       "UPDATE photos SET taken = ?1, width = ?2, height = ?3, orientation = ?4, make = ?5, model = ?6,
-         has_gps = ?7, exif = ?8, meta_done = 1 WHERE id = ?9",
-      params![m.taken, m.width, m.height, m.orientation, m.make, m.model, m.has_gps as i64, m.exif, p.id],
+         has_gps = ?7, exif = ?8, lat = ?10, lon = ?11, meta_done = 1 WHERE id = ?9",
+      params![m.taken, m.width, m.height, m.orientation, m.make, m.model, m.has_gps as i64, m.exif, p.id, m.lat, m.lon],
     );
     if !m.make.is_empty() || !m.model.is_empty() {
       let _ = db::reindex_photo(&tx, p.id);
@@ -591,7 +595,7 @@ fn index_file(p: &Pending) -> Meta {
 }
 
 fn empty_meta() -> Meta {
-  Meta { width: 0, height: 0, taken: None, orientation: 1, make: String::new(), model: String::new(), has_gps: false, exif: "[]".into() }
+  Meta { width: 0, height: 0, taken: None, orientation: 1, make: String::new(), model: String::new(), has_gps: false, lat: None, lon: None, exif: "[]".into() }
 }
 
 fn fill_exif(meta: &mut Meta, ex: &exif::Exif) {
@@ -604,6 +608,10 @@ fn fill_exif(meta: &mut Meta, ex: &exif::Exif) {
     meta.orientation = f.value.get_uint(0).unwrap_or(1) as i64;
   }
   meta.has_gps = ex.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY).is_some();
+  if let Some((lat, lon)) = gps(ex) {
+    meta.lat = Some(lat);
+    meta.lon = Some(lon);
+  }
   meta.taken = [exif::Tag::DateTimeOriginal, exif::Tag::DateTimeDigitized, exif::Tag::DateTime]
     .iter()
     .find_map(|t| ex.get_field(*t, exif::In::PRIMARY))
@@ -661,12 +669,96 @@ fn orientation_name(o: i64) -> &'static str {
   }
 }
 
+/// Latitude and longitude in degrees from EXIF GPS (degrees, minutes, seconds and N/S/E/W).
+pub(crate) fn gps(ex: &exif::Exif) -> Option<(f64, f64)> {
+  let deg = |tag: exif::Tag, rtag: exif::Tag, neg: u8| -> Option<f64> {
+    let f = ex.get_field(tag, exif::In::PRIMARY)?;
+    let exif::Value::Rational(v) = &f.value else { return None };
+    if v.is_empty() {
+      return None;
+    }
+    let part = |i: usize| v.get(i).map(|r| r.to_f64()).filter(|x| x.is_finite()).unwrap_or(0.0);
+    let d = part(0) + part(1) / 60.0 + part(2) / 3600.0;
+    let negative = match ex.get_field(rtag, exif::In::PRIMARY).map(|r| &r.value) {
+      Some(exif::Value::Ascii(a)) => a.first().and_then(|s| s.first()).is_some_and(|c| c.to_ascii_uppercase() == neg),
+      _ => false,
+    };
+    Some(if negative { -d } else { d })
+  };
+  let lat = deg(exif::Tag::GPSLatitude, exif::Tag::GPSLatitudeRef, b'S')?;
+  let lon = deg(exif::Tag::GPSLongitude, exif::Tag::GPSLongitudeRef, b'W')?;
+  // (0, 0) is what cameras write when they had no fix.
+  ((lat != 0.0 || lon != 0.0) && lat.abs() <= 90.0 && lon.abs() <= 180.0).then_some((lat, lon))
+}
+
+/// Pictures indexed before Picaluma kept GPS positions get them now (in the background).
+pub fn backfill_places(app: &AppHandle) {
+  let db = app.state::<AppState>().db.clone();
+  let app = app.clone();
+  std::thread::spawn(move || {
+    let todo: Vec<(i64, String)> = {
+      let conn = db.lock().unwrap();
+      let mut stmt = match conn.prepare("SELECT id, path FROM photos WHERE has_gps = 1 AND lat IS NULL AND cloud = 0") {
+        Ok(s) => s,
+        Err(_) => return,
+      };
+      let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)));
+      rows.map(|r| r.filter_map(Result::ok).collect()).unwrap_or_default()
+    };
+    if todo.is_empty() {
+      return;
+    }
+    log::info!("places: reading GPS positions of {} pictures", todo.len());
+    for chunk in todo.chunks(200) {
+      while is_scanning(&app) {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+      }
+      let found: Vec<(i64, Option<(f64, f64)>)> = chunk
+        .iter()
+        .map(|(id, path)| {
+          let mut head = Vec::with_capacity(256 * 1024);
+          let pos = std::fs::File::open(path)
+            .and_then(|f| std::io::Read::read_to_end(&mut std::io::Read::take(f, 256 * 1024), &mut head))
+            .ok()
+            .and_then(|_| exif::Reader::new().read_from_container(&mut std::io::Cursor::new(&head)).ok())
+            .and_then(|ex| gps(&ex));
+          (*id, pos)
+        })
+        .collect();
+      let mut conn = db.lock().unwrap();
+      if let Ok(tx) = conn.transaction() {
+        for (id, pos) in found {
+          // No usable position: clear the flag so it isn't read again.
+          let _ = match pos {
+            Some((lat, lon)) => tx.execute("UPDATE photos SET lat = ?1, lon = ?2 WHERE id = ?3", params![lat, lon, id]),
+            None => tx.execute("UPDATE photos SET has_gps = 0 WHERE id = ?1", [id]),
+          };
+        }
+        let _ = tx.commit();
+      };
+    }
+    log::info!("places: done");
+  });
+}
+
+/// Date taken from a file's first bytes (for Import, before the file is in the library).
+pub(crate) fn exif_taken(head: &[u8]) -> Option<i64> {
+  let ex = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(head)).ok()?;
+  [exif::Tag::DateTimeOriginal, exif::Tag::DateTimeDigitized, exif::Tag::DateTime]
+    .iter()
+    .find_map(|t| ex.get_field(*t, exif::In::PRIMARY))
+    .and_then(|f| match &f.value {
+      exif::Value::Ascii(v) if !v.is_empty() => parse_exif_date(&String::from_utf8_lossy(&v[0])),
+      _ => None,
+    })
+}
+
 fn parse_exif_date(s: &str) -> Option<i64> {
   chrono::NaiveDateTime::parse_from_str(s.trim(), "%Y:%m:%d %H:%M:%S").ok().map(|d| d.and_utc().timestamp())
 }
 
 /// Times are stored as "naive local" seconds so the UI can format them without timezone drift.
-fn local_naive_secs(t: SystemTime) -> i64 {
+pub(crate) fn local_naive_secs(t: SystemTime) -> i64 {
   chrono::DateTime::<chrono::Local>::from(t).naive_local().and_utc().timestamp()
 }
 

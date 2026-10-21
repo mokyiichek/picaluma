@@ -6,6 +6,7 @@ import { cropViewBox, render } from "../effects";
 import { fmtDate } from "../format";
 import { isPersonId, PERSON_BASE, selectAlbum, selectPerson, selectVisible, useStore } from "../store";
 import PeopleManager from "./PeopleManager";
+import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
 import { aspectCache } from "./EditView";
@@ -298,6 +299,7 @@ export default function LibraryGrid() {
   return (
     <div className="gridwrap">
       {peopleManager && <PeopleManager />}
+      <ImportView />
       {person && (
         <div className="album-banner">
           <button onClick={() => useStore.getState().openPerson(null)}>Back to Folders</button>

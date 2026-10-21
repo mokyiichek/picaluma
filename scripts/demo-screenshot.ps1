@@ -42,6 +42,8 @@ if (-not $SkipDownload) {
 # Fresh demo library pointed at the demo folder.
 Remove-Item $lib -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $lib | Out-Null
+# No face-model download prompt in the shot (People isn't part of the demo).
+'{ "faceModelsDeclined": true }' | Out-File -Encoding ascii (Join-Path $lib 'settings.json')
 $env:PICALUMA_DATA_DIR = $lib
 # Isolated sandbox: its own web-view profile too, so the user's window settings (thumbnail size,
 # panels) are neither used nor changed.

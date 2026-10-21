@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, FileTypes } from "../api";
 import { notify } from "../dialogs";
 import { fmtMB, offerFaceModels } from "../faceModels";
+import { loadSlideshowOpts, saveSlideshowOpts, SlideshowOpts } from "../slideshowOpts";
 import { useStore } from "../store";
 
 const TABS = ["General", "File Types", "Name Tags", "Slideshow", "Experimental"] as const;
@@ -33,9 +34,11 @@ export default function OptionsDialog() {
   const [faces, setFaces] = useState(true);
   const [facesDraft, setFacesDraft] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [show, setShow] = useState<SlideshowOpts>(loadSlideshowOpts);
   useEffect(() => {
     if (!open) return;
     setDraft(useStore.getState().effects);
+    setShow(loadSlideshowOpts());
     api.getSettings().then((s) => {
       setGpu(s.hardwareAcceleration);
       setGpuDraft(s.hardwareAcceleration);
@@ -60,6 +63,7 @@ export default function OptionsDialog() {
         notify("Restart Picaluma to apply the graphics setting.");
       });
     }
+    saveSlideshowOpts(show);
     if (facesDraft !== faces) api.setFaceRecognition(facesDraft).then(() => setFaces(facesDraft));
     if (TYPE_ROWS.some(([k]) => types[k] !== typesDraft[k])) {
       // Saving rescans: newly ticked types are found, unticked ones leave the library.
@@ -174,7 +178,33 @@ export default function OptionsDialog() {
               <p className="muted">Reads the names you gave in Picasa (saved in each folder's .picasa.ini). This happens once automatically.</p>
             </fieldset>
           )}
-          {tab !== "General" && tab !== "File Types" && tab !== "Name Tags" && (
+          {tab === "Slideshow" && (
+            <fieldset>
+              <legend>Slideshow</legend>
+              <label className="opt-row">
+                Display each picture for
+                <input type="range" className="slider" min={1} max={15} step={0.5} value={show.seconds} onChange={(e) => setShow({ ...show, seconds: Number(e.target.value) })} />
+                <b>{show.seconds} s</b>
+              </label>
+              <label className="opt-row">
+                Transition
+                <select value={show.transition} onChange={(e) => setShow({ ...show, transition: e.target.value as SlideshowOpts["transition"] })}>
+                  <option value="fade">Cross fade</option>
+                  <option value="zoom">Pan and zoom</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+              <label className="opt-check">
+                <input type="checkbox" checked={show.captions} onChange={(e) => setShow({ ...show, captions: e.target.checked })} />
+                <span>Show captions</span>
+              </label>
+              <label className="opt-check">
+                <input type="checkbox" checked={show.loop} onChange={(e) => setShow({ ...show, loop: e.target.checked })} />
+                <span>Repeat (start again after the last picture)</span>
+              </label>
+            </fieldset>
+          )}
+          {tab !== "General" && tab !== "File Types" && tab !== "Name Tags" && tab !== "Slideshow" && (
             <p className="muted">These settings will arrive in a later release.</p>
           )}
         </div>

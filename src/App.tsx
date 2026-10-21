@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, FaceModels, FaceProgress, ScanProgress } from "./api";
 import { offerFaceModels, reportModelError } from "./faceModels";
@@ -19,6 +19,8 @@ import Slideshow from "./components/Slideshow";
 import FolderManager from "./components/FolderManager";
 import TagsPanel from "./components/TagsPanel";
 import PeoplePanel from "./components/PeoplePanel";
+// The map (Leaflet) loads only when Places is opened.
+const PlacesPanel = lazy(() => import("./components/PlacesPanel"));
 import ScanNotifier from "./components/ScanNotifier";
 import OptionsDialog from "./components/OptionsDialog";
 import AlbumPicker from "./components/AlbumPicker";
@@ -156,7 +158,7 @@ export default function App() {
         st.setPeopleManager({ tab: "unnamed" });
       } else if (mod(e) && e.key.toLowerCase() === "m") {
         e.preventDefault();
-        st.setFolderManager(true);
+        st.setImportOpen(true);
       } else if (mod(e) && e.key.toLowerCase() === "p") {
         e.preventDefault();
         const ids = e.shiftKey ? folderIds() : trayIds();
@@ -218,7 +220,12 @@ export default function App() {
             <EditView active={view === "edit"} />
           </div>
         </div>
-        {showProps && (sidePanel === "tags" ? <TagsPanel /> : sidePanel === "people" ? <PeoplePanel /> : <PropertiesPanel />)}
+        {showProps &&
+          (sidePanel === "tags" ? <TagsPanel /> : sidePanel === "people" ? <PeoplePanel /> : sidePanel === "places" ? (
+            <Suspense fallback={null}>
+              <PlacesPanel />
+            </Suspense>
+          ) : <PropertiesPanel />)}
       </div>
       <StatusBar />
       <Tray />

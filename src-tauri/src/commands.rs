@@ -109,7 +109,7 @@ pub struct PicasaScanlist {
 }
 
 /// Everything the library view needs in one round-trip: folders (newest first) with photo ids.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   let conn = state.db.lock().map_err(err)?;
   let mut folders: Vec<FolderDto> = {
@@ -223,7 +223,7 @@ fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
 }
 
 /// Creates an album, optionally seeded with photos; returns its id.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn create_album(state: State<'_, AppState>, name: String, ids: Vec<i64>) -> CmdResult<i64> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -234,7 +234,7 @@ pub fn create_album(state: State<'_, AppState>, name: String, ids: Vec<i64>) -> 
   Ok(id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn album_add(state: State<'_, AppState>, id: i64, ids: Vec<i64>) -> CmdResult<()> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -252,7 +252,7 @@ fn append_to_album(conn: &rusqlite::Connection, album: i64, ids: &[i64]) -> rusq
   Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn album_remove(state: State<'_, AppState>, id: i64, ids: Vec<i64>) -> CmdResult<()> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -262,7 +262,7 @@ pub fn album_remove(state: State<'_, AppState>, id: i64, ids: Vec<i64>) -> CmdRe
   tx.commit().map_err(err)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn update_album(state: State<'_, AppState>, id: i64, name: Option<String>, description: Option<String>) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   if let Some(n) = name {
@@ -275,14 +275,14 @@ pub fn update_album(state: State<'_, AppState>, id: i64, name: Option<String>, d
 }
 
 /// Deletes the album only; the photos stay in their folders.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_album(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   conn.execute("DELETE FROM albums WHERE id = ?1", [id]).map_err(err)?;
   Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_roots(state: State<'_, AppState>) -> CmdResult<Vec<RootDto>> {
   let conn = state.db.lock().map_err(err)?;
   let mut stmt = conn.prepare("SELECT path, excluded FROM roots ORDER BY excluded, path").map_err(err)?;
@@ -292,7 +292,7 @@ pub fn list_roots(state: State<'_, AppState>) -> CmdResult<Vec<RootDto>> {
   Ok(rows.filter_map(Result::ok).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_root(app: AppHandle, state: State<'_, AppState>, path: String, excluded: Option<bool>) -> CmdResult<()> {
   {
     let conn = state.db.lock().map_err(err)?;
@@ -307,7 +307,7 @@ pub fn add_root(app: AppHandle, state: State<'_, AppState>, path: String, exclud
   Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_root(app: AppHandle, state: State<'_, AppState>, path: String) -> CmdResult<()> {
   {
     let conn = state.db.lock().map_err(err)?;
@@ -317,12 +317,12 @@ pub fn remove_root(app: AppHandle, state: State<'_, AppState>, path: String) -> 
   Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rescan(app: AppHandle) {
   scanner::spawn_rescan(app);
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn scan_status(app: AppHandle) -> ScanProgress {
   ScanProgress { scanning: scanner::is_scanning(&app), ..Default::default() }
 }
@@ -337,7 +337,7 @@ fn picasa_scanlist_path() -> Option<PathBuf> {
   candidates.into_iter().find(|p| p.exists())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn picasa_scanlist() -> PicasaScanlist {
   let Some(path) = picasa_scanlist_path() else {
     return PicasaScanlist { found: false, include: vec![], exclude: vec![] };
@@ -354,7 +354,7 @@ pub fn picasa_scanlist() -> PicasaScanlist {
   PicasaScanlist { found: true, include, exclude }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn import_picasa_scanlist(app: AppHandle, state: State<'_, AppState>) -> CmdResult<usize> {
   let list = picasa_scanlist();
   {
@@ -375,7 +375,7 @@ pub fn import_picasa_scanlist(app: AppHandle, state: State<'_, AppState>) -> Cmd
 }
 
 /// Prefix full-text search over file name, folder name/description, caption, tags and camera.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn search(state: State<'_, AppState>, query: String) -> CmdResult<SearchResult> {
   let started = Instant::now();
   let fts = to_fts_query(&query);
@@ -403,7 +403,7 @@ fn to_fts_query(q: &str) -> String {
     .join(" ")
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
   let conn = state.db.lock().map_err(err)?;
   conn
@@ -435,7 +435,7 @@ pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
     .map_err(err)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_star(state: State<'_, AppState>, ids: Vec<i64>, starred: bool) -> CmdResult<()> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -445,14 +445,14 @@ pub fn set_star(state: State<'_, AppState>, ids: Vec<i64>, starred: bool) -> Cmd
   tx.commit().map_err(err)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_caption(state: State<'_, AppState>, id: i64, caption: String) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   conn.execute("UPDATE photos SET caption = ?1 WHERE id = ?2", params![caption, id]).map_err(err)?;
   db::reindex_photo(&conn, id).map_err(err)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_folder_description(state: State<'_, AppState>, id: i64, description: String) -> CmdResult<()> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -469,7 +469,7 @@ pub fn set_folder_description(state: State<'_, AppState>, id: i64, description: 
 }
 
 /// Edits are stored as a JSON stack and rendered non-destructively; originals are never touched.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_edits(state: State<'_, AppState>, id: i64, edits: String) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   conn.execute("UPDATE photos SET edits = ?1 WHERE id = ?2", params![edits, id]).map_err(err)?;
@@ -484,7 +484,7 @@ pub struct TagCount {
 }
 
 /// Tags are stored comma-separated in `photos.tags` and indexed by FTS, so search finds them.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_tags(state: State<'_, AppState>, ids: Vec<i64>, add: Vec<String>, remove: Vec<String>) -> CmdResult<()> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -504,7 +504,7 @@ pub fn set_tags(state: State<'_, AppState>, ids: Vec<i64>, add: Vec<String>, rem
   tx.commit().map_err(err)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_tags(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<Vec<TagCount>> {
   let conn = state.db.lock().map_err(err)?;
   let mut counts: HashMap<String, i64> = HashMap::new();
@@ -520,7 +520,7 @@ pub fn get_tags(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<Vec<TagC
 }
 
 /// Search-box suggestions: tags and folder names starting with the typed prefix, with counts.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn suggest(state: State<'_, AppState>, prefix: String) -> CmdResult<Vec<TagCount>> {
   let p = prefix.trim().to_lowercase();
   if p.is_empty() {
@@ -542,14 +542,14 @@ pub fn suggest(state: State<'_, AppState>, prefix: String) -> CmdResult<Vec<TagC
 }
 
 /// "Open File": hand the photo to the system's default viewer/editor.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn open_in_default_app(app: AppHandle, path: String) -> CmdResult<()> {
   use tauri_plugin_opener::OpenerExt;
   app.opener().open_path(path, None::<&str>).map_err(err)
 }
 
 /// Folder › Remove from Picaluma: exclude the folder from future scans and drop it now.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn exclude_folder(app: AppHandle, state: State<'_, AppState>, path: String) -> CmdResult<()> {
   {
     let conn = state.db.lock().map_err(err)?;
@@ -566,13 +566,13 @@ pub fn exclude_folder(app: AppHandle, state: State<'_, AppState>, path: String) 
 }
 
 /// Lets the UI write diagnostics into the app log (visible in `tauri dev` output).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ui_log(message: String) {
   log::info!("[ui] {message}");
 }
 
 /// Writes a rendered (edited) copy produced by the frontend canvas and returns the path used.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn export_picture(path: String, data_base64: String) -> CmdResult<String> {
   let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(err)?;
   // Never overwrite: "beach.jpg" becomes "beach (2).jpg" if the name is taken.
@@ -586,7 +586,7 @@ pub fn export_picture(path: String, data_base64: String) -> CmdResult<String> {
 }
 
 /// The user opened a folder: list and index it now, ahead of the running scan.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn prioritize_folder(app: AppHandle, id: i64) {
   if id <= 0 {
     return; // albums aren't folders on disk
@@ -596,7 +596,7 @@ pub fn prioritize_folder(app: AppHandle, id: i64) {
 }
 
 /// Folder › Sort Folder By / Album › Sort Album By. `id` < 0 is an album (as in the UI).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_sort(state: State<'_, AppState>, id: i64, sort: String) -> CmdResult<()> {
   let allowed = ["", "date", "modified", "name", "size"];
   if !allowed.contains(&sort.as_str()) {
@@ -622,7 +622,7 @@ pub struct DateFilter {
 
 /// Toolbar › Filters date slider: photos taken (or, without EXIF, modified) since `since`.
 /// Whichever list is shorter is returned, so a large library never sends 700k ids.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn photos_since(state: State<'_, AppState>, since: i64) -> CmdResult<DateFilter> {
   let conn = state.db.lock().map_err(err)?;
   let total: i64 = conn.query_row("SELECT COUNT(*) FROM photos", [], |r| r.get(0)).map_err(err)?;
@@ -641,7 +641,7 @@ pub fn photos_since(state: State<'_, AppState>, since: i64) -> CmdResult<DateFil
 }
 
 /// Picture › Hide / Unhide.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_hidden(state: State<'_, AppState>, ids: Vec<i64>, hidden: bool) -> CmdResult<()> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
@@ -649,5 +649,28 @@ pub fn set_hidden(state: State<'_, AppState>, ids: Vec<i64>, hidden: bool) -> Cm
     tx.execute("UPDATE photos SET hidden = ?1 WHERE id = ?2", params![hidden as i64, id]).map_err(err)?;
   }
   tx.commit().map_err(err)
+}
+
+/// Places: [id, latitude, longitude] of geotagged pictures — the given ones, or all.
+#[tauri::command(async)]
+pub fn places(state: State<'_, AppState>, ids: Option<Vec<i64>>) -> CmdResult<Vec<(i64, f64, f64)>> {
+  let conn = state.db.lock().map_err(err)?;
+  let mut out = Vec::new();
+  match ids {
+    Some(ids) => {
+      let mut stmt = conn.prepare_cached("SELECT lat, lon FROM photos WHERE id = ?1 AND lat IS NOT NULL").map_err(err)?;
+      for id in ids {
+        if let Ok((lat, lon)) = stmt.query_row([id], |r| Ok((r.get(0)?, r.get(1)?))) {
+          out.push((id, lat, lon));
+        }
+      }
+    }
+    None => {
+      let mut stmt = conn.prepare("SELECT id, lat, lon FROM photos WHERE lat IS NOT NULL AND hidden = 0").map_err(err)?;
+      let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).map_err(err)?;
+      out.extend(rows.filter_map(Result::ok));
+    }
+  }
+  Ok(out)
 }
 

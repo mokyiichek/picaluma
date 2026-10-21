@@ -66,8 +66,14 @@ impl ThumbQueue {
 
 /// Cache hits answer immediately; misses are queued for a decode.
 pub fn handle_thumb(app: AppHandle, req: Request<Vec<u8>>, responder: UriSchemeResponder) {
-  let Some(id) = parse_id(&req) else { return responder.respond(not_found()) };
-  let Some(photo) = lookup(&app, id) else { return responder.respond(not_found()) };
+  let photo = match import_file(&req) {
+    Some(p) => p,
+    None => {
+      let Some(id) = parse_id(&req) else { return responder.respond(not_found()) };
+      let Some(photo) = lookup(&app, id) else { return responder.respond(not_found()) };
+      photo
+    }
+  };
   let state = app.state::<AppState>();
   let cache = cache_path(&state.thumb_dir, &photo.path, photo.mtime);
   if let Ok(bytes) = std::fs::read(&cache) {
@@ -273,6 +279,45 @@ pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>
     Ok(bytes) => image_response(bytes, mime_for(&photo.path)),
     Err(_) => not_found(),
   }
+}
+
+/// `thumb://localhost/file?p=<path>`: a file on a card being imported (only files the import
+/// scan listed).
+fn import_file(req: &Request<Vec<u8>>) -> Option<PhotoRef> {
+  if req.uri().path().trim_matches('/') != "file" {
+    return None;
+  }
+  let q = req.uri().query()?;
+  let raw = q.split('&').find_map(|kv| kv.strip_prefix("p="))?;
+  let path = percent_decode(raw)?;
+  if !crate::importer::is_listed(&path) {
+    return None;
+  }
+  let mtime = std::fs::metadata(&path).and_then(|m| m.modified()).map(crate::scanner::local_naive_secs).unwrap_or(0);
+  Some(PhotoRef { path, mtime, orientation: 1 })
+}
+
+fn percent_decode(s: &str) -> Option<String> {
+  let b = s.as_bytes();
+  let mut out = Vec::with_capacity(b.len());
+  let mut i = 0;
+  while i < b.len() {
+    match b[i] {
+      b'%' if i + 2 < b.len() => {
+        out.push(u8::from_str_radix(std::str::from_utf8(&b[i + 1..i + 3]).ok()?, 16).ok()?);
+        i += 3;
+      }
+      b'+' => {
+        out.push(b' ');
+        i += 1;
+      }
+      c => {
+        out.push(c);
+        i += 1;
+      }
+    }
+  }
+  String::from_utf8(out).ok()
 }
 
 fn parse_id(req: &Request<Vec<u8>>) -> Option<i64> {

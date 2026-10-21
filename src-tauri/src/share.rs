@@ -14,7 +14,7 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 
 /// Creates `<location>/<name>` for Export (Picasa makes a new folder per export), adding
 /// " (2)", " (3)"… if it already exists. Returns the created folder.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn make_export_dir(location: String, name: String) -> CmdResult<String> {
   let name = sanitize(&name);
   let dir = unique_dir(Path::new(&location), if name.is_empty() { "Exported Pictures" } else { &name });
@@ -23,7 +23,7 @@ pub fn make_export_dir(location: String, name: String) -> CmdResult<String> {
 }
 
 /// Copies an original file into `dir` unchanged (keeps EXIF), never overwriting. Returns the new path.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn copy_into(src: String, dir: String) -> CmdResult<String> {
   let src = PathBuf::from(src);
   let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or("bad file name")?;
@@ -34,7 +34,7 @@ pub fn copy_into(src: String, dir: String) -> CmdResult<String> {
 }
 
 /// Writes a text file (Export as HTML Page), creating its folder.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_text_file(path: String, text: String) -> CmdResult<()> {
   if let Some(dir) = Path::new(&path).parent() {
     std::fs::create_dir_all(dir).map_err(err)?;
@@ -44,7 +44,7 @@ pub fn write_text_file(path: String, text: String) -> CmdResult<()> {
 
 /// Create › Set as Desktop: copies the rendered picture to the app data folder (so it survives
 /// the original being moved) and makes it the desktop background.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_wallpaper(app: AppHandle, data_base64: String) -> CmdResult<()> {
   use base64::Engine;
   let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(err)?;

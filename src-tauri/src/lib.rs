@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod fileops;
 mod faces;
+mod importer;
 mod formats;
 mod people;
 mod picasa;
@@ -145,6 +146,11 @@ pub fn run() {
       commands::set_sort,
       commands::photos_since,
       commands::set_hidden,
+      commands::places,
+      importer::import_sources,
+      importer::scan_import,
+      importer::import_default_dest,
+      importer::import_files,
       settings::set_face_recognition,
       people::faces_in_photo,
       people::person_faces,

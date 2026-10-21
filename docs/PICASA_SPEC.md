@@ -14,7 +14,7 @@ Top to bottom:
 | Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆, faces, movies, geotag and date slider ✅; uploaded dropped — Google Web Albums) |
 | Main              | flex   | Left tree (≈505 px, resizable) · splitter · thumbnail grid · Properties panel (≈278 px, toggle) | ✅ |
 | Status bar        | 17     | Blue `#568FB7`, white bold 11 px, centered: `252 pictures   Apr 12, 2013 to Aug 4, 2026   92.7MB on disk` | ✅ |
-| Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ✅; Share and Places dropped — Google+ and Google Maps) |
+| Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ✅; Places ✅ with OpenStreetMap; Share dropped — Google+) |
 
 ### Palette (sampled)
 
@@ -138,7 +138,7 @@ Albums, Order Prints, Publish to Blogger, Upload/Batch Upload, Download Name Tag
 Implemented: every File entry (Save writes a *copy*, originals are never changed), Copy Picture,
 Copy/Paste All Effects, Flat/Tree Folder View, Batch Edit ▸, Print Contact Sheet, Export as
 HTML Page, Set as Desktop, Make a Poster, Picture Collage, Help › Keyboard Shortcuts / Check for
-Updates. Still disabled: Movie, Timeline, Places. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
+Updates. Still disabled: Movie, Timeline. Places ✅ (OpenStreetMap), Import From ✅. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
 
 ## 9. Controls, cursors and selection
 

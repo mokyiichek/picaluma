@@ -100,7 +100,7 @@ pub struct Models {
   error: Option<String>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn face_models_status(app: AppHandle) -> Models {
   let mut m = DOWNLOAD.lock().unwrap().clone();
   m.ready = faces::models_ready(&models_dir(&app));
@@ -109,7 +109,7 @@ pub fn face_models_status(app: AppHandle) -> Models {
 }
 
 /// Downloads the face models (only ever on the user's say-so), then starts finding faces.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn download_face_models(app: AppHandle) {
   {
     let mut d = DOWNLOAD.lock().unwrap();
@@ -650,7 +650,7 @@ pub fn search(conn: &Connection, query: &str) -> Vec<i64> {
   ids
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn faces_in_photo(state: State<'_, AppState>, photo_id: i64) -> CmdResult<Vec<FaceDto>> {
   let conn = state.db.lock().map_err(err)?;
   let mut stmt = conn
@@ -661,7 +661,7 @@ pub fn faces_in_photo(state: State<'_, AppState>, photo_id: i64) -> CmdResult<Ve
 }
 
 /// A person's faces: named ones, or (`suggested`) the ones waiting for confirmation.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn person_faces(state: State<'_, AppState>, person_id: i64, suggested: bool) -> CmdResult<Vec<FaceDto>> {
   let conn = state.db.lock().map_err(err)?;
   let mut stmt = conn
@@ -683,7 +683,7 @@ pub struct FaceGroup {
 }
 
 /// Unnamed faces grouped by likeness, largest groups first (People Manager / Unnamed).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn unnamed_groups(state: State<'_, AppState>, offset: i64, limit: i64) -> CmdResult<Vec<FaceGroup>> {
   let conn = state.db.lock().map_err(err)?;
   let groups: Vec<(i64, i64)> = {
@@ -714,7 +714,7 @@ fn ids_sql(ids: &[i64]) -> String {
 }
 
 /// Name faces ("Add a name"). Whole groups can be named by passing `groups`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn name_faces(app: AppHandle, state: State<'_, AppState>, faces: Vec<i64>, groups: Vec<i64>, name: String) -> CmdResult<i64> {
   let name = name.trim().to_string();
   if name.is_empty() {
@@ -801,7 +801,7 @@ fn suggest_for(db: &Arc<Mutex<Connection>>, person: i64) -> usize {
 }
 
 /// ✔ on suggestions: they become named.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn confirm_faces(app: AppHandle, state: State<'_, AppState>, faces: Vec<i64>) -> CmdResult<()> {
   let person: Option<i64> = {
     let conn = state.db.lock().map_err(err)?;
@@ -817,7 +817,7 @@ pub fn confirm_faces(app: AppHandle, state: State<'_, AppState>, faces: Vec<i64>
 
 /// ✖ on a suggestion, or "Remove name tag": the face goes back to the unnamed faces and won't be
 /// suggested as that person again.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reject_faces(state: State<'_, AppState>, faces: Vec<i64>) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   let list = ids_sql(&faces);
@@ -830,7 +830,7 @@ pub fn reject_faces(state: State<'_, AppState>, faces: Vec<i64>) -> CmdResult<()
 }
 
 /// "Ignore": the face is hidden from People (Picasa's Ignore / Hide face). `false` brings it back.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ignore_faces(state: State<'_, AppState>, faces: Vec<i64>, ignore: bool) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   let list = ids_sql(&faces);
@@ -844,7 +844,7 @@ pub fn ignore_faces(state: State<'_, AppState>, faces: Vec<i64>, ignore: bool) -
 }
 
 /// Rename a person; renaming to an existing name merges the two.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_person(state: State<'_, AppState>, id: i64, name: String) -> CmdResult<i64> {
   let name = name.trim().to_string();
   if name.is_empty() {
@@ -869,7 +869,7 @@ pub fn rename_person(state: State<'_, AppState>, id: i64, name: String) -> CmdRe
 }
 
 /// Delete a person album: its name tags are removed and the faces become unnamed again.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_person(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   conn.execute("UPDATE faces SET person_id = NULL, state = 0, cluster = id WHERE person_id = ?1 AND state IN (1, 2) AND emb IS NOT NULL", [id]).map_err(err)?;
@@ -880,7 +880,7 @@ pub fn delete_person(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
 }
 
 /// "Set as person's thumbnail".
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_person_cover(state: State<'_, AppState>, id: i64, face: i64) -> CmdResult<()> {
   let conn = state.db.lock().map_err(err)?;
   conn.execute("UPDATE people SET cover = ?1 WHERE id = ?2", params![face, id]).map_err(err)?;
@@ -896,7 +896,7 @@ pub struct Rect {
 }
 
 /// "Add a person manually": a face drawn on the picture, optionally named.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_face(app: AppHandle, state: State<'_, AppState>, photo_id: i64, rect: Rect, name: Option<String>) -> CmdResult<i64> {
   let Rect { x, y, w, h } = rect;
   let id = {
@@ -923,7 +923,7 @@ pub fn add_face(app: AppHandle, state: State<'_, AppState>, photo_id: i64, rect:
 }
 
 /// Picture › Reset Faces: forget the faces found (names given are kept) and look again.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reset_faces(app: AppHandle, state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<()> {
   {
     let conn = state.db.lock().map_err(err)?;
@@ -936,13 +936,13 @@ pub fn reset_faces(app: AppHandle, state: State<'_, AppState>, ids: Vec<i64>) ->
   Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn face_progress() -> Progress {
   *PROGRESS.lock().unwrap()
 }
 
 /// People Manager › Import from Picasa: read the name tags in every folder's `.picasa.ini`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn import_picasa_faces(app: AppHandle, state: State<'_, AppState>) -> CmdResult<(usize, usize)> {
   let res = import_picasa(&state.db).map_err(err)?;
   let _ = app.emit("library-changed", ());

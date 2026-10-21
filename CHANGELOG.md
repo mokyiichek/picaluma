@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.11 — 2026-10-22
+
+- **Import** (toolbar *Import*, *File › Import From*, Ctrl+M) — pictures and movies from a
+  camera, memory card or any folder, shown before copying. Pictures already in the library are
+  marked and left out; the rest are copied (keeping their dates, never overwriting) into a new
+  folder named after the date they were taken, and can be deleted from the card afterwards.
+- **Places** (the tray's pin button, *View › Places*) — a map of where the pictures in the
+  folder, or the whole library, were taken, from their GPS positions. Click a pin to select the
+  picture. Map from OpenStreetMap (needs the internet); pictures never leave the computer.
+- **Mac: Delete no longer freezes the app** — file and library work (delete, move, rename,
+  export, People) now runs off the window's main thread, so moving pictures to the Trash can't
+  lock up the window.
+- **Slideshow options** (*Tools › Options › Slideshow*) — how long each picture shows, cross fade
+  / pan and zoom / no transition, captions, and repeat.
+
 ## 0.7.10 — 2026-10-21
 
 - **Real photo fixes** — the edits now work on the picture's pixels instead of fixed filters:

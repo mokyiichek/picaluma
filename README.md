@@ -49,6 +49,9 @@ import your old Picasa folder list in one click.
   Detection and recognition run on your computer (OpenCV Zoo's YuNet and SFace models,
   downloaded once — 39 MB — when you agree) — nothing is uploaded; turn it off in
   *Tools › Options › Name Tags*.
+- **Import** from cameras, memory cards and folders, skipping pictures you already have, into a
+  folder named after the date.
+- **Places** — a map (OpenStreetMap) of where pictures were taken, from their GPS positions.
 - **Hold, Hide and Recently Updated** — keep pictures in the tray across folders, hide pictures
   (View › Hidden Pictures shows them), and an album of everything changed in the last 30 days.
 - **Flat or tree folder view** — Picasa's date-grouped list or your disk's folder tree;
@@ -85,7 +88,8 @@ import your old Picasa folder list in one click.
   your Linux mail app, or saved to a folder for Gmail and other web mail.
 - **Print** — wallet to 8×10 and full-page layouts, contact sheets, borders, copies, Letter/A4.
 - **Picture Collage**, **Make a Poster**, **Set as Desktop**, **Export as HTML Page**.
-- Fullscreen slideshow, EXIF Properties panel.
+- Fullscreen slideshow (display time, cross fade or pan and zoom, captions, repeat), EXIF
+  Properties panel.
 
 **Runs on older computers**
 - Windows 10 and 11 (64- and 32-bit), Intel and Apple Silicon Macs from macOS 10.15, Linux.
@@ -96,7 +100,7 @@ import your old Picasa folder list in one click.
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned: Places map, Movie maker,
+Planned: Movie maker, Timeline,
 `.picasa.ini` import, Folder Manager redesign.
 
 ## Build from source

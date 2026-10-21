@@ -71,7 +71,6 @@ export default function LibraryToolbar() {
   const folderView = useStore((s) => s.folderView);
   const setFolderView = useStore((s) => s.setFolderView);
   const scanning = useStore((s) => s.scan.scanning);
-  const setFolderManager = useStore((s) => s.setFolderManager);
   const input = useRef<HTMLInputElement>(null);
   const [suggestions, setSuggestions] = useState<TagCount[]>([]);
   const [active, setActive] = useState(-1);
@@ -106,7 +105,7 @@ export default function LibraryToolbar() {
 
   return (
     <div className="toolbar">
-      <button className="tbtn" onClick={() => setFolderManager(true)} title="Add folders to Picaluma">
+      <button className="tbtn" onClick={() => useStore.getState().setImportOpen(true)} title="Import pictures from a camera, memory card or folder (Ctrl+M)">
         <ImportIcon /> Import
       </button>
       <span className="tgroup">

@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { photoUrl } from "../api";
+import { api, photoUrl } from "../api";
+import { loadSlideshowOpts } from "../slideshowOpts";
 import { render } from "../effects";
 import { useStore } from "../store";
-
-const INTERVAL_MS = 3500;
 
 /** Fullscreen slideshow with Picasa-style crossfades. Space pauses, arrows step, Esc exits. */
 export default function Slideshow() {
@@ -16,6 +15,9 @@ export default function Slideshow() {
   const [ui, setUi] = useState(false);
   const [layers, setLayers] = useState<{ a: number | null; b: number | null; front: "a" | "b" }>({ a: null, b: null, front: "a" });
   const uiTimer = useRef<number>();
+  // Options are read when the slideshow starts.
+  const opts = useMemo(() => loadSlideshowOpts(), [show != null]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [caption, setCaption] = useState("");
 
   useEffect(() => {
     if (!show) return;
@@ -38,10 +40,25 @@ export default function Slideshow() {
     if (!show || !playing) return;
     const t = window.setTimeout(() => {
       if (show.index + 1 < show.photos.length) setIndex(show.index + 1);
+      else if (opts.loop) setIndex(0);
       else stop();
-    }, INTERVAL_MS);
+    }, opts.seconds * 1000);
     return () => clearTimeout(t);
-  }, [show, playing, setIndex, stop]);
+  }, [show, playing, setIndex, stop, opts]);
+
+  // The picture's caption, shown at the bottom (Options › Slideshow).
+  useEffect(() => {
+    setCaption("");
+    if (!show || !opts.captions) return;
+    let live = true;
+    api
+      .getPhoto(show.photos[show.index])
+      .then((p) => live && setCaption(p.caption))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [show?.index, show?.photos, opts.captions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!show) return;
@@ -65,7 +82,8 @@ export default function Slideshow() {
 
   return (
     <div
-      className={`slideshow${ui ? " ui" : ""}`}
+      className={`slideshow${ui ? " ui" : ""} tr-${opts.transition}`}
+      style={{ "--slide-ms": `${opts.seconds * 1000 + 800}ms` } as React.CSSProperties}
       onMouseMove={() => {
         setUi(true);
         clearTimeout(uiTimer.current);
@@ -73,8 +91,13 @@ export default function Slideshow() {
       }}
       onClick={() => setPlaying((p) => !p)}
     >
-      {layers.a != null && <img src={photoUrl(layers.a)} style={{ ...style(layers.a), opacity: layers.front === "a" ? 1 : 0 }} alt="" />}
-      {layers.b != null && <img src={photoUrl(layers.b)} style={{ ...style(layers.b), opacity: layers.front === "b" ? 1 : 0 }} alt="" />}
+      {layers.a != null && (
+        <img key={`a${layers.a}`} className={`${layers.front === "a" ? "front" : ""}${style(layers.a).transform ? " rot" : ""}`} src={photoUrl(layers.a)} style={{ ...style(layers.a), opacity: layers.front === "a" ? 1 : 0 }} alt="" />
+      )}
+      {layers.b != null && (
+        <img key={`b${layers.b}`} className={`${layers.front === "b" ? "front" : ""}${style(layers.b).transform ? " rot" : ""}`} src={photoUrl(layers.b)} style={{ ...style(layers.b), opacity: layers.front === "b" ? 1 : 0 }} alt="" />
+      )}
+      {caption && <div className="slide-caption">{caption}</div>}
       <div className="bar" onClick={(e) => e.stopPropagation()}>
         <button onClick={() => setIndex(Math.max(0, show.index - 1))}>⏮</button>
         <button onClick={() => setPlaying((p) => !p)}>{playing ? "⏸" : "▶"}</button>

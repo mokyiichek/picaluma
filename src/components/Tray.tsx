@@ -3,7 +3,7 @@ import { Edit } from "../effects";
 import { emailPhotos, exportPhotos, printPhotos } from "../actions";
 import { plural } from "../format";
 import { selectVisible, useStore } from "../store";
-import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PrintIcon, RotateIcon, StarIcon, TagIcon } from "./Icons";
+import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon } from "./Icons";
 
 export default function Tray() {
   const selected = useStore((s) => s.selected);
@@ -17,6 +17,7 @@ export default function Tray() {
   const sidePanel = useStore((s) => s.sidePanel);
   const toggleTags = useStore((s) => s.toggleTags);
   const togglePeople = useStore((s) => s.togglePeople);
+  const togglePlaces = useStore((s) => s.togglePlaces);
   const clearSelection = useStore((s) => s.clearSelection);
   const toggleStar = useStore((s) => s.toggleStar);
   const held = useStore((s) => s.held);
@@ -114,6 +115,9 @@ export default function Tray() {
         <span className="tgroup">
           <button className={`tbtn icon${showProps && sidePanel === "people" ? " pressed" : ""}`} title="People in this picture" onClick={togglePeople}>
             <PersonIcon size={16} />
+          </button>
+          <button className={`tbtn icon${showProps && sidePanel === "places" ? " pressed" : ""}`} title="Places: where the pictures were taken" onClick={togglePlaces}>
+            <PinIcon size={16} />
           </button>
           <button className={`tbtn icon${showProps && sidePanel === "tags" ? " pressed" : ""}`} title="Tags (Ctrl+T)" onClick={toggleTags}>
             <TagIcon size={16} />

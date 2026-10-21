@@ -90,7 +90,7 @@ interface State {
   /** Tools › Options › Special effects: animated transitions and smooth scrolling. */
   effects: boolean;
   optionsOpen: boolean;
-  sidePanel: "props" | "tags" | "people";
+  sidePanel: "props" | "tags" | "people" | "places";
   contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album" | "person"; folderId?: number; albumId?: number; personId?: number } | null;
   leftWidth: number;
   /** Left-panel sections, each opened/closed independently like Picasa's. */
@@ -115,6 +115,10 @@ interface State {
   flight: Flight | null;
   slideshow: { photos: number[]; index: number } | null;
   folderManager: boolean;
+  /** File › Import From. */
+  importOpen: boolean;
+  /** A folder to open as soon as the scan finds it (after an import). */
+  pendingFolderPath: string | null;
   scrollTarget: { folderId: number; photoId?: number; nonce: number } | null;
   /** Album shown instead of the folder list (Picasa's album view). */
   albumView: number | null;
@@ -149,6 +153,7 @@ interface State {
   toggleProps: () => void;
   toggleTags: () => void;
   togglePeople: () => void;
+  togglePlaces: () => void;
   openPerson: (id: number | null) => void;
   setPeopleManager: (pm: { tab: "unnamed" | "suggestions"; person?: number } | null) => void;
   setFacesOnly: (on: boolean) => void;
@@ -157,6 +162,8 @@ interface State {
   setDrawFace: (on: boolean) => void;
   setHoverFace: (f: Face | null) => void;
   setCompare: (on: boolean) => void;
+  setImportOpen: (on: boolean) => void;
+  selectFolderByPath: (path: string) => void;
   setShowHidden: (on: boolean) => void;
   setRecentOnly: (on: boolean) => void;
   holdSelection: () => void;
@@ -254,6 +261,8 @@ export const useStore = create<State>((set, get) => ({
   flight: null,
   slideshow: null,
   folderManager: false,
+  importOpen: false,
+  pendingFolderPath: null,
   scrollTarget: null,
   albumView: null,
   albumPicker: null,
@@ -303,6 +312,9 @@ export const useStore = create<State>((set, get) => ({
             ? cur
             : snapshot.folders[0]?.id ?? null,
     });
+    // An imported folder opens once the scan has found it.
+    const pending = get().pendingFolderPath;
+    if (pending) get().selectFolderByPath(pending);
     // Re-run an active search so results reflect newly scanned photos.
     const q = get().query;
     if (q) get().runSearch(q);
@@ -400,6 +412,11 @@ export const useStore = create<State>((set, get) => ({
     set({ showProps: !(showProps && sidePanel === "people"), sidePanel: "people" });
   },
 
+  togglePlaces: () => {
+    const { showProps, sidePanel } = get();
+    set({ showProps: !(showProps && sidePanel === "places"), sidePanel: "places" });
+  },
+
   openPerson: (id) =>
     set({
       personView: id,
@@ -420,6 +437,15 @@ export const useStore = create<State>((set, get) => ({
   setDrawFace: (drawFace) => set({ drawFace }),
   setHoverFace: (hoverFace) => set({ hoverFace }),
   setCompare: (compare) => set({ compare }),
+  setImportOpen: (importOpen) => set({ importOpen, peopleManager: importOpen ? null : get().peopleManager }),
+  selectFolderByPath: (path) => {
+    const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/$/, "").toLowerCase();
+    const f = get().snapshot?.folders.find((x) => norm(x.path) === norm(path));
+    if (f) {
+      set({ pendingFolderPath: null, albumView: null, personView: null });
+      get().selectFolder(f.id);
+    } else set({ pendingFolderPath: path });
+  },
   setShowHidden: (showHidden) => set({ showHidden }),
   setRecentOnly: (recentOnly) => set({ recentOnly, albumView: recentOnly ? null : get().albumView, personView: recentOnly ? null : get().personView }),
   holdSelection: () => {

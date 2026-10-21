@@ -31,7 +31,7 @@ pub struct OpResult {
 
 /// Move pictures to the Recycle Bin / Trash (or, with `permanent`, delete them outright —
 /// Shift+Delete) and drop them from the library.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_photos(state: State<'_, AppState>, ids: Vec<i64>, permanent: Option<bool>) -> CmdResult<OpResult> {
   let permanent = permanent.unwrap_or(false);
   let photos = photo_paths(&state, &ids)?;
@@ -67,7 +67,7 @@ fn dir_is_empty(dir: &Path) -> bool {
 
 /// Removes a folder that is completely empty (after its last pictures were deleted) and drops it
 /// from the library. Refuses anything that still holds a file.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_empty_folder(state: State<'_, AppState>, path: String) -> CmdResult<()> {
   let dir = PathBuf::from(&path);
   if !dir_is_empty(&dir) {
@@ -80,7 +80,7 @@ pub fn remove_empty_folder(state: State<'_, AppState>, path: String) -> CmdResul
 }
 
 /// Move or copy pictures into `dest` (created if needed). Name clashes get " (2)", " (3)"…
-#[tauri::command]
+#[tauri::command(async)]
 pub fn transfer_photos(app: AppHandle, state: State<'_, AppState>, ids: Vec<i64>, dest: String, copy: bool) -> CmdResult<OpResult> {
   let dest_dir = PathBuf::from(&dest);
   std::fs::create_dir_all(&dest_dir).map_err(err)?;
@@ -133,7 +133,7 @@ pub fn transfer_photos(app: AppHandle, state: State<'_, AppState>, ids: Vec<i64>
 }
 
 /// Rename a folder on disk, keeping every photo's row.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_folder(state: State<'_, AppState>, id: i64, name: String) -> CmdResult<String> {
   let name = name.trim();
   if name.is_empty() || name.contains(['\\', '/', ':', '*', '?', '"', '<', '>', '|']) {
@@ -155,7 +155,7 @@ pub fn rename_folder(state: State<'_, AppState>, id: i64, name: String) -> CmdRe
 
 /// File › Rename (F2): renames a picture on disk, keeping its extension and its row (stars,
 /// captions, edits, albums). Returns the new file name.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_photo(state: State<'_, AppState>, id: i64, name: String) -> CmdResult<String> {
   let stem = name.trim();
   if stem.is_empty() || stem.contains(['\\', '/', ':', '*', '?', '"', '<', '>', '|']) {
@@ -185,7 +185,7 @@ pub fn rename_photo(state: State<'_, AppState>, id: i64, name: String) -> CmdRes
 }
 
 /// Move a folder (with everything inside it) into `dest_parent`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn move_folder(app: AppHandle, state: State<'_, AppState>, id: i64, dest_parent: String) -> CmdResult<String> {
   let old: String = {
     let conn = state.db.lock().map_err(err)?;
@@ -212,7 +212,7 @@ pub fn move_folder(app: AppHandle, state: State<'_, AppState>, id: i64, dest_par
 }
 
 /// Send a whole folder to the Recycle Bin and drop it (and its subfolders) from the library.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_folder(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
   let path: String = {
     let conn = state.db.lock().map_err(err)?;
