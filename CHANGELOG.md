@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.9 — 2026-10-21
+
+- **People** — Picasa's face features, done on your computer (nothing is uploaded):
+  - Faces are found in the background after scanning (the folder you're looking at first), and
+    faces that look alike are grouped.
+  - **People Manager** (*Tools › People Manager*, Ctrl+Shift+M, or *Unnamed* in the People
+    section): type a name under a group to name all its faces at once; click faces to leave them
+    out, or *Ignore* faces you don't want to name.
+  - **Suggestions** — once someone has a name, faces that look like them are offered as
+    "Is this …?" with ✔ and ✖ (or Confirm all). An orange **?** next to a person shows
+    suggestions waiting.
+  - **Person albums** in the People section, with the person's face; right-click to rename,
+    delete (removes only the name tags), review suggestions, print a contact sheet or export.
+  - **People panel** (the person button in the tray): who is in the selected picture, with
+    "Add a name", ✔/✖ for suggestions and *Remove name*. In Edit view the faces are outlined and
+    named, and **Add a person manually** lets you draw a box around a face that was missed.
+  - Type a person's name in the search box to find their pictures; the toolbar **Faces** filter
+    shows only pictures with people.
+  - **Picasa's name tags are imported** from each folder's `.picasa.ini` (once, automatically;
+    again from *Tools › Options › Name Tags*).
+  - *Picture › Reset Faces* looks again; *Tools › Options › Name Tags* turns face recognition off.
+  - Measured on Picasa-tagged family photos: 90% of the faces Picasa's users had tagged were found,
+    and different people were rarely suggested as each other (0.6%).
+- **Build checks** — pull requests no longer fail when Apple's notarization service is
+  unavailable, and builds no longer warn about outdated GitHub Actions.
+
 ## 0.7.8 — 2026-10-21
 
 - **Filters like Picasa's** — the toolbar Filters now include **Movies** (show only movies) and

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Album, api, Folder, ScanProgress, setLibraryTag, Snapshot } from "./api";
+import { Album, api, Face, FaceProgress, Folder, Person, ScanProgress, setLibraryTag, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
 
 export interface Rect {
@@ -40,6 +40,10 @@ export const DATE_STEPS: [string, number][] = [
   ["Last week", 7 * DAY],
 ];
 
+/** Person albums are shown through the folder grid with ids at or below this. */
+export const PERSON_BASE = -1_000_000;
+export const isPersonId = (id: number) => id <= PERSON_BASE;
+
 export type FolderSort = "updated" | "created" | "name" | "size";
 
 interface State {
@@ -50,6 +54,19 @@ interface State {
   geotagged: Set<number>;
   /** Videos in the library (play badge, player instead of the editor). */
   videos: Set<number>;
+  /** Photos with faces (Faces filter). */
+  faced: Set<number>;
+  /** Person album shown in the grid (People section). */
+  personView: number | null;
+  /** People Manager in place of the grid: unnamed face groups or suggestions to confirm. */
+  peopleManager: { tab: "unnamed" | "suggestions"; person?: number } | null;
+  /** Filters › faces: only photos with faces. */
+  facesOnly: boolean;
+  faceProgress: FaceProgress;
+  /** Edit view: drawing a face by hand ("Add a person manually"). */
+  drawFace: boolean;
+  /** Face highlighted on the picture (hovered in the People panel). */
+  hoverFace: Face | null;
   edits: Map<number, Edit[]>;
 
   view: "library" | "edit";
@@ -62,8 +79,8 @@ interface State {
   /** Tools › Options › Special effects: animated transitions and smooth scrolling. */
   effects: boolean;
   optionsOpen: boolean;
-  sidePanel: "props" | "tags";
-  contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album"; folderId?: number; albumId?: number } | null;
+  sidePanel: "props" | "tags" | "people";
+  contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album" | "person"; folderId?: number; albumId?: number; personId?: number } | null;
   leftWidth: number;
   /** Left-panel sections, each opened/closed independently like Picasa's. */
   openSections: Record<Section, boolean>;
@@ -120,6 +137,13 @@ interface State {
   setThumbSize: (n: number) => void;
   toggleProps: () => void;
   toggleTags: () => void;
+  togglePeople: () => void;
+  openPerson: (id: number | null) => void;
+  setPeopleManager: (pm: { tab: "unnamed" | "suggestions"; person?: number } | null) => void;
+  setFacesOnly: (on: boolean) => void;
+  setFaceProgress: (p: FaceProgress) => void;
+  setDrawFace: (on: boolean) => void;
+  setHoverFace: (f: Face | null) => void;
   setEffects: (on: boolean) => void;
   setOptionsOpen: (open: boolean) => void;
   openContextMenu: (m: State["contextMenu"]) => void;
@@ -169,6 +193,13 @@ export const useStore = create<State>((set, get) => ({
   starred: new Set(),
   geotagged: new Set(),
   videos: new Set(),
+  faced: new Set(),
+  personView: null,
+  peopleManager: null,
+  facesOnly: false,
+  faceProgress: { running: false, done: 0, total: 0 },
+  drawFace: false,
+  hoverFace: null,
   edits: new Map(),
 
   view: "library",
@@ -224,6 +255,8 @@ export const useStore = create<State>((set, get) => ({
     const cur = get().currentFolderId;
     const albumView = get().albumView;
     const albumAlive = albumView != null && snapshot.albums.some((a) => a.id === albumView);
+    const personView = get().personView;
+    const personAlive = personView != null && (snapshot.people ?? []).some((p) => p.id === personView);
     set({
       snapshot,
       folderById,
@@ -231,9 +264,17 @@ export const useStore = create<State>((set, get) => ({
       starred: new Set(snapshot.starred),
       geotagged: new Set(snapshot.geotagged),
       videos: new Set(snapshot.videos ?? []),
+      faced: new Set(snapshot.faced ?? []),
       edits,
       albumView: albumAlive ? albumView : null,
-      currentFolderId: albumAlive ? -albumView! : cur != null && folderById.has(cur) ? cur : snapshot.folders[0]?.id ?? null,
+      personView: personAlive ? personView : null,
+      currentFolderId: personAlive
+        ? PERSON_BASE - personView!
+        : albumAlive
+          ? -albumView!
+          : cur != null && folderById.has(cur)
+            ? cur
+            : snapshot.folders[0]?.id ?? null,
     });
     // Re-run an active search so results reflect newly scanned photos.
     const q = get().query;
@@ -250,6 +291,8 @@ export const useStore = create<State>((set, get) => ({
     if (get().scan.scanning && id > 0) api.prioritizeFolder(id).catch(() => {});
     set({
       albumView: id < 0 ? get().albumView : null,
+      personView: id < 0 ? get().personView : null,
+      peopleManager: null,
       currentFolderId: id,
       selected: new Set(),
       anchor: null,
@@ -324,6 +367,30 @@ export const useStore = create<State>((set, get) => ({
     const { showProps, sidePanel } = get();
     set({ showProps: !(showProps && sidePanel === "tags"), sidePanel: "tags" });
   },
+
+  togglePeople: () => {
+    const { showProps, sidePanel } = get();
+    set({ showProps: !(showProps && sidePanel === "people"), sidePanel: "people" });
+  },
+
+  openPerson: (id) =>
+    set({
+      personView: id,
+      albumView: null,
+      peopleManager: null,
+      openSections: id != null ? { ...get().openSections, people: true } : get().openSections,
+      starredOnly: false,
+      selected: new Set(),
+      anchor: null,
+      currentFolderId: id != null ? PERSON_BASE - id : get().snapshot?.folders[0]?.id ?? null,
+      scrollTarget: id != null ? { folderId: PERSON_BASE - id, nonce: Date.now() } : get().scrollTarget,
+    }),
+  setPeopleManager: (peopleManager) =>
+    set({ peopleManager, openSections: peopleManager ? { ...get().openSections, people: true } : get().openSections }),
+  setFacesOnly: (facesOnly) => set({ facesOnly }),
+  setFaceProgress: (faceProgress) => set({ faceProgress }),
+  setDrawFace: (drawFace) => set({ drawFace }),
+  setHoverFace: (hoverFace) => set({ hoverFace }),
 
   openContextMenu: (contextMenu) => set({ contextMenu }),
 
@@ -420,7 +487,8 @@ export const useStore = create<State>((set, get) => ({
   setFolderManager: (folderManager) => set({ folderManager }),
 
   setFolderDescription: (id, text) => {
-    // Negative ids are albums shown through the folder header.
+    // Negative ids are albums shown through the folder header (people have no description).
+    if (isPersonId(id)) return;
     if (id < 0) {
       const a = get().snapshot?.albums.find((x) => x.id === -id);
       if (a) a.description = text;
@@ -435,6 +503,8 @@ export const useStore = create<State>((set, get) => ({
   openAlbum: (id) =>
     set({
       albumView: id,
+      personView: null,
+      peopleManager: null,
       openSections: id != null ? { ...get().openSections, albums: true } : get().openSections,
       starredOnly: false,
       selected: new Set(),
@@ -483,6 +553,7 @@ export const useStore = create<State>((set, get) => ({
 
 /** The grid section a photo belongs to: the open album, else its folder. */
 function homeFolder(s: State, photoId: number): number | null {
+  if (s.personView != null) return PERSON_BASE - s.personView;
   if (s.albumView != null) return -s.albumView;
   return s.folderOfPhoto.get(photoId) ?? s.currentFolderId;
 }
@@ -492,6 +563,15 @@ export function albumAsFolder(a: Album): Folder {
   return { id: -a.id, name: a.name, path: "Album", description: a.description, dateMin: a.created, dateMax: a.created, updated: a.created, bytes: 0, sort: a.sort, photos: a.photos };
 }
 
+/** A person album presented with the Folder shape. */
+export function personAsFolder(p: Person): Folder {
+  return { id: PERSON_BASE - p.id, name: p.name, path: "Person", description: "", dateMin: 0, dateMax: 0, updated: 0, bytes: 0, sort: "", photos: p.photos };
+}
+
+export function selectPerson(s: State): Person | undefined {
+  return s.personView != null ? s.snapshot?.people?.find((p) => p.id === s.personView) : undefined;
+}
+
 export function selectAlbum(s: State): Album | undefined {
   return s.albumView != null ? s.snapshot?.albums.find((a) => a.id === s.albumView) : undefined;
 }
@@ -499,22 +579,24 @@ export function selectAlbum(s: State): Album | undefined {
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.geoOnly, s.videoOnly, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.geoOnly, s.videoOnly, s.facesOnly, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
   const album = selectAlbum(s);
-  const folders = album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
+  const person = selectPerson(s);
+  const folders = person ? [personAsFolder(person)] : album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
   const ids = s.search?.ids;
   const value: VisibleFolder[] = [];
   for (const folder of folders) {
     let photos = folder.photos;
     const df = s.dateFilter;
-    if (ids || s.starredOnly || s.geoOnly || s.videoOnly || df) {
+    if (ids || s.starredOnly || s.geoOnly || s.videoOnly || s.facesOnly || df) {
       photos = photos.filter(
         (p) =>
           (!ids || ids.has(p)) &&
           (!s.starredOnly || s.starred.has(p)) &&
           (!s.geoOnly || s.geotagged.has(p)) &&
           (!s.videoOnly || s.videos.has(p)) &&
+          (!s.facesOnly || s.faced.has(p)) &&
           (!df || df.ids.has(p) !== df.exclude),
       );
       if (!photos.length) continue;
@@ -558,7 +640,7 @@ function sortFolders(folders: Folder[], view: "flat" | "tree", sort: FolderSort,
 /** Photos the editor's prev/next and filmstrip walk through: the current folder, filtered. */
 export function selectEditorSequence(s: State): number[] {
   if (s.editId == null) return [];
-  if (s.albumView != null) return selectVisible(s)[0]?.photos ?? [];
+  if (s.albumView != null || s.personView != null) return selectVisible(s)[0]?.photos ?? [];
   const fid = s.folderOfPhoto.get(s.editId);
   const vis = selectVisible(s).find((v) => v.folder.id === fid);
   return vis?.photos ?? (fid != null ? s.folderById.get(fid)?.photos ?? [] : []);

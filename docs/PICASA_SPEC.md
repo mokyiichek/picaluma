@@ -11,7 +11,7 @@ Top to bottom:
 | Region            | Height | Contents                                                                                     | Status |
 |-------------------|--------|----------------------------------------------------------------------------------------------|--------|
 | Menu bar          | 22     | File · Edit · View · Folder · Picture · Create · Tools · Help; account link at right          | ✅      |
-| Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆, movies, geotag and date slider ✅; faces ⬜; uploaded dropped — Google Web Albums) |
+| Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆, faces, movies, geotag and date slider ✅; uploaded dropped — Google Web Albums) |
 | Main              | flex   | Left tree (≈505 px, resizable) · splitter · thumbnail grid · Properties panel (≈278 px, toggle) | ✅ |
 | Status bar        | 17     | Blue `#568FB7`, white bold 11 px, centered: `252 pictures   Apr 12, 2013 to Aug 4, 2026   92.7MB on disk` | ✅ |
 | Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ⬜; Share and Places dropped — Google+ and Google Maps) |
@@ -42,7 +42,7 @@ Top to bottom:
 - Row: folder icon · `Name (count)`. Selected row: dark-blue fill, white text. ✅
 - Scrolling the grid moves the tree highlight to the folder at the top of the grid. ✅
 - Albums include "Starred Photos", "Recently Updated", "Search results for 'x'" and user albums. ✅ (Recently Updated ⬜)
-- People rows: face crop · `<Unknown Person> (0)` · orange "?" badge. ⬜
+- People rows: face crop · `<Unknown Person> (0)` · orange "?" badge. ✅ (Picaluma: "Unnamed (n)" first, then people A–Z; the "?" badge opens that person's suggestions)
 
 ## 3. Thumbnail grid
 
@@ -138,7 +138,7 @@ Albums, Order Prints, Publish to Blogger, Upload/Batch Upload, Download Name Tag
 Implemented: every File entry (Save writes a *copy*, originals are never changed), Copy Picture,
 Copy/Paste All Effects, Flat/Tree Folder View, Batch Edit ▸, Print Contact Sheet, Export as
 HTML Page, Set as Desktop, Make a Poster, Picture Collage, Help › Keyboard Shortcuts / Check for
-Updates. Still disabled: Movie, People Manager, Hide/Unhide, Timeline, Places.
+Updates. Still disabled: Movie, Hide/Unhide, Timeline, Places. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
 
 ## 9. Controls, cursors and selection
 
@@ -210,3 +210,16 @@ lines are excluded folders. Picaluma imports this file verbatim. ✅
   *Pictures/Picaluma/Collages* or set as the desktop. ✅ (Picasa's Picture Pile, Frame Mosaic
   and Contact Sheet collage styles ⬜)
 - **Set as Desktop** (Windows, macOS, GNOME/KDE). ✅
+
+## People (name tags)
+
+Picasa found faces in the background, grouped similar unnamed faces, and let you name a group in
+one go; named faces became person albums in the People section, and faces that looked like a named
+person were offered as suggestions ("Is this …?" ✔ ✖). The tray's People button showed who is in
+the selected picture (with "Add a name" and "Add a person manually"); Tools › People Manager listed
+the unnamed groups; Picture › Reset Faces looked again; names were searchable; Options › Name Tags
+turned face recognition on or off. Name tags were saved in each folder's `.picasa.ini`
+(`faces=rect64(…),contact` plus a `[Contacts2]` section). ✅ All of these, with Picasa's name tags
+imported. Picaluma's detection (YuNet) and recognition (SFace) run on the computer; nothing is
+uploaded. Not copied: contact sync with Google, web album face sync, movies from faces.
+

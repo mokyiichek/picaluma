@@ -178,7 +178,7 @@ jobs:
 
       - name: Upload installers
         if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: picaluma-${{ matrix.name }}
           path: ${{ matrix.artifacts }}

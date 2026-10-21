@@ -1,10 +1,11 @@
 import { mod } from "../platform";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { thumbUrl, Folder } from "../api";
+import { faceUrl, thumbUrl, Folder } from "../api";
 import { cropViewBox, render } from "../effects";
 import { fmtDate } from "../format";
-import { selectAlbum, selectVisible, useStore } from "../store";
+import { isPersonId, PERSON_BASE, selectAlbum, selectPerson, selectVisible, useStore } from "../store";
+import PeopleManager from "./PeopleManager";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
 import { aspectCache } from "./EditView";
@@ -44,6 +45,8 @@ export default function LibraryGrid() {
   const glideFolder = useRef<number | null>(null);
   const effects = useStore((s) => s.effects);
   const album = useStore(selectAlbum);
+  const person = useStore(selectPerson);
+  const peopleManager = useStore((s) => s.peopleManager != null);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -294,6 +297,20 @@ export default function LibraryGrid() {
 
   return (
     <div className="gridwrap">
+      {peopleManager && <PeopleManager />}
+      {person && (
+        <div className="album-banner">
+          <button onClick={() => useStore.getState().openPerson(null)}>Back to Folders</button>
+          <span>
+            {person.name} — {person.photos.length.toLocaleString()} pictures
+          </span>
+          {person.suggestions > 0 && (
+            <button onClick={() => useStore.getState().setPeopleManager({ tab: "suggestions", person: person.id })}>
+              Review {person.suggestions.toLocaleString()} suggestions
+            </button>
+          )}
+        </div>
+      )}
       {album && (
         <div className="album-banner">
           <button onClick={() => useStore.getState().openAlbum(null)}>Back to Folders</button>
@@ -352,6 +369,7 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
   const startSlideshow = useStore((s) => s.startSlideshow);
   const toggleStar = useStore((s) => s.toggleStar);
   const setDesc = useStore((s) => s.setFolderDescription);
+  const person = useStore((s) => (isPersonId(folder.id) ? s.snapshot?.people?.find((p) => p.id === PERSON_BASE - folder.id) : undefined));
   const [desc, setLocal] = useState(folder.description);
   useEffect(() => setLocal(folder.description), [folder.description]);
 
@@ -370,10 +388,10 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
       }}
     >
       <div className="title-row">
-        <FolderIcon size={34} />
+        {person?.cover != null ? <img className="face-ico head" src={faceUrl(person.cover)} alt="" /> : <FolderIcon size={34} />}
         <div style={{ minWidth: 0 }}>
-          <h2 title={folder.path}>{folder.name}</h2>
-          <div className="date">{range}</div>
+          <h2 title={person ? person.name : folder.path}>{folder.name}</h2>
+          <div className="date">{person ? `${person.photos.length.toLocaleString()} pictures` : range}</div>
         </div>
       </div>
       <div className="actions">
@@ -393,7 +411,7 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
           <SaveIcon />
         </button>
       </div>
-      <input
+      {!person && <input
         className="desc"
         data-desc={folder.id}
         value={desc}
@@ -401,7 +419,7 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
         onChange={(e) => setLocal(e.target.value)}
         onBlur={() => desc !== folder.description && setDesc(folder.id, desc)}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-      />
+      />}
     </div>
   );
 });

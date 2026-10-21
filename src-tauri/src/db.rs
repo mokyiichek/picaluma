@@ -179,6 +179,41 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   if !has_col("albums", "sort")? {
     conn.execute_batch("ALTER TABLE albums ADD COLUMN sort TEXT NOT NULL DEFAULT ''")?;
   }
+  // v0.7.9: People. Faces are found in the background (faces_done: 0 to do, 1 done, 2 skipped).
+  // Face state: 0 unnamed, 1 named, 2 suggested name awaiting confirmation, 3 ignored.
+  // Face source: 0 found by Picaluma, 1 added by hand, 2 imported from Picasa's name tags.
+  if !has("faces_done")? {
+    conn.execute_batch("ALTER TABLE photos ADD COLUMN faces_done INTEGER NOT NULL DEFAULT 0")?;
+  }
+  conn.execute_batch(
+    "CREATE INDEX IF NOT EXISTS photos_faces_pending ON photos(faces_done) WHERE faces_done = 0;
+     CREATE INDEX IF NOT EXISTS photos_faces_todo ON photos(COALESCE(taken, mtime) DESC) WHERE faces_done = 0;
+     CREATE TABLE IF NOT EXISTS people (
+       id      INTEGER PRIMARY KEY,
+       name    TEXT NOT NULL UNIQUE COLLATE NOCASE,
+       cover   INTEGER,
+       created INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+     );
+     CREATE TABLE IF NOT EXISTS faces (
+       id        INTEGER PRIMARY KEY,
+       photo_id  INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+       x REAL NOT NULL, y REAL NOT NULL, w REAL NOT NULL, h REAL NOT NULL,
+       score     REAL NOT NULL DEFAULT 0,
+       emb       BLOB,
+       person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+       state     INTEGER NOT NULL DEFAULT 0,
+       cluster   INTEGER,
+       source    INTEGER NOT NULL DEFAULT 0
+     );
+     CREATE INDEX IF NOT EXISTS faces_photo ON faces(photo_id);
+     CREATE INDEX IF NOT EXISTS faces_person ON faces(person_id, state);
+     CREATE INDEX IF NOT EXISTS faces_cluster ON faces(cluster) WHERE state = 0;
+     CREATE TABLE IF NOT EXISTS face_rejects (
+       face_id   INTEGER NOT NULL REFERENCES faces(id) ON DELETE CASCADE,
+       person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+       PRIMARY KEY (face_id, person_id)
+     );",
+  )?;
   Ok(())
 }
 

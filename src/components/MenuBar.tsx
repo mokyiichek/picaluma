@@ -115,7 +115,7 @@ function useMenus(): [string, MenuEntry[]][] {
         sep,
         { label: "Properties", checked: s.showProps && s.sidePanel === "props", action: s.toggleProps },
         { label: "Tags", shortcut: "Ctrl+T", checked: s.showProps && s.sidePanel === "tags", action: s.toggleTags },
-        { label: "People", action: () => s.setLeftSection("people") },
+        { label: "People", checked: s.showProps && s.sidePanel === "people", action: s.togglePeople },
         sep,
         { label: "Flat Folder View", checked: s.folderView === "flat", action: () => s.setFolderView("flat") },
         { label: "Tree Folder View", checked: s.folderView === "tree", action: () => s.setFolderView("tree") },
@@ -165,6 +165,7 @@ function useMenus(): [string, MenuEntry[]][] {
           submenu: BATCH.map(([label, op]) => ({ label, action: selected.length ? () => batchEdit(selected, op) : undefined })),
         },
         { label: "Undo All Edits", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
+        { label: "Reset Faces", action: targets.length ? () => api.resetFaces(targets).then(() => s.loadSnapshot()) : undefined },
         sep,
         {
           label: one != null && s.starred.has(one) ? "Remove Star" : "Add Star",
@@ -189,7 +190,7 @@ function useMenus(): [string, MenuEntry[]][] {
       "Tools",
       [
         { label: "Folder Manager...", action: () => s.setFolderManager(true) },
-        { label: "People Manager (coming soon)" },
+        { label: "People Manager...", shortcut: "Ctrl+Shift+M", action: () => s.setPeopleManager({ tab: "unnamed" }) },
         sep,
         { label: "Rescan Library", action: () => api.rescan() },
         sep,

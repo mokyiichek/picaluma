@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { pathParts, Section, selectVisible, useStore } from "../store";
 import { fmtMonth } from "../format";
-import { CollapseIcon, FolderIcon, PicturesIcon, StarIcon } from "./Icons";
-import type { Album } from "../api";
+import { CollapseIcon, FolderIcon, PersonIcon, PicturesIcon, StarIcon } from "./Icons";
+import { faceUrl, type Album, type Person } from "../api";
 
 const NO_ALBUMS: Album[] = [];
+const NO_PEOPLE: Person[] = [];
 
 type Row =
   | { kind: "group"; label: string }
@@ -29,6 +30,12 @@ export default function LeftPanel() {
   const albumView = useStore((s) => s.albumView);
   const openAlbum = useStore((s) => s.openAlbum);
   const folderCount = useStore((s) => s.snapshot?.folders.length ?? 0);
+  const people = useStore((s) => s.snapshot?.people ?? NO_PEOPLE);
+  const unnamed = useStore((s) => s.snapshot?.unnamed ?? 0);
+  const personView = useStore((s) => s.personView);
+  const openPerson = useStore((s) => s.openPerson);
+  const pm = useStore((s) => s.peopleManager);
+  const progress = useStore((s) => s.faceProgress);
 
   // Picasa: clicking a header toggles just that section; any combination can be open.
   const head = (id: Section, label: string) => (
@@ -82,15 +89,59 @@ export default function LeftPanel() {
           {!albums.length && <div className="tree-hint">Right-click photos › Add to Album to make your first album.</div>}
         </div>
       )}
-      {head("people", "People (0)")}
+      {head("people", `People (${people.length.toLocaleString()})`)}
       {open.people && (
-        <div className="section-body auto people-empty">
-          Face grouping is planned for a later release.
-          <br />
-          Picaluma will detect faces locally — nothing is uploaded.
+        <div className="section-body auto people-list">
+          {unnamed > 0 && (
+            <div
+              className={`tree-row${pm?.tab === "unnamed" ? " sel" : ""}`}
+              onMouseDown={(e) => e.button === 0 && useStore.getState().setPeopleManager({ tab: "unnamed" })}
+              title="Name the faces Picaluma found"
+            >
+              <PersonIcon size={15} />
+              <span className="name">Unnamed ({unnamed.toLocaleString()})</span>
+            </div>
+          )}
+          {people.map((p) => (
+            <div
+              key={p.id}
+              className={`tree-row${personView === p.id ? " sel" : ""}`}
+              onMouseDown={(e) => e.button === 0 && openPerson(personView === p.id ? null : p.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "person", personId: p.id });
+              }}
+              title={personView === p.id ? "Click again to return to all folders" : p.name}
+            >
+              {p.cover != null ? <img className="face-ico" src={faceUrl(p.cover)} alt="" /> : <PersonIcon size={15} />}
+              <span className="name">
+                {p.name} ({p.photos.length.toLocaleString()})
+              </span>
+              {p.suggestions > 0 && (
+                <span
+                  className="suggest-badge"
+                  title={`${p.suggestions} suggested faces to confirm`}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    useStore.getState().setPeopleManager({ tab: "suggestions", person: p.id });
+                  }}
+                >
+                  ?
+                </span>
+              )}
+            </div>
+          ))}
+          {progress.running && (
+            <div className="tree-hint">
+              Finding faces… {progress.done.toLocaleString()} of {progress.total.toLocaleString()} pictures
+            </div>
+          )}
+          {!people.length && !unnamed && !progress.running && (
+            <div className="tree-hint">Faces Picaluma finds appear here — found on this computer, nothing is uploaded.</div>
+          )}
         </div>
       )}
-      {head("folders", `Folders (${(albumView != null ? folderCount : visible.length).toLocaleString()})`)}
+      {head("folders", `Folders (${(albumView != null || personView != null ? folderCount : visible.length).toLocaleString()})`)}
       {open.folders && <FolderTree />}
     </div>
   );
@@ -119,11 +170,12 @@ export function Splitter() {
 function FolderTree() {
   const filtered = useStore(selectVisible);
   const albumView = useStore((s) => s.albumView);
+  const personView = useStore((s) => s.personView);
   const allFolders = useStore((s) => s.snapshot?.folders);
-  // In album view the grid shows the album, but the tree still lists every folder.
+  // In album and person view the grid shows the album, but the tree still lists every folder.
   const visible = useMemo(
-    () => (albumView != null ? (allFolders ?? []).map((folder) => ({ folder, photos: folder.photos })) : filtered),
-    [albumView, allFolders, filtered],
+    () => (albumView != null || personView != null ? (allFolders ?? []).map((folder) => ({ folder, photos: folder.photos })) : filtered),
+    [albumView, personView, allFolders, filtered],
   );
   const current = useStore((s) => s.currentFolderId);
   const selectFolder = useStore((s) => s.selectFolder);

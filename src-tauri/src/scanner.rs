@@ -247,6 +247,8 @@ fn run_scan(app: &AppHandle) {
     log::warn!("compact: {e}");
   }
   thumbs::spawn_warmer(app.clone());
+  // Then look for faces in new pictures (it waits for the thumbnails to finish).
+  crate::people::kick(app);
 }
 
 pub(crate) fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
@@ -354,7 +356,7 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
     let mut upsert = tx.prepare_cached(
       "INSERT INTO photos(folder_id, path, name, size, mtime, meta_done, cloud) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
        ON CONFLICT(path) DO UPDATE SET folder_id = excluded.folder_id, size = excluded.size,
-         mtime = excluded.mtime, meta_done = excluded.meta_done, cloud = excluded.cloud
+         mtime = excluded.mtime, meta_done = excluded.meta_done, cloud = excluded.cloud, faces_done = 0
        RETURNING id",
     )?;
     for f in &changed {

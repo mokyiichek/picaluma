@@ -1,6 +1,6 @@
 [package]
 name = "picaluma"
-version = "0.7.8"
+version = "0.7.9"
 description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
 authors = ["mokyiichek"]
 license = "Apache-2.0 OR MIT"
@@ -32,6 +32,9 @@ trash = "5"
 log = "0.4"
 env_logger = "0.11"
 notify = "8"
+# People: on-device face detection (YuNet) and recognition (SFace) with a pure-Rust ONNX runtime,
+# so it builds for every target (32-bit Windows, universal Mac) with no native libraries.
+tract-onnx = "0.21"
 
 # Windows' own thumbnail engine (Explorer's): HEIC, AVIF, RAW and video thumbnails with the
 # codecs the PC has. Same version Tauri already uses, so nothing extra is compiled.

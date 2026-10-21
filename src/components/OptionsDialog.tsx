@@ -3,7 +3,7 @@ import { api, FileTypes } from "../api";
 import { notify } from "../dialogs";
 import { useStore } from "../store";
 
-const TABS = ["General", "File Types", "Slideshow", "Experimental"] as const;
+const TABS = ["General", "File Types", "Name Tags", "Slideshow", "Experimental"] as const;
 
 const ALL_TYPES: FileTypes = { heif: true, avif: true, raw: true, psd: true, tga: true, videos: true };
 
@@ -29,6 +29,9 @@ export default function OptionsDialog() {
   const [gpuDraft, setGpuDraft] = useState(false);
   const [types, setTypes] = useState<FileTypes>(ALL_TYPES);
   const [typesDraft, setTypesDraft] = useState<FileTypes>(ALL_TYPES);
+  const [faces, setFaces] = useState(true);
+  const [facesDraft, setFacesDraft] = useState(true);
+  const [importing, setImporting] = useState(false);
   useEffect(() => {
     if (!open) return;
     setDraft(useStore.getState().effects);
@@ -38,6 +41,8 @@ export default function OptionsDialog() {
       const t = { ...ALL_TYPES, ...s.fileTypes };
       setTypes(t);
       setTypesDraft(t);
+      setFaces(s.faceRecognition);
+      setFacesDraft(s.faceRecognition);
     });
   }, [open]);
 
@@ -54,6 +59,7 @@ export default function OptionsDialog() {
         notify("Restart Picaluma to apply the graphics setting.");
       });
     }
+    if (facesDraft !== faces) api.setFaceRecognition(facesDraft).then(() => setFaces(facesDraft));
     if (TYPE_ROWS.some(([k]) => types[k] !== typesDraft[k])) {
       // Saving rescans: newly ticked types are found, unticked ones leave the library.
       api.setFileTypes(typesDraft).then(() => setTypes(typesDraft));
@@ -131,7 +137,42 @@ export default function OptionsDialog() {
               </p>
             </fieldset>
           )}
-          {tab !== "General" && tab !== "File Types" && (
+          {tab === "Name Tags" && (
+            <fieldset>
+              <legend>People</legend>
+              <label className="opt-check">
+                <input type="checkbox" checked={facesDraft} onChange={(e) => setFacesDraft(e.target.checked)} />
+                <span>
+                  <b>Enable face recognition</b>
+                  <br />
+                  <span className="muted">
+                    Find faces in your pictures and group the ones that look alike, so you can name them once. It runs on this
+                    computer in the background, after scanning — nothing is uploaded.
+                  </span>
+                </span>
+              </label>
+              <p>
+                <button
+                  className="tbtn"
+                  disabled={importing}
+                  onClick={async () => {
+                    setImporting(true);
+                    try {
+                      const [people, tags] = await api.importPicasaFaces();
+                      notify(tags ? `Imported ${tags.toLocaleString()} name tags for ${people.toLocaleString()} people from Picasa.` : "No new Picasa name tags were found in your folders.");
+                      useStore.getState().loadSnapshot();
+                    } finally {
+                      setImporting(false);
+                    }
+                  }}
+                >
+                  {importing ? "Importing…" : "Import name tags from Picasa"}
+                </button>
+              </p>
+              <p className="muted">Reads the names you gave in Picasa (saved in each folder's .picasa.ini). This happens once automatically.</p>
+            </fieldset>
+          )}
+          {tab !== "General" && tab !== "File Types" && tab !== "Name Tags" && (
             <p className="muted">These settings will arrive in a later release.</p>
           )}
         </div>

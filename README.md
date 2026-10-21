@@ -42,6 +42,12 @@ import your old Picasa folder list in one click.
 - **Albums** — collect pictures from any folders into albums (right-click › Add to Album,
   Ctrl+N). Albums never move or copy your files.
 - **Tags, stars and captions** — Tags panel (Ctrl+T) with one-click Quick Tags.
+- **People** — faces are found in the background and similar ones grouped; name a group once in
+  People Manager (Tools menu) and Picaluma suggests who else looks like them ("Is this …?" ✔ ✖).
+  Person albums in the People section, a People panel showing who is in a picture (with "Add a
+  person manually"), name search and a Faces filter. Imports the name tags you gave in Picasa.
+  Detection and recognition run on your computer (OpenCV Zoo's YuNet and SFace models) — nothing
+  is uploaded; turn it off in *Tools › Options › Name Tags*.
 - **Flat or tree folder view** — Picasa's date-grouped list or your disk's folder tree;
   sort by creation date, recent changes, size or name, and sort the pictures inside each folder
   or album (right-click › Sort Folder By). Filters for starred photos, movies and
@@ -86,7 +92,7 @@ import your old Picasa folder list in one click.
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned: People (local face grouping), Places map, Movie maker, Hold, hide/unhide,
+Planned: Places map, Movie maker, Hold, hide/unhide,
 `.picasa.ini` import, Folder Manager redesign.
 
 ## Build from source

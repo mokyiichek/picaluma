@@ -8,7 +8,7 @@ use tauri::State;
 use crate::formats::FileTypes;
 use crate::AppState;
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
   /// Draw the window with the graphics card. Off by default: on older PCs a large library's
@@ -17,6 +17,14 @@ pub struct Settings {
   pub hardware_acceleration: bool,
   /// Options › File Types.
   pub file_types: FileTypes,
+  /// Options › Name Tags › Enable face recognition (People). On by default, as in Picasa.
+  pub face_recognition: bool,
+}
+
+impl Default for Settings {
+  fn default() -> Self {
+    Settings { hardware_acceleration: false, file_types: FileTypes::default(), face_recognition: true }
+  }
 }
 
 pub fn load(dir: &Path) -> Settings {
@@ -46,6 +54,18 @@ pub fn set_file_types(app: tauri::AppHandle, state: State<'_, AppState>, types: 
     save(&state.data_dir, &s)?;
     crate::formats::configure(&types);
     crate::scanner::spawn_rescan(app);
+  }
+  Ok(())
+}
+
+/// Options › Name Tags: turning face recognition on starts finding faces straight away.
+#[tauri::command]
+pub fn set_face_recognition(app: tauri::AppHandle, state: State<'_, AppState>, on: bool) -> Result<(), String> {
+  let mut s = load(&state.data_dir);
+  s.face_recognition = on;
+  save(&state.data_dir, &s)?;
+  if on {
+    crate::people::kick(&app);
   }
   Ok(())
 }

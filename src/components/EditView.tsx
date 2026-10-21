@@ -9,6 +9,8 @@ import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
 import { ArrowIcon, BackIcon, BrushIcon, PlayIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
+import { usePhotoFaces } from "./PeoplePanel";
+import { askText, notify } from "../dialogs";
 
 const STAGE_PAD = 14;
 /** Edit view zoom steps, as multiples of the fitted size. */
@@ -164,7 +166,8 @@ export default function EditView({ active }: { active: boolean }) {
       if (s.slideshow) return;
       const seq = selectEditorSequence(s);
       const i = s.editId != null ? seq.indexOf(s.editId) : -1;
-      if (e.key === "Escape") backToLibrary();
+      if (e.key === "Escape" && s.drawFace) s.setDrawFace(false);
+      else if (e.key === "Escape") backToLibrary();
       else if (e.key === "ArrowRight" && i < seq.length - 1) s.setEditId(seq[i + 1]);
       else if (e.key === "ArrowLeft" && i > 0) s.setEditId(seq[i - 1]);
       else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "z") stack.redo(); // ⇧⌘Z on Mac
@@ -482,6 +485,7 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
             </div>
           )}
           {(!tool || PIXEL_TOOLS.has(tool.kind)) && <Overlays r={r} drawn={!!preview} />}
+          {!tool && <FaceLayer id={id} r={r} />}
           {tool && PIXEL_TOOLS.has(tool.kind) && <PixelToolOverlay tool={tool as PixelTool} setTool={setTool} />}
           {tool?.kind === "straighten" && <div className="straighten-grid" />}
           {tool?.kind === "crop" && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
@@ -493,6 +497,77 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
           {Math.round((zoom.z / actual) * 100)}% · Fit
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * People in Edit view: boxes and names on the faces while the People panel is open, and
+ * "Add a person manually" — drag a box around a face Picaluma missed.
+ */
+function FaceLayer({ id, r }: { id: number; r: ReturnType<typeof render> }) {
+  const show = useStore((s) => s.showProps && s.sidePanel === "people");
+  const drawFace = useStore((s) => s.drawFace);
+  const hover = useStore((s) => s.hoverFace);
+  const faces = usePhotoFaces(show || drawFace ? id : null);
+  const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  useEffect(() => () => useStore.getState().setDrawFace(false), [id]);
+  // Face positions are on the uncropped, unrotated picture.
+  const plain = r.rotate === 0 && !r.crop && !r.straighten;
+  useEffect(() => {
+    if (drawFace && !plain) {
+      useStore.getState().setDrawFace(false);
+      notify("Undo the crop, rotation or straightening first to tag faces in this picture.");
+    }
+  }, [drawFace, plain]);
+  if (!plain || (!show && !drawFace)) return null;
+  const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
+  const box = (x: number, y: number, w: number, h: number) => ({ left: pct(x), top: pct(y), width: pct(w), height: pct(h) });
+  const onDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!drawFace || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget.getBoundingClientRect();
+    const at = (ev: { clientX: number; clientY: number }) => ({
+      x: Math.min(1, Math.max(0, (ev.clientX - el.left) / el.width)),
+      y: Math.min(1, Math.max(0, (ev.clientY - el.top) / el.height)),
+    });
+    const a = at(e);
+    setDrag({ x0: a.x, y0: a.y, x1: a.x, y1: a.y });
+    const move = (ev: MouseEvent) => {
+      const b = at(ev);
+      setDrag({ x0: a.x, y0: a.y, x1: b.x, y1: b.y });
+    };
+    const up = async (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      const b = at(ev);
+      setDrag(null);
+      const rect = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+      if (rect.w < 0.01 || rect.h < 0.01) return;
+      const name = await askText("Who is this? (leave empty to name later)", "", "Add");
+      if (name == null) return;
+      await api.addFace(id, rect, name.trim() || null);
+      useStore.getState().setDrawFace(false);
+      await useStore.getState().loadSnapshot();
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+  return (
+    <div
+      className={`face-layer${drawFace ? " drawing" : ""}`}
+      onMouseDown={onDown}
+      onDoubleClick={(e) => drawFace && e.stopPropagation()}
+    >
+      {show &&
+        faces.map((f) => (
+          <div key={f.id} className={`face-box${hover?.id === f.id ? " hot" : ""}${f.state === 2 ? " suggested" : ""}`} style={box(f.x, f.y, f.w, f.h)}>
+            {f.name && <span>{f.state === 2 ? `${f.name}?` : f.name}</span>}
+          </div>
+        ))}
+      {drag && <div className="face-box hot" style={box(Math.min(drag.x0, drag.x1), Math.min(drag.y0, drag.y1), Math.abs(drag.x1 - drag.x0), Math.abs(drag.y1 - drag.y0))} />}
+      {drawFace && <div className="face-hint">Drag a box around the face · Esc to cancel</div>}
     </div>
   );
 }

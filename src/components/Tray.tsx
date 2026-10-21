@@ -16,6 +16,7 @@ export default function Tray() {
   const showProps = useStore((s) => s.showProps);
   const sidePanel = useStore((s) => s.sidePanel);
   const toggleTags = useStore((s) => s.toggleTags);
+  const togglePeople = useStore((s) => s.togglePeople);
   const clearSelection = useStore((s) => s.clearSelection);
   const toggleStar = useStore((s) => s.toggleStar);
   const allStarred = useStore((s) => s.selected.size > 0 && [...s.selected].every((id) => s.starred.has(id)));
@@ -93,7 +94,7 @@ export default function Tray() {
           </span>
         )}
         <span className="tgroup">
-          <button className="tbtn icon" disabled title="People (coming soon)">
+          <button className={`tbtn icon${showProps && sidePanel === "people" ? " pressed" : ""}`} title="People in this picture" onClick={togglePeople}>
             <PersonIcon size={16} />
           </button>
           <button className={`tbtn icon${showProps && sidePanel === "tags" ? " pressed" : ""}`} title="Tags (Ctrl+T)" onClick={toggleTags}>

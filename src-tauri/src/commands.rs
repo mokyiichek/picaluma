@@ -57,6 +57,10 @@ pub struct Snapshot {
   library_id: String,
   /// Videos (shown with a play badge and opened in the player).
   videos: Vec<i64>,
+  /// People albums, the photos with faces (Faces filter) and the number of unnamed faces.
+  people: Vec<crate::people::PersonDto>,
+  faced: Vec<i64>,
+  unnamed: i64,
 }
 
 #[derive(Serialize)]
@@ -173,7 +177,8 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   drop(stmt);
   let library_id = db::library_id(&conn);
   let albums = load_albums(&conn).map_err(err)?;
-  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos })
+  let (people, faced, unnamed) = crate::people::snapshot(&conn).map_err(err)?;
+  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, people, faced, unnamed })
 }
 
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
@@ -366,7 +371,13 @@ pub fn search(state: State<'_, AppState>, query: String) -> CmdResult<SearchResu
   }
   let conn = state.db.lock().map_err(err)?;
   let mut stmt = conn.prepare_cached("SELECT rowid FROM photos_fts WHERE photos_fts MATCH ?1").map_err(err)?;
-  let ids: Vec<i64> = stmt.query_map([&fts], |r| r.get(0)).map_err(err)?.filter_map(Result::ok).collect();
+  let mut ids: Vec<i64> = stmt.query_map([&fts], |r| r.get(0)).map_err(err)?.filter_map(Result::ok).collect();
+  // Typing a person's name finds the pictures they're tagged in.
+  let tagged = crate::people::search(&conn, &query);
+  if !tagged.is_empty() {
+    let seen: std::collections::HashSet<i64> = ids.iter().copied().collect();
+    ids.extend(tagged.into_iter().filter(|i| !seen.contains(i)));
+  }
   Ok(SearchResult { ids, seconds: started.elapsed().as_secs_f64() })
 }
 
@@ -567,6 +578,7 @@ pub fn prioritize_folder(app: AppHandle, id: i64) {
   if id <= 0 {
     return; // albums aren't folders on disk
   }
+  crate::people::prioritize(id);
   std::thread::spawn(move || scanner::scan_folder_now(&app, id));
 }
 

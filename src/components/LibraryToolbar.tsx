@@ -63,6 +63,8 @@ export default function LibraryToolbar() {
   const geoOnly = useStore((s) => s.geoOnly);
   const setGeoOnly = useStore((s) => s.setGeoOnly);
   const videoOnly = useStore((s) => s.videoOnly);
+  const facesOnly = useStore((s) => s.facesOnly);
+  const setFacesOnly = useStore((s) => s.setFacesOnly);
   const setVideoOnly = useStore((s) => s.setVideoOnly);
   const dateStep = useStore((s) => s.dateStep);
   const setDateStep = useStore((s) => s.setDateStep);
@@ -122,7 +124,7 @@ export default function LibraryToolbar() {
           <button className={`tbtn${starredOnly ? " pressed" : ""}`} title="Show only starred photos" onClick={() => setStarredOnly(!starredOnly)}>
             <StarIcon size={14} />
           </button>
-          <button className="tbtn" title="Show only photos with faces (coming with face grouping)" disabled>
+          <button className={`tbtn${facesOnly ? " pressed" : ""}`} title="Show only photos with faces" onClick={() => setFacesOnly(!facesOnly)}>
             <PersonIcon size={14} />
           </button>
           <button className={`tbtn${videoOnly ? " pressed" : ""}`} title="Show only movies" onClick={() => setVideoOnly(!videoOnly)}>

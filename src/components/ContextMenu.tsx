@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
 import { Edit } from "../effects";
-import { selectVisible, useStore } from "../store";
+import { isPersonId, PERSON_BASE, selectVisible, useStore } from "../store";
 import { Item, MenuEntry } from "./MenuBar";
 import {
   copyEffects,
@@ -85,8 +85,10 @@ export default function ContextMenu() {
   }, [menu]);
 
   if (!menu) return null;
-  const albumId = menu.kind === "album" ? menu.albumId! : menu.kind === "folder" && menu.folderId! < 0 ? -menu.folderId! : null;
-  const entries = menu.kind === "photo" ? photoEntries() : albumId != null ? albumEntries(albumId) : folderEntries(menu.folderId!);
+  const personId = menu.kind === "person" ? menu.personId! : menu.kind === "folder" && isPersonId(menu.folderId!) ? PERSON_BASE - menu.folderId! : null;
+  const albumId = menu.kind === "album" ? menu.albumId! : menu.kind === "folder" && menu.folderId! < 0 && personId == null ? -menu.folderId! : null;
+  const entries =
+    menu.kind === "photo" ? photoEntries() : personId != null ? personEntries(personId) : albumId != null ? albumEntries(albumId) : folderEntries(menu.folderId!);
 
   return (
     <div className="menu-drop context" ref={ref} style={{ left: pos.x, top: pos.y, position: "fixed" }}>
@@ -135,6 +137,21 @@ function photoEntries(): MenuEntry[] {
     { label: "Copy Full Path", action: withPath((p) => navigator.clipboard.writeText(p)) },
     sep,
     { label: "Tags...", shortcut: "Ctrl+T", action: () => !(s.showProps && s.sidePanel === "tags") && s.toggleTags() },
+    { label: "People in Picture...", action: one != null ? () => !(s.showProps && s.sidePanel === "people") && s.togglePeople() : undefined },
+    {
+      label: "Make This the Person's Picture",
+      action:
+        s.personView != null && one != null
+          ? () =>
+              api.facesInPhoto(one).then(async (faces) => {
+                const f = faces.find((x) => x.personId === s.personView && x.state === 1);
+                if (f) {
+                  await api.setPersonCover(s.personView!, f.id);
+                  await s.loadSnapshot();
+                }
+              })
+          : undefined,
+    },
     { label: "Properties", shortcut: "Alt+Enter", action: () => !(s.showProps && s.sidePanel === "props") && s.toggleProps() },
   ];
 }
@@ -161,6 +178,49 @@ function albumEntries(albumId: number): MenuEntry[] {
         if (await confirmAsk(`Delete the album "${album.name}"?\n\nOnly the album is removed — the pictures stay in their folders.`, { ok: "Delete Album" })) s.deleteAlbum(albumId);
       },
     },
+  ];
+}
+
+/** Right-click on a person in the People section. */
+function personEntries(personId: number): MenuEntry[] {
+  const s = useStore.getState();
+  const p = s.snapshot?.people?.find((x) => x.id === personId);
+  if (!p) return [];
+  return [
+    { label: "View Person", action: () => s.openPerson(personId) },
+    { label: "View Slideshow", shortcut: "Ctrl+4", action: p.photos.length ? () => s.startSlideshow(p.photos) : undefined },
+    { label: `Review Suggestions (${p.suggestions})`, action: p.suggestions ? () => s.setPeopleManager({ tab: "suggestions", person: personId }) : undefined },
+    sep,
+    {
+      label: "Rename Person...",
+      action: async () => {
+        const n = await askText("Name:", p.name, "Rename");
+        if (n && n.trim() && n !== p.name) {
+          const id = await api.renamePerson(personId, n);
+          await s.loadSnapshot();
+          if (s.personView === personId) useStore.getState().openPerson(id);
+        }
+      },
+    },
+    {
+      label: "Delete Person...",
+      action: async () => {
+        if (
+          await confirmAsk(`Remove the name "${p.name}" from ${p.photos.length.toLocaleString()} pictures?
+
+The pictures stay where they are; only the name tags are removed.`, {
+            ok: "Delete Person",
+          })
+        ) {
+          await api.deletePerson(personId);
+          if (useStore.getState().personView === personId) useStore.getState().openPerson(null);
+          await s.loadSnapshot();
+        }
+      },
+    },
+    sep,
+    { label: "Print Contact Sheet...", action: p.photos.length ? () => printPhotos(p.photos, "index") : undefined },
+    { label: "Export Pictures...", action: p.photos.length ? () => exportPhotos(p.photos) : undefined },
   ];
 }
 

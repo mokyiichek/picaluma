@@ -24,6 +24,42 @@ export interface Album {
   photos: number[];
 }
 
+/** A person album (People). */
+export interface Person {
+  id: number;
+  name: string;
+  /** Face shown as the person's picture. */
+  cover: number | null;
+  photos: number[];
+  /** Faces waiting for "Is this …?" confirmation. */
+  suggestions: number;
+}
+
+/** A face, as fractions of the upright picture. State: 0 unnamed, 1 named, 2 suggested. */
+export interface Face {
+  id: number;
+  photoId: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  personId: number | null;
+  name: string | null;
+  state: number;
+}
+
+export interface FaceGroup {
+  group: number;
+  count: number;
+  faces: Face[];
+}
+
+export interface FaceProgress {
+  running: boolean;
+  done: number;
+  total: number;
+}
+
 export interface Snapshot {
   folders: Folder[];
   albums: Album[];
@@ -33,6 +69,10 @@ export interface Snapshot {
   totalPhotos: number;
   libraryId: string;
   videos: number[];
+  people: Person[];
+  /** Photos with faces (Faces filter). */
+  faced: number[];
+  unnamed: number;
 }
 
 export interface Photo {
@@ -79,12 +119,14 @@ const isWindows = navigator.userAgent.includes("Windows");
 const schemeBase = (scheme: string) => (isWindows ? `http://${scheme}.localhost/` : `${scheme}://localhost/`);
 const THUMB = schemeBase("thumb");
 const PHOTO = schemeBase("photo");
+const FACE = schemeBase("face");
 
 // Library id in the URL keeps the webview's HTTP cache from mixing up ids across libraries.
 let libraryTag = "";
 export const setLibraryTag = (id: string) => (libraryTag = id);
 export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}`;
 export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}`;
+export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;
 
 export const api = {
   snapshot: () => invoke<Snapshot>("library_snapshot"),
@@ -114,7 +156,23 @@ export const api = {
   renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
   removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
   prioritizeFolder: (id: number) => invoke<void>("prioritize_folder", { id }),
-  getSettings: () => invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes }>("get_settings"),
+  getSettings: () => invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes; faceRecognition: boolean }>("get_settings"),
+  setFaceRecognition: (on: boolean) => invoke<void>("set_face_recognition", { on }),
+  facesInPhoto: (photoId: number) => invoke<Face[]>("faces_in_photo", { photoId }),
+  personFaces: (personId: number, suggested: boolean) => invoke<Face[]>("person_faces", { personId, suggested }),
+  unnamedGroups: (offset: number, limit: number) => invoke<FaceGroup[]>("unnamed_groups", { offset, limit }),
+  nameFaces: (faces: number[], groups: number[], name: string) => invoke<number>("name_faces", { faces, groups, name }),
+  confirmFaces: (faces: number[]) => invoke<void>("confirm_faces", { faces }),
+  rejectFaces: (faces: number[]) => invoke<void>("reject_faces", { faces }),
+  ignoreFaces: (faces: number[], ignore = true) => invoke<void>("ignore_faces", { faces, ignore }),
+  renamePerson: (id: number, name: string) => invoke<number>("rename_person", { id, name }),
+  deletePerson: (id: number) => invoke<void>("delete_person", { id }),
+  setPersonCover: (id: number, face: number) => invoke<void>("set_person_cover", { id, face }),
+  addFace: (photoId: number, r: { x: number; y: number; w: number; h: number }, name: string | null) =>
+    invoke<number>("add_face", { photoId, rect: r, name }),
+  resetFaces: (ids: number[]) => invoke<void>("reset_faces", { ids }),
+  faceProgress: () => invoke<FaceProgress>("face_progress"),
+  importPicasaFaces: () => invoke<[number, number]>("import_picasa_faces"),
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
   setSort: (id: number, sort: string) => invoke<void>("set_sort", { id, sort }),

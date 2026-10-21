@@ -1,7 +1,10 @@
 mod commands;
 mod db;
 mod fileops;
+mod faces;
 mod formats;
+mod people;
+mod picasa;
 mod scanner;
 mod settings;
 mod share;
@@ -114,6 +117,10 @@ pub fn run() {
       let app = ctx.app_handle().clone();
       rayon::spawn(move || thumbs::handle_thumb(app, request, responder));
     })
+    .register_asynchronous_uri_scheme_protocol("face", |ctx, request, responder| {
+      let app = ctx.app_handle().clone();
+      rayon::spawn(move || responder.respond(people::handle_face(&app, &request)));
+    })
     .register_asynchronous_uri_scheme_protocol("photo", |ctx, request, responder| {
       let app = ctx.app_handle().clone();
       std::thread::spawn(move || responder.respond(thumbs::handle_photo(&app, &request)));
@@ -137,6 +144,21 @@ pub fn run() {
       commands::prioritize_folder,
       commands::set_sort,
       commands::photos_since,
+      settings::set_face_recognition,
+      people::faces_in_photo,
+      people::person_faces,
+      people::unnamed_groups,
+      people::name_faces,
+      people::confirm_faces,
+      people::reject_faces,
+      people::ignore_faces,
+      people::rename_person,
+      people::delete_person,
+      people::set_person_cover,
+      people::add_face,
+      people::reset_faces,
+      people::face_progress,
+      people::import_picasa_faces,
       share::make_export_dir,
       share::copy_into,
       share::email_dir,

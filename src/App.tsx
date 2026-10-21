@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, ScanProgress } from "./api";
+import { api, FaceProgress, ScanProgress } from "./api";
 import { selectEditorSequence, useStore } from "./store";
 import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
 import { copyPicture, folderIds, trayIds } from "./share";
@@ -17,6 +17,7 @@ import FlightOverlay from "./components/FlightOverlay";
 import Slideshow from "./components/Slideshow";
 import FolderManager from "./components/FolderManager";
 import TagsPanel from "./components/TagsPanel";
+import PeoplePanel from "./components/PeoplePanel";
 import ScanNotifier from "./components/ScanNotifier";
 import OptionsDialog from "./components/OptionsDialog";
 import AlbumPicker from "./components/AlbumPicker";
@@ -50,6 +51,8 @@ export default function App() {
       timer = window.setTimeout(() => useStore.getState().loadSnapshot(), 300);
     });
     const unProgress = listen<ScanProgress>("scan-progress", (e) => useStore.getState().setScan(e.payload));
+    const unFaces = listen<FaceProgress>("faces-progress", (e) => useStore.getState().setFaceProgress(e.payload));
+    api.faceProgress().then(s.setFaceProgress).catch(() => {});
 
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
@@ -132,6 +135,9 @@ export default function App() {
       } else if (mod(e) && e.key.toLowerCase() === "o" && !e.shiftKey) {
         e.preventDefault();
         addFiles();
+      } else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        st.setPeopleManager({ tab: "unnamed" });
       } else if (mod(e) && e.key.toLowerCase() === "m") {
         e.preventDefault();
         st.setFolderManager(true);
@@ -172,6 +178,7 @@ export default function App() {
     return () => {
       unChanged.then((f) => f());
       unProgress.then((f) => f());
+      unFaces.then((f) => f());
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("contextmenu", noMenu);
     };
@@ -193,7 +200,7 @@ export default function App() {
             <EditView active={view === "edit"} />
           </div>
         </div>
-        {showProps && (sidePanel === "tags" ? <TagsPanel /> : <PropertiesPanel />)}
+        {showProps && (sidePanel === "tags" ? <TagsPanel /> : sidePanel === "people" ? <PeoplePanel /> : <PropertiesPanel />)}
       </div>
       <StatusBar />
       <Tray />
