@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, FileTypes } from "../api";
 import { notify } from "../dialogs";
+import { fmtMB, offerFaceModels } from "../faceModels";
 import { useStore } from "../store";
 
 const TABS = ["General", "File Types", "Name Tags", "Slideshow", "Experimental"] as const;
@@ -151,6 +152,7 @@ export default function OptionsDialog() {
                   </span>
                 </span>
               </label>
+              <ModelsLine />
               <p>
                 <button
                   className="tbtn"
@@ -197,3 +199,20 @@ export default function OptionsDialog() {
     </div>
   );
 }
+
+/** Options › Name Tags: whether the face models are here, with a Download button. */
+function ModelsLine() {
+  const m = useStore((s) => s.faceModels);
+  if (!m) return null;
+  if (m.ready) return <p className="muted">Face models: installed.</p>;
+  if (m.downloading) return <p className="muted">Downloading face models… {fmtMB(m.received)} of {fmtMB(m.total)} MB</p>;
+  return (
+    <p>
+      <span className="muted">Face models: not downloaded yet ({fmtMB(m.total)} MB, once). </span>
+      <button className="tbtn" onClick={() => offerFaceModels()}>
+        Download…
+      </button>
+    </p>
+  );
+}
+

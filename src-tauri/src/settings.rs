@@ -19,11 +19,13 @@ pub struct Settings {
   pub file_types: FileTypes,
   /// Options › Name Tags › Enable face recognition (People). On by default, as in Picasa.
   pub face_recognition: bool,
+  /// "Not now" on the offer to download the face models: don't ask again at startup.
+  pub face_models_declined: bool,
 }
 
 impl Default for Settings {
   fn default() -> Self {
-    Settings { hardware_acceleration: false, file_types: FileTypes::default(), face_recognition: true }
+    Settings { hardware_acceleration: false, file_types: FileTypes::default(), face_recognition: true, face_models_declined: false }
   }
 }
 
@@ -68,6 +70,13 @@ pub fn set_face_recognition(app: tauri::AppHandle, state: State<'_, AppState>, o
     crate::people::kick(&app);
   }
   Ok(())
+}
+
+#[tauri::command]
+pub fn set_face_models_declined(state: State<'_, AppState>, declined: bool) -> Result<(), String> {
+  let mut s = load(&state.data_dir);
+  s.face_models_declined = declined;
+  save(&state.data_dir, &s)
 }
 
 /// Takes effect the next time Picaluma starts.

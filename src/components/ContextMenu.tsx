@@ -117,6 +117,9 @@ function photoEntries(): MenuEntry[] {
     { label: "Undo all Edits", action: ids.some((id) => s.edits.has(id)) ? () => ids.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
     sep,
     { label: ids.every((id) => s.starred.has(id)) ? "Remove Star" : "Add Star", shortcut: "Ctrl+Shift+8", action: () => s.toggleStar(ids) },
+    ids.some((id) => s.hidden.has(id))
+      ? { label: "Unhide", action: () => api.setHidden(ids, false).then(() => s.loadSnapshot()) }
+      : { label: "Hide", action: ids.length ? () => api.setHidden(ids, true).then(() => (s.clearSelection(), s.loadSnapshot())) : undefined },
     sep,
     { label: "Move to Folder...", action: ids.length ? () => transferPhotos(ids, false) : undefined },
     { label: "Copy to Folder...", action: ids.length ? () => transferPhotos(ids, true) : undefined },
@@ -138,20 +141,24 @@ function photoEntries(): MenuEntry[] {
     sep,
     { label: "Tags...", shortcut: "Ctrl+T", action: () => !(s.showProps && s.sidePanel === "tags") && s.toggleTags() },
     { label: "People in Picture...", action: one != null ? () => !(s.showProps && s.sidePanel === "people") && s.togglePeople() : undefined },
-    {
-      label: "Make This the Person's Picture",
-      action:
-        s.personView != null && one != null
-          ? () =>
-              api.facesInPhoto(one).then(async (faces) => {
-                const f = faces.find((x) => x.personId === s.personView && x.state === 1);
-                if (f) {
-                  await api.setPersonCover(s.personView!, f.id);
-                  await s.loadSnapshot();
-                }
-              })
-          : undefined,
-    },
+    ...(s.personView != null
+      ? [
+          {
+            label: "Make This the Person's Picture",
+            action:
+              s.personView != null && one != null
+                ? () =>
+                    api.facesInPhoto(one).then(async (faces) => {
+                      const f = faces.find((x) => x.personId === s.personView && x.state === 1);
+                      if (f) {
+                        await api.setPersonCover(s.personView!, f.id);
+                        await s.loadSnapshot();
+                      }
+                    })
+                : undefined,
+          },
+        ]
+      : []),
     { label: "Properties", shortcut: "Alt+Enter", action: () => !(s.showProps && s.sidePanel === "props") && s.toggleProps() },
   ];
 }

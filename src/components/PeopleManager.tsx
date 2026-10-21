@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, Face, faceUrl, FaceGroup, Person } from "../api";
 import { useStore } from "../store";
 import { confirmAsk, notify } from "../dialogs";
+import { offerFaceModels } from "../faceModels";
 
 const NO_PEOPLE: Person[] = [];
 const PAGE = 30;
@@ -47,6 +48,7 @@ export default function PeopleManager() {
   const unnamed = useStore((s) => s.snapshot?.unnamed ?? 0);
   const snapshot = useStore((s) => s.snapshot);
   const progress = useStore((s) => s.faceProgress);
+  const models = useStore((s) => s.faceModels);
   const [groups, setGroups] = useState<FaceGroup[]>([]);
   const [limit, setLimit] = useState(PAGE);
   const [loading, setLoading] = useState(true);
@@ -102,7 +104,19 @@ export default function PeopleManager() {
           <>
             {!loading && !groups.length && (
               <p className="pm-empty">
-                {progress.running ? "Faces will appear here as Picaluma finds them." : "No unnamed faces. Everyone has a name!"}
+                {models && !models.ready ? (
+                  models.downloading ? (
+                    "Downloading the face models…"
+                  ) : (
+                    <button className="tbtn" onClick={() => offerFaceModels()}>
+                      Download the face models to find faces…
+                    </button>
+                  )
+                ) : progress.running ? (
+                  "Faces will appear here as Picaluma finds them."
+                ) : (
+                  "No unnamed faces. Everyone has a name!"
+                )}
               </p>
             )}
             {groups.map((g) => (

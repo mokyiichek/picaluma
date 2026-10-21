@@ -1,6 +1,6 @@
 # Face models (People)
 
-Used by `src-tauri/src/faces.rs`, embedded into the app, run on the CPU with tract. Nothing is uploaded.
+Used by `src-tauri/src/faces.rs` and run on the CPU with tract; nothing is uploaded. Not in the installer or the repository: the app downloads them once, when the user agrees, from the `face-models-v1` release (OpenCV Zoo as fallback), checks their SHA-256, and keeps them in the library folder. For development and the `eval_against_picasa` test, put copies here.
 
 | File | Model | Source | Licence |
 |---|---|---|---|

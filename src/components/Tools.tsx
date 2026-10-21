@@ -1,9 +1,19 @@
 import { useRef } from "react";
 import { thumbUrl } from "../api";
-import { CropRect, cropViewBox } from "../effects";
+import { askText, notify } from "../dialogs";
+import { CropRect, cropViewBox, type Edit } from "../effects";
 import type { PixelTool } from "./PixelTools";
 
-export type Tool = { kind: "crop"; rect: CropRect; aspect: number | null } | { kind: "straighten"; angle: number } | PixelTool | null;
+export type Tool =
+  /** `aspect`: the crop's width ÷ height as it will look (portrait < 1), or null for Manual. */
+  | { kind: "crop"; rect: CropRect; aspect: number | null }
+  | { kind: "straighten"; angle: number }
+  | PixelTool
+  /** An effect's settings panel (Sharpen amount, Tint colour...), previewed live until Apply. */
+  | { kind: "effect"; edit: Edit }
+  /** Neutral Color Picker: click something that should be grey or white. */
+  | { kind: "neutral" }
+  | null;
 type CropTool = Extract<Tool, { kind: "crop" }>;
 type StraightenTool = Extract<Tool, { kind: "straighten" }>;
 
@@ -21,10 +31,8 @@ const PRESETS: { label: string; hint?: string; ratio: number | null }[] = [
   { label: "5:3", hint: "Widescreen Photo Frame", ratio: 5 / 3 },
 ];
 
-/** Largest centred rect with the given display ratio, as image fractions. */
-function fitRect(ratio: number, imgAspect: number, scale = 1): CropRect {
-  // Keep the photo's orientation: portrait photos get portrait crops.
-  const r = imgAspect < 1 ? 1 / ratio : ratio;
+/** Largest centred rect with the given display ratio (width ÷ height), as image fractions. */
+function fitRect(r: number, imgAspect: number, scale = 1): CropRect {
   let w = 1;
   let h = imgAspect / r;
   if (h > 1) {
@@ -52,6 +60,18 @@ export function CropPanel({
   const aspect = imgAspectOf(id);
   // Three suggested crops at different tightness, like Picasa's preview strip.
   const suggestions: CropRect[] = [0.92, 0.75, 0.58].map((s) => fitRect(tool.aspect ?? aspect, aspect, s));
+  const same = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  const preset = tool.aspect == null ? "Manual" : PRESETS.find((p) => p.ratio && (same(p.ratio, tool.aspect!) || same(1 / p.ratio, tool.aspect!)))?.label ?? "Custom";
+  // A preset follows the photo's orientation: portrait photos get portrait crops.
+  const choose = (ratio: number | null) =>
+    setTool({ ...tool, aspect: ratio, rect: ratio ? fitRect(ratio, aspect, 0.9) : tool.rect });
+  const custom = async () => {
+    const text = await askText("Width × height of the crop (for example 3 x 2 or 1.91 x 1):", "3 x 2", "OK");
+    const m = text?.match(/([\d.]+)\s*[x×:*\/]\s*([\d.]+)/i);
+    if (!text) return;
+    if (!m || !(Number(m[1]) > 0) || !(Number(m[2]) > 0)) return void notify("Type two numbers, like 3 x 2.");
+    choose(Number(m[1]) / Number(m[2]));
+  };
   return (
     <div className="edit-left tool-panel">
       <div className="tool-title">
@@ -61,10 +81,11 @@ export function CropPanel({
       <p className="tool-help">Select a dimension below and then click and drag on the image to select the portion of the image you wish to crop.</p>
       <select
         className="pselect"
-        value={tool.aspect == null ? "Manual" : PRESETS.find((p) => p.ratio === tool.aspect)?.label}
+        value={preset}
         onChange={(e) => {
+          if (e.target.value === "Custom") return void custom();
           const p = PRESETS.find((x) => x.label === e.target.value)!;
-          setTool({ ...tool, aspect: p.ratio, rect: p.ratio ? fitRect(p.ratio, aspect, 0.9) : tool.rect });
+          choose(p.ratio ? (aspect < 1 ? 1 / p.ratio : p.ratio) : null);
         }}
       >
         {PRESETS.map((p) => (
@@ -73,7 +94,16 @@ export function CropPanel({
             {p.hint ? `: ${p.hint}` : ""}
           </option>
         ))}
+        <option value="Custom">Custom...</option>
       </select>
+      <button
+        className="tbtn crop-rotate"
+        disabled={tool.aspect == null || same(tool.aspect, 1)}
+        title="Switch the crop between landscape and portrait"
+        onClick={() => tool.aspect && choose(1 / tool.aspect)}
+      >
+        Rotate {tool.aspect != null && tool.aspect < 1 ? "to landscape" : "to portrait"}
+      </button>
       <div className="crop-suggest">
         {suggestions.map((r, i) => (
           <button key={i} className="fx-tile" onClick={() => setTool({ ...tool, rect: r })} title="Use this crop">
@@ -124,7 +154,7 @@ export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool
     const sy = py(e);
     const start = tool.rect;
     // Display ratio → fraction ratio: w_frac / h_frac = ratio / imageAspect.
-    const fr = tool.aspect ? (aspect < 1 ? 1 / tool.aspect : tool.aspect) / aspect : null;
+    const fr = tool.aspect ? tool.aspect / aspect : null;
 
     const move = (ev: PointerEvent) => {
       const cx = px(ev);

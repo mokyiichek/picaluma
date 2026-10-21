@@ -48,7 +48,7 @@ export default function ConfirmDialog() {
             {req.ok}
           </button>
           <button ref={cancelBtn} className="tbtn" onClick={() => finish(false)}>
-            Cancel
+            {req.cancel ?? "Cancel"}
           </button>
         </div>
       </div>

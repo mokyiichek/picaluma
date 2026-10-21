@@ -60,6 +60,15 @@ export interface FaceProgress {
   total: number;
 }
 
+/** The People face models: downloaded once, with the user's permission. */
+export interface FaceModels {
+  ready: boolean;
+  downloading: boolean;
+  received: number;
+  total: number;
+  error: string | null;
+}
+
 export interface Snapshot {
   folders: Folder[];
   albums: Album[];
@@ -69,6 +78,8 @@ export interface Snapshot {
   totalPhotos: number;
   libraryId: string;
   videos: number[];
+  hidden: number[];
+  recent: number[];
   people: Person[];
   /** Photos with faces (Faces filter). */
   faced: number[];
@@ -156,7 +167,11 @@ export const api = {
   renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
   removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
   prioritizeFolder: (id: number) => invoke<void>("prioritize_folder", { id }),
-  getSettings: () => invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes; faceRecognition: boolean }>("get_settings"),
+  getSettings: () =>
+    invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes; faceRecognition: boolean; faceModelsDeclined: boolean }>("get_settings"),
+  faceModelsStatus: () => invoke<FaceModels>("face_models_status"),
+  downloadFaceModels: () => invoke<void>("download_face_models"),
+  setFaceModelsDeclined: (declined: boolean) => invoke<void>("set_face_models_declined", { declined }),
   setFaceRecognition: (on: boolean) => invoke<void>("set_face_recognition", { on }),
   facesInPhoto: (photoId: number) => invoke<Face[]>("faces_in_photo", { photoId }),
   personFaces: (personId: number, suggested: boolean) => invoke<Face[]>("person_faces", { personId, suggested }),
@@ -176,6 +191,7 @@ export const api = {
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
   setSort: (id: number, sort: string) => invoke<void>("set_sort", { id, sort }),
+  setHidden: (ids: number[], hidden: boolean) => invoke<void>("set_hidden", { ids, hidden }),
   photosSince: (since: number) => invoke<{ ids: number[]; exclude: boolean }>("photos_since", { since }),
   setHardwareAcceleration: (on: boolean) => invoke<void>("set_hardware_acceleration", { on }),
   setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Album, api, Face, FaceProgress, Folder, Person, ScanProgress, setLibraryTag, Snapshot } from "./api";
+import { Album, api, Face, FaceModels, FaceProgress, Folder, Person, ScanProgress, setLibraryTag, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
 
 export interface Rect {
@@ -56,6 +56,14 @@ interface State {
   videos: Set<number>;
   /** Photos with faces (Faces filter). */
   faced: Set<number>;
+  /** Picture › Hide, and View › Hidden Pictures. */
+  hidden: Set<number>;
+  showHidden: boolean;
+  /** Albums › Recently Updated. */
+  recent: Set<number>;
+  recentOnly: boolean;
+  /** Tray › Hold: pictures kept in the tray while you look elsewhere. */
+  held: number[];
   /** Person album shown in the grid (People section). */
   personView: number | null;
   /** People Manager in place of the grid: unnamed face groups or suggestions to confirm. */
@@ -63,10 +71,13 @@ interface State {
   /** Filters › faces: only photos with faces. */
   facesOnly: boolean;
   faceProgress: FaceProgress;
+  faceModels: FaceModels | null;
   /** Edit view: drawing a face by hand ("Add a person manually"). */
   drawFace: boolean;
   /** Face highlighted on the picture (hovered in the People panel). */
   hoverFace: Face | null;
+  /** Edit view compare mode: [A] the picture, [AB] before and after side by side. */
+  compare: boolean;
   edits: Map<number, Edit[]>;
 
   view: "library" | "edit";
@@ -120,7 +131,7 @@ interface State {
   /** Help › About Picaluma. */
   aboutOpen: boolean;
   /** Open confirmation dialog (confirmAsk) and text prompt (askText). */
-  confirmReq: { title: string; text: string; ok: string; danger: boolean; dontAskKey?: string; resolve: (yes: boolean) => void } | null;
+  confirmReq: { title: string; text: string; ok: string; cancel?: string; danger: boolean; dontAskKey?: string; resolve: (yes: boolean) => void } | null;
   textPrompt: { label: string; value: string; ok: string; resolve: (value: string | null) => void } | null;
 
   loadSnapshot: () => Promise<void>;
@@ -142,8 +153,14 @@ interface State {
   setPeopleManager: (pm: { tab: "unnamed" | "suggestions"; person?: number } | null) => void;
   setFacesOnly: (on: boolean) => void;
   setFaceProgress: (p: FaceProgress) => void;
+  setFaceModels: (m: FaceModels) => void;
   setDrawFace: (on: boolean) => void;
   setHoverFace: (f: Face | null) => void;
+  setCompare: (on: boolean) => void;
+  setShowHidden: (on: boolean) => void;
+  setRecentOnly: (on: boolean) => void;
+  holdSelection: () => void;
+  clearHeld: () => void;
   setEffects: (on: boolean) => void;
   setOptionsOpen: (open: boolean) => void;
   openContextMenu: (m: State["contextMenu"]) => void;
@@ -194,12 +211,19 @@ export const useStore = create<State>((set, get) => ({
   geotagged: new Set(),
   videos: new Set(),
   faced: new Set(),
+  hidden: new Set(),
+  showHidden: false,
+  recent: new Set(),
+  recentOnly: false,
+  held: [],
   personView: null,
   peopleManager: null,
   facesOnly: false,
   faceProgress: { running: false, done: 0, total: 0 },
+  faceModels: null,
   drawFace: false,
   hoverFace: null,
+  compare: false,
   edits: new Map(),
 
   view: "library",
@@ -265,6 +289,9 @@ export const useStore = create<State>((set, get) => ({
       geotagged: new Set(snapshot.geotagged),
       videos: new Set(snapshot.videos ?? []),
       faced: new Set(snapshot.faced ?? []),
+      hidden: new Set(snapshot.hidden ?? []),
+      recent: new Set(snapshot.recent ?? []),
+      held: get().held.filter((id) => folderOfPhoto.has(id)),
       edits,
       albumView: albumAlive ? albumView : null,
       personView: personAlive ? personView : null,
@@ -389,8 +416,18 @@ export const useStore = create<State>((set, get) => ({
     set({ peopleManager, openSections: peopleManager ? { ...get().openSections, people: true } : get().openSections }),
   setFacesOnly: (facesOnly) => set({ facesOnly }),
   setFaceProgress: (faceProgress) => set({ faceProgress }),
+  setFaceModels: (faceModels) => set({ faceModels }),
   setDrawFace: (drawFace) => set({ drawFace }),
   setHoverFace: (hoverFace) => set({ hoverFace }),
+  setCompare: (compare) => set({ compare }),
+  setShowHidden: (showHidden) => set({ showHidden }),
+  setRecentOnly: (recentOnly) => set({ recentOnly, albumView: recentOnly ? null : get().albumView, personView: recentOnly ? null : get().personView }),
+  holdSelection: () => {
+    const { held, selected } = get();
+    const have = new Set(held);
+    set({ held: [...held, ...[...selected].filter((id) => !have.has(id))] });
+  },
+  clearHeld: () => set({ held: [] }),
 
   openContextMenu: (contextMenu) => set({ contextMenu }),
 
@@ -579,7 +616,7 @@ export function selectAlbum(s: State): Album | undefined {
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.geoOnly, s.videoOnly, s.facesOnly, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.geoOnly, s.videoOnly, s.facesOnly, s.recentOnly, s.showHidden, s.hidden, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
   const album = selectAlbum(s);
   const person = selectPerson(s);
@@ -589,7 +626,8 @@ export function selectVisible(s: State): VisibleFolder[] {
   for (const folder of folders) {
     let photos = folder.photos;
     const df = s.dateFilter;
-    if (ids || s.starredOnly || s.geoOnly || s.videoOnly || s.facesOnly || df) {
+    const hide = !s.showHidden && s.hidden.size > 0;
+    if (ids || s.starredOnly || s.geoOnly || s.videoOnly || s.facesOnly || s.recentOnly || hide || df) {
       photos = photos.filter(
         (p) =>
           (!ids || ids.has(p)) &&
@@ -597,6 +635,8 @@ export function selectVisible(s: State): VisibleFolder[] {
           (!s.geoOnly || s.geotagged.has(p)) &&
           (!s.videoOnly || s.videos.has(p)) &&
           (!s.facesOnly || s.faced.has(p)) &&
+          (!s.recentOnly || s.recent.has(p)) &&
+          (!hide || !s.hidden.has(p)) &&
           (!df || df.ids.has(p) !== df.exclude),
       );
       if (!photos.length) continue;

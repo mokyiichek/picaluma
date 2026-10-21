@@ -2,8 +2,8 @@ import { mod } from "../platform";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo } from "../api";
-import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
-import { hasPixelOps } from "../pixelfx";
+import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
+import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
@@ -107,6 +107,8 @@ export function EditToolbar() {
   const seq = useStore(selectEditorSequence);
   const setEditId = useStore((s) => s.setEditId);
   const startSlideshow = useStore((s) => s.startSlideshow);
+  const compare = useStore((s) => s.compare);
+  const setCompare = useStore((s) => s.setCompare);
   const idx = id != null ? seq.indexOf(id) : -1;
   const windowStart = Math.max(0, Math.min(idx - 4, seq.length - 9));
   const strip = seq.slice(windowStart, windowStart + 9);
@@ -132,7 +134,14 @@ export function EditToolbar() {
           <ArrowIcon dir="right" />
         </button>
       </div>
-      <div style={{ width: 150 }} />
+      <div className="compare-modes">
+        <button className={`tbtn mode${compare ? "" : " pressed"}`} title="The edited picture" onClick={() => setCompare(false)}>
+          A
+        </button>
+        <button className={`tbtn mode${compare ? " pressed" : ""}`} title="Before and after, side by side" onClick={() => setCompare(true)}>
+          AB
+        </button>
+      </div>
     </div>
   );
 }
@@ -196,6 +205,49 @@ export default function EditView({ active }: { active: boolean }) {
       </>
     );
   }
+  /** Clicking an effect: tools open, effects with settings open their panel, auto fixes measure the
+   *  picture first, everything else applies straight away. */
+  const onEffect = async (op: string) => {
+    const def = EFFECTS[op];
+    if (TOOL_EFFECTS[op]) return startTool(TOOL_EFFECTS[op]);
+    if (def?.params) {
+      setTool({ kind: "effect", edit: { op, ...Object.fromEntries(def.params.map((p) => [p.key, p.def])) } });
+      return;
+    }
+    if (LEVEL_OPS.has(op)) {
+      try {
+        const c = await renderToCanvas(photoUrl(id), stack.edits, 640);
+        const lv = measureLevels(c, op !== "autoContrast", op === "lucky" ? 0.003 : 0.005);
+        c.width = 0;
+        stack.applyEdit({ op, lv });
+      } catch {
+        stack.apply(op);
+      }
+      return;
+    }
+    stack.apply(op, op === "pixelate" ? 1 : undefined);
+  };
+  /** Neutral Color Picker: make the clicked spot grey, which corrects the colour of the whole picture. */
+  const pickNeutral = async (fx: number, fy: number) => {
+    const c = await renderToCanvas(photoUrl(id), stack.edits, 1200);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const cx = Math.round(fx * (c.width - 1));
+    const cy = Math.round(fy * (c.height - 1));
+    const x0 = Math.max(0, cx - 3);
+    const y0 = Math.max(0, cy - 3);
+    const d = ctx.getImageData(x0, y0, Math.min(7, c.width - x0), Math.min(7, c.height - y0)).data;
+    c.width = 0;
+    let [r, g, b] = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) [r, g, b] = [r + d[i], g + d[i + 1], b + d[i + 2]];
+    if (Math.min(r, g, b) < (d.length / 4) * 6) {
+      notify("That spot is too dark to judge its colour. Click something light grey or white.");
+      return;
+    }
+    const m = (r + g + b) / 3;
+    const gain = [m / r, m / g, m / b].map((k) => Math.min(2, Math.max(0.5, k)));
+    stack.applyEdit({ op: "neutral", g: gain });
+    setTool(null);
+  };
   const startTool = (t: ToolName) => {
     const r = render(stack.edits);
     if (t === "crop") setTool({ kind: "crop", rect: r.crop ?? [0, 0, 1, 1], aspect: null });
@@ -210,6 +262,7 @@ export default function EditView({ active }: { active: boolean }) {
       const [, , w, h] = tool.rect;
       if (w < 0.999 || h < 0.999) stack.apply("crop", undefined, tool.rect);
     } else if (tool?.kind === "straighten") stack.apply("straighten", tool.angle);
+    else if (tool?.kind === "effect") stack.applyEdit(tool.edit);
     setTool(null);
   };
 
@@ -219,11 +272,29 @@ export default function EditView({ active }: { active: boolean }) {
         <CropPanel id={id} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
       ) : tool && PIXEL_TOOLS.has(tool.kind) ? (
         <PixelToolPanel tool={tool as PixelTool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
+      ) : tool?.kind === "effect" ? (
+        <EffectPanel edit={tool.edit} onChange={(e) => setTool({ kind: "effect", edit: e })} onApply={applyTool} onCancel={() => setTool(null)} />
+      ) : tool?.kind === "neutral" ? (
+        <div className="edit-left tool-panel">
+          <div className="tool-title">
+            <span className="ico" />
+            Neutral Color Picker
+          </div>
+          <p className="tool-help">Click something in the picture that should be grey or white — a wall, a shirt, a cloud. Its colour cast is removed from the whole picture.</p>
+          <div className="tool-buttons">
+            <span />
+            <div className="row">
+              <button className="tbtn" onClick={() => setTool(null)}>
+                Cancel <span className="dot x">✕</span>
+              </button>
+            </div>
+          </div>
+        </div>
       ) : (
-        <EditPanel id={id} photo={photo} stack={stack} onTool={startTool} disabled={tool != null} />
+        <EditPanel id={id} photo={photo} stack={stack} onEffect={onEffect} onNeutral={() => setTool({ kind: "neutral" })} disabled={tool != null} />
       )}
       <div className="edit-center">
-        <Stage id={id} photo={photo} edits={stack.edits} active={active} tool={tool} setTool={setTool} />
+        <Stage id={id} photo={photo} edits={stack.edits} active={active} tool={tool} setTool={setTool} onNeutral={pickNeutral} />
         {tool?.kind === "straighten" && <StraightenBar tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />}
         <CaptionBar photo={photo} />
       </div>
@@ -306,13 +377,31 @@ function VideoStage({ id, photo, active }: { id: number; photo: Photo | null; ac
 /** While a tool is open the stage previews the photo without the edit being changed. */
 function previewEdits(edits: Edit[], tool: Tool): Edit[] {
   if (!tool) return edits;
+  if (tool.kind === "effect") return [...edits, tool.edit];
+  if (tool.kind === "neutral") return edits;
   const original = tool.kind === "crop" || (PIXEL_TOOLS.has(tool.kind) && worksOnOriginal(tool as PixelTool));
   if (original) return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
   if (tool.kind !== "straighten") return edits;
   return [...edits.filter((e) => e.op !== "straighten"), { op: "straighten", v: tool.angle }];
 }
 
-function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo: Photo | null; edits: Edit[]; active: boolean; tool: Tool; setTool: (t: Tool) => void }) {
+function Stage({
+  id,
+  photo,
+  edits,
+  active,
+  tool,
+  setTool,
+  onNeutral,
+}: {
+  id: number;
+  photo: Photo | null;
+  edits: Edit[];
+  active: boolean;
+  tool: Tool;
+  setTool: (t: Tool) => void;
+  onNeutral: (fx: number, fy: number) => void;
+}) {
   const stageRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 0, h: 0 });
@@ -351,10 +440,13 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
   // Prefer the cache during render so the very first frame for a new photo has the right shape.
   const aspectNow = aspectCache.get(id) ?? baseAspect;
   const cropKey = r.crop?.join(",");
+  // Before and after: the stage splits in two (not while a tool is open).
+  const compare = useStore((s) => s.compare) && !tool;
+  const halfW = compare ? (stage.w - STAGE_PAD) / 2 : stage.w;
   const box = useMemo(() => {
     if (!aspectNow || !stage.w) return null;
     const aspect = displayAspect(aspectNow, r);
-    const maxW = stage.w - STAGE_PAD * 2;
+    const maxW = halfW - STAGE_PAD * 2;
     const maxH = stage.h - STAGE_PAD * 2;
     // Don't upscale small images past their real pixel size.
     const natW = photo && photo.width ? Math.max(photo.width, photo.height) * (aspect >= 1 ? 1 : aspect) : Infinity;
@@ -364,8 +456,20 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
       h = maxH;
       w = h * aspect;
     }
-    return { x: (stage.w - w) / 2, y: (stage.h - h) / 2, w, h };
-  }, [aspectNow, stage, rot90, photo, cropKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    return { x: compare ? halfW + STAGE_PAD / 2 + (halfW - w) / 2 : (stage.w - w) / 2, y: (stage.h - h) / 2, w, h };
+  }, [aspectNow, stage, rot90, photo, cropKey, compare]); // eslint-disable-line react-hooks/exhaustive-deps
+  const before = useMemo(() => {
+    if (!compare || !aspectNow || !stage.w) return null;
+    const maxW = halfW - STAGE_PAD * 2;
+    const maxH = stage.h - STAGE_PAD * 2;
+    let w = maxW;
+    let h = w / aspectNow;
+    if (h > maxH) {
+      h = maxH;
+      w = h * aspectNow;
+    }
+    return { x: (halfW - w) / 2, y: (stage.h - h) / 2, w, h };
+  }, [compare, aspectNow, stage, halfW]);
 
   // Zoom in from the thumbnail that was double-clicked.
   useLayoutEffect(() => {
@@ -473,6 +577,18 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
       onMouseDown={onPanStart}
     >
       <div className="zoom-layer" style={zoom.z > 1 ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.z})` } : undefined}>
+      {before && (
+        <div className="edit-photo before" style={{ left: before.x, top: before.y, width: before.w, height: before.h }}>
+          <img src={thumbUrl(id)} alt="" draggable={false} />
+          <img className="full ready" src={photoUrl(id)} alt="" draggable={false} />
+          <span className="compare-label">Before</span>
+        </div>
+      )}
+      {box && compare && (
+        <span className="compare-label after" style={{ left: box.x + 8, top: box.y + box.h - 26 }}>
+          After
+        </span>
+      )}
       {box && (
         <div ref={boxRef} className={`edit-photo${frameClass}`} style={{ left: box.x, top: box.y, width: box.w, height: box.h, transformOrigin: "0 0" }}>
           {preview ? (
@@ -486,6 +602,16 @@ function Stage({ id, photo, edits, active, tool, setTool }: { id: number; photo:
           )}
           {(!tool || PIXEL_TOOLS.has(tool.kind)) && <Overlays r={r} drawn={!!preview} />}
           {!tool && <FaceLayer id={id} r={r} />}
+          {tool?.kind === "neutral" && (
+            <div
+              className="neutral-layer"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                const b = e.currentTarget.getBoundingClientRect();
+                onNeutral((e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height);
+              }}
+            />
+          )}
           {tool && PIXEL_TOOLS.has(tool.kind) && <PixelToolOverlay tool={tool as PixelTool} setTool={setTool} />}
           {tool?.kind === "straighten" && <div className="straighten-grid" />}
           {tool?.kind === "crop" && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
@@ -622,13 +748,15 @@ function EditPanel({
   id,
   photo,
   stack,
-  onTool,
+  onEffect,
+  onNeutral,
   disabled,
 }: {
   id: number;
   photo: Photo | null;
   stack: Stack;
-  onTool: (t: ToolName) => void;
+  onEffect: (op: string) => void;
+  onNeutral: () => void;
   disabled: boolean;
 }) {
   // Remembered across tools (the panel is replaced while a tool is open).
@@ -667,10 +795,10 @@ function EditPanel({
                   className="fix-btn"
                   disabled={def.todo || disabled}
                   title={def.todo ? `${def.label} — coming soon` : def.label}
-                  onClick={() => (TOOL_EFFECTS[e] ? onTool(TOOL_EFFECTS[e]) : stack.apply(e))}
+                  onClick={() => onEffect(e)}
                 >
                   <span className="ico">
-                    <img src={thumbUrl(id)} style={{ filter: def.filter?.(1) }} alt="" />
+                    <img src={thumbUrl(id)} style={{ filter: def.filter?.(1, { op: e }) }} alt="" />
                   </span>
                   {def.label}
                 </button>
@@ -686,6 +814,11 @@ function EditPanel({
           <SliderRow label="Highlights" op="highlights" stack={stack} />
           <SliderRow label="Shadows" op="shadows" stack={stack} />
           <SliderRow label="Color Temperature" op="temp" stack={stack} min={-1} />
+          <div className="slider-block">
+            <button className="tbtn" disabled={disabled} onClick={onNeutral} title="Click something grey or white to remove a colour cast">
+              Neutral Color Picker…
+            </button>
+          </div>
         </div>
       )}
       {t.effects.length > 0 && tab !== "fixes" && (
@@ -695,7 +828,7 @@ function EditPanel({
             const r = render([{ op: e }]);
             const count = stack.edits.filter((x) => x.op === e).length;
             return (
-              <div key={e} className={`fx-tile${def.todo ? " todo" : ""}`} title={def.todo ? `${def.label} — coming soon` : def.label} onClick={() => !def.todo && (TOOL_EFFECTS[e] ? onTool(TOOL_EFFECTS[e]) : stack.apply(e, e === "pixelate" ? 1 : undefined))}>
+              <div key={e} className={`fx-tile${def.todo ? " todo" : ""}`} title={def.todo ? `${def.label} — coming soon` : def.label} onClick={() => !def.todo && !disabled && onEffect(e)}>
                 <div className="preview">
                   <img src={thumbUrl(id)} style={{ filter: r.filter || undefined }} alt="" />
                   <Overlays r={r} />
@@ -720,6 +853,57 @@ function EditPanel({
   );
 }
 
+/** Picasa's colour choices for tints and filters, plus any colour. */
+const SWATCHES = ["#5b8fd0", "#3fa34d", "#e2b13c", "#ff8c28", "#d9443a", "#a855c8", "#ffffff", "#000000"];
+
+/** An effect's settings, previewed live on the picture until Apply (Picasa's effect panels). */
+function EffectPanel({ edit, onChange, onApply, onCancel }: { edit: Edit; onChange: (e: Edit) => void; onApply: () => void; onCancel: () => void }) {
+  const def = EFFECTS[edit.op];
+  const set = (p: Param, value: number | string) => onChange({ ...edit, [p.key]: value });
+  return (
+    <div className="edit-left tool-panel">
+      <div className="tool-title">
+        <span className="ico" />
+        {def.label}
+      </div>
+      {def.params?.map((p) =>
+        p.key === "c" ? (
+          <div key={p.key} className="tool-field">
+            {p.label}
+            <span className="swatches">
+              {SWATCHES.map((c) => (
+                <button key={c} className={`swatch${edit.c === c ? " on" : ""}`} style={{ background: c }} title={c} onClick={() => set(p, c)} />
+              ))}
+              <input type="color" className="color-pick" value={edit.c ?? p.def} title="Any colour" onChange={(e) => set(p, e.target.value)} />
+            </span>
+          </div>
+        ) : (
+          <label key={p.key} className="tool-field">
+            {p.label}
+            <input type="range" className="slider" min={p.min ?? 0} max={1} step={0.01} value={(edit[p.key] as number | undefined) ?? p.def} onChange={(e) => set(p, Number(e.target.value))} />
+          </label>
+        ),
+      )}
+      <div className="tool-buttons">
+        <button
+          className="tbtn"
+          onClick={() => onChange({ op: edit.op, ...Object.fromEntries((def.params ?? []).map((p) => [p.key, p.def])) })}
+        >
+          Reset
+        </button>
+        <div className="row">
+          <button className="tbtn apply" onClick={onApply}>
+            Apply <span className="dot ok">✓</span>
+          </button>
+          <button className="tbtn" onClick={onCancel}>
+            Cancel <span className="dot x">✕</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function labelFor(e: Edit) {
   if (e.op === "rotate") return "Rotate";
   return EFFECTS[e.op]?.label ?? e.op;
@@ -737,35 +921,30 @@ function SliderRow({ label, op, stack, min = 0 }: { label: string; op: string; s
 
 function Histogram({ id, photo, edits }: { id: number; photo: Photo | null; edits: Edit[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const filter = render(edits).filter;
+  const key = JSON.stringify(edits);
 
   useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const c = canvasRef.current;
-      if (!c) return;
-      const sw = 96;
-      const sh = Math.max(1, Math.round((96 * img.naturalHeight) / img.naturalWidth));
-      const tmp = document.createElement("canvas");
-      tmp.width = sw;
-      tmp.height = sh;
-      const tctx = tmp.getContext("2d", { willReadFrequently: true })!;
-      tctx.filter = filter || "none";
-      tctx.drawImage(img, 0, 0, sw, sh);
+    let live = true;
+    // The real rendering (pixel effects included) of the thumbnail: small, so it's quick.
+    const timer = setTimeout(async () => {
       let data: Uint8ClampedArray;
       try {
-        data = tctx.getImageData(0, 0, sw, sh).data;
+        const src = await renderToCanvas(thumbUrl(id), edits, 128);
+        data = src.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, src.width, src.height).data;
+        src.width = 0;
       } catch {
         return;
       }
+      const c = canvasRef.current;
+      if (!live || !c) return;
       const bins = [new Array(64).fill(0), new Array(64).fill(0), new Array(64).fill(0)];
       for (let i = 0; i < data.length; i += 4) {
         bins[0][data[i] >> 2]++;
         bins[1][data[i + 1] >> 2]++;
         bins[2][data[i + 2] >> 2]++;
       }
-      const max = Math.max(...bins.flat());
+      // Scale to the tallest bar between the ends, so clipped black or white doesn't flatten the rest.
+      const max = Math.max(1, ...bins.flatMap((b) => b.slice(1, 63)));
       const ctx = c.getContext("2d")!;
       c.width = 256;
       c.height = 60;
@@ -776,13 +955,16 @@ function Histogram({ id, photo, edits }: { id: number; photo: Photo | null; edit
         ctx.fillStyle = colors[ci];
         ctx.beginPath();
         ctx.moveTo(0, 60);
-        b.forEach((v, i) => ctx.lineTo(i * 4, 60 - (v / max) * 58));
+        b.forEach((v, i) => ctx.lineTo(i * 4, 60 - Math.min(1, v / max) * 58));
         ctx.lineTo(256, 60);
         ctx.fill();
       });
+    }, 120);
+    return () => {
+      live = false;
+      clearTimeout(timer);
     };
-    img.src = thumbUrl(id);
-  }, [id, filter]);
+  }, [id, key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ex = new Map(photo?.exif ?? []);
   const camera = [ex.get("Camera Make"), ex.get("Camera Model")].filter(Boolean).join(" ");

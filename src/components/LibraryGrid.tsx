@@ -429,6 +429,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const starred = useStore((s) => s.starred.has(id));
   const geo = useStore((s) => s.geotagged.has(id));
   const video = useStore((s) => s.videos.has(id));
+  const hidden = useStore((s) => s.hidden.has(id));
   const edits = useStore((s) => s.edits.get(id));
   const clickPhoto = useStore((s) => s.clickPhoto);
   const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
@@ -443,7 +444,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
 
   return (
     <div
-      className={`cell${selected ? " sel" : ""}`}
+      className={`cell${selected ? " sel" : ""}${hidden ? " hidden-pic" : ""}`}
       style={{ width: w, height: h, transform: `translate(${x}px, ${y}px)` }}
       onMouseDown={(e) => {
         if (e.button !== 0) return;

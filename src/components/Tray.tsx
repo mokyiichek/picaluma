@@ -19,15 +19,25 @@ export default function Tray() {
   const togglePeople = useStore((s) => s.togglePeople);
   const clearSelection = useStore((s) => s.clearSelection);
   const toggleStar = useStore((s) => s.toggleStar);
+  const held = useStore((s) => s.held);
   const allStarred = useStore((s) => s.selected.size > 0 && [...s.selected].every((id) => s.starred.has(id)));
 
   const folderPhotos = visible.find((v) => v.folder.id === current)?.photos ?? [];
-  const ids = selected.size ? [...selected] : [];
+  // The tray holds the held pictures plus the current selection (Picasa's Hold).
+  const heldSet = new Set(held);
+  const ids = [...held, ...[...selected].filter((id) => !heldSet.has(id))];
   // Email / Print / Export act on the selection, or the whole folder when nothing is selected (as in Picasa).
   const targets = ids.length ? ids : folderPhotos;
   const stack = targets.slice(0, 3);
   const kind = current != null && current < 0 ? "Album" : "Folder";
-  const label = ids.length ? `${plural(ids.length, "photo")} selected` : folderPhotos.length ? `${kind} Selected - ${plural(folderPhotos.length, "photo")}` : "";
+  const label = held.length
+    ? `${plural(held.length, "photo")} held${ids.length > held.length ? ` + ${ids.length - held.length} selected` : ""}`
+    : ids.length
+      ? `${plural(ids.length, "photo")} selected`
+      : folderPhotos.length
+        ? `${kind} Selected - ${plural(folderPhotos.length, "photo")}`
+        : "";
+  const canHold = [...selected].some((id) => !heldSet.has(id));
 
   const rotate = (deg: number) => {
     const s = useStore.getState();
@@ -49,10 +59,18 @@ export default function Tray() {
         <span className="label" />
       </div>
       <div className="side-btns">
-        <button className="tbtn" title="Hold selected items in the tray (coming soon)" disabled>
+        <button className={`tbtn${held.length ? " pressed" : ""}`} title="Hold: keep the selected pictures in the tray while you look in other folders" onClick={() => useStore.getState().holdSelection()} disabled={!canHold}>
           <HoldIcon />
         </button>
-        <button className="tbtn" title="Clear selection" onClick={clearSelection} disabled={!ids.length}>
+        <button
+          className="tbtn"
+          title="Clear the tray"
+          onClick={() => {
+            clearSelection();
+            useStore.getState().clearHeld();
+          }}
+          disabled={!ids.length}
+        >
           <ClearSelIcon />
         </button>
         <button className="tbtn" title="Add selected pictures to an album" disabled={!ids.length} onClick={() => useStore.getState().setAlbumPicker(ids)}>

@@ -182,6 +182,10 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   // v0.7.9: People. Faces are found in the background (faces_done: 0 to do, 1 done, 2 skipped).
   // Face state: 0 unnamed, 1 named, 2 suggested name awaiting confirmation, 3 ignored.
   // Face source: 0 found by Picaluma, 1 added by hand, 2 imported from Picasa's name tags.
+  // v0.7.10: Picture › Hide.
+  if !has("hidden")? {
+    conn.execute_batch("ALTER TABLE photos ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")?;
+  }
   if !has("faces_done")? {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN faces_done INTEGER NOT NULL DEFAULT 0")?;
   }

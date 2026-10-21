@@ -11,6 +11,8 @@ export const NO_CONFIRM_REMOVE = "noConfirmRemoveFromAlbum";
 export interface ConfirmOptions {
   title?: string;
   ok?: string;
+  /** Label of the button that says no (default "Cancel"). */
+  cancel?: string;
   /** Destructive and permanent: the dialog starts on Cancel. */
   danger?: boolean;
   /** Offer "Don't ask again", remembered under this localStorage key. */
@@ -33,6 +35,7 @@ export function confirmAsk(text: string, opts: ConfirmOptions = {}): Promise<boo
       title: opts.title ?? "Picaluma",
       text,
       ok: opts.ok ?? "OK",
+      cancel: opts.cancel,
       danger: !!opts.danger,
       dontAskKey: opts.dontAskKey,
       resolve,

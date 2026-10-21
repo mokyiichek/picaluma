@@ -4,6 +4,7 @@ import { pathParts, Section, selectVisible, useStore } from "../store";
 import { fmtMonth } from "../format";
 import { CollapseIcon, FolderIcon, PersonIcon, PicturesIcon, StarIcon } from "./Icons";
 import { faceUrl, type Album, type Person } from "../api";
+import { fmtMB, offerFaceModels } from "../faceModels";
 
 const NO_ALBUMS: Album[] = [];
 const NO_PEOPLE: Person[] = [];
@@ -20,6 +21,8 @@ export default function LeftPanel() {
   const toggleSection = useStore((s) => s.toggleSection);
   const visible = useStore(selectVisible);
   const starredCount = useStore((s) => s.starred.size);
+  const recentCount = useStore((s) => s.recent.size);
+  const recentOnly = useStore((s) => s.recentOnly);
   const query = useStore((s) => s.query);
   const search = useStore((s) => s.search);
   const starredOnly = useStore((s) => s.starredOnly);
@@ -36,6 +39,7 @@ export default function LeftPanel() {
   const openPerson = useStore((s) => s.openPerson);
   const pm = useStore((s) => s.peopleManager);
   const progress = useStore((s) => s.faceProgress);
+  const models = useStore((s) => s.faceModels);
 
   // Picasa: clicking a header toggles just that section; any combination can be open.
   const head = (id: Section, label: string) => (
@@ -48,7 +52,7 @@ export default function LeftPanel() {
 
   return (
     <div className="left" style={{ width }}>
-      {head("albums", `Albums (${albums.length + 1 + (search ? 1 : 0)})`)}
+      {head("albums", `Albums (${albums.length + 2 + (search ? 1 : 0)})`)}
       {open.albums && (
         <div className="section-body auto">
           {search && (
@@ -68,6 +72,14 @@ export default function LeftPanel() {
           >
             <StarIcon size={15} />
             <span className="name">Starred Photos ({starredCount.toLocaleString()})</span>
+          </div>
+          <div
+            className={`tree-row${recentOnly ? " sel" : ""}`}
+            title="Pictures changed or added in the last 30 days"
+            onClick={() => useStore.getState().setRecentOnly(!recentOnly)}
+          >
+            <PicturesIcon size={15} />
+            <span className="name">Recently Updated ({recentCount.toLocaleString()})</span>
           </div>
           {albums.map((a) => (
             <div
@@ -131,12 +143,26 @@ export default function LeftPanel() {
               )}
             </div>
           ))}
+          {models && !models.ready && (
+            <div className="tree-hint">
+              {models.downloading ? (
+                `Downloading face models… ${fmtMB(models.received)} of ${fmtMB(models.total)} MB`
+              ) : (
+                <>
+                  {models.error ? "The face models didn't download. " : "To find faces, Picaluma needs its face models. "}
+                  <button className="link" onClick={() => offerFaceModels()}>
+                    {models.error ? "Try again" : `Download (${fmtMB(models.total)} MB)`}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {progress.running && (
             <div className="tree-hint">
               Finding faces… {progress.done.toLocaleString()} of {progress.total.toLocaleString()} pictures
             </div>
           )}
-          {!people.length && !unnamed && !progress.running && (
+          {!people.length && !unnamed && !progress.running && models?.ready && (
             <div className="tree-hint">Faces Picaluma finds appear here — found on this computer, nothing is uploaded.</div>
           )}
         </div>

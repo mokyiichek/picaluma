@@ -17,6 +17,11 @@ export interface RenderOptions {
 export function trayIds(): number[] {
   const s = useStore.getState();
   if (s.view === "edit" && s.editId != null) return [s.editId];
+  // Held pictures stay in the tray, together with whatever is selected now.
+  if (s.held.length) {
+    const held = new Set(s.held);
+    return [...s.held, ...[...s.selected].filter((id) => !held.has(id))];
+  }
   if (s.selected.size) return [...s.selected];
   return folderIds();
 }

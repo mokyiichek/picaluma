@@ -6,3 +6,6 @@ src-tauri/gen/schemas/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+
+# Face models are downloaded at runtime (see src-tauri/models/README.md).
+src-tauri/models/*.onnx

@@ -46,8 +46,11 @@ import your old Picasa folder list in one click.
   People Manager (Tools menu) and Picaluma suggests who else looks like them ("Is this …?" ✔ ✖).
   Person albums in the People section, a People panel showing who is in a picture (with "Add a
   person manually"), name search and a Faces filter. Imports the name tags you gave in Picasa.
-  Detection and recognition run on your computer (OpenCV Zoo's YuNet and SFace models) — nothing
-  is uploaded; turn it off in *Tools › Options › Name Tags*.
+  Detection and recognition run on your computer (OpenCV Zoo's YuNet and SFace models,
+  downloaded once — 39 MB — when you agree) — nothing is uploaded; turn it off in
+  *Tools › Options › Name Tags*.
+- **Hold, Hide and Recently Updated** — keep pictures in the tray across folders, hide pictures
+  (View › Hidden Pictures shows them), and an album of everything changed in the last 30 days.
 - **Flat or tree folder view** — Picasa's date-grouped list or your disk's folder tree;
   sort by creation date, recent changes, size or name, and sort the pictures inside each folder
   or album (right-click › Sort Folder By). Filters for starred photos, movies and
@@ -67,11 +70,12 @@ import your old Picasa folder list in one click.
 
 **Editing** — non-destructive; originals are never modified
 - Zoom with ↑/↓, Page Up/Down, +/− or the mouse wheel; 1 for actual size, 0 to fit; drag to pan.
-- Crop (with print and screen aspect presets) and Straighten.
-- I'm Feeling Lucky, Auto Contrast, Auto Color, Fill Light, Highlights, Shadows,
-  Color Temperature.
-- 30+ effects — Sepia, B&W, Warmify, Film Grain, Lomo-ish, HDR-ish, Cinemascope, Vignette,
-  Border, Polaroid and more — with live previews, full undo/redo and a live histogram.
+- Crop (print and screen presets, custom ratio, portrait/landscape) and Straighten.
+- I'm Feeling Lucky, Auto Contrast and Auto Color measure each photo; Fill Light, Highlights,
+  Shadows, Color Temperature and a Neutral Color Picker for colour casts.
+- 30+ effects — Sharpen, Sepia, B&W, Warmify, Film Grain, Tint, Glow, Soft Focus, Focal B&W,
+  Graduated Tint, Lomo-ish, HDR-ish, Vignette, Polaroid and more — with Picasa's sliders and
+  colour pickers, live previews, before/after view, full undo/redo and a live histogram.
 - Copy and paste all effects between pictures; Batch Edit applies an effect to a whole selection.
 - Save a Copy writes the edited picture beside the original.
 
@@ -92,7 +96,7 @@ import your old Picasa folder list in one click.
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned: Places map, Movie maker, Hold, hide/unhide,
+Planned: Places map, Movie maker,
 `.picasa.ini` import, Folder Manager redesign.
 
 ## Build from source

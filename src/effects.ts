@@ -1,4 +1,4 @@
-import { applyFinalOps, applySourceOps, SOURCE_OPS } from "./pixelfx";
+import { applyColorOps, applyFinalOps, applySourceOps, hexRgb, isPixelEdit, SOURCE_OPS } from "./pixelfx";
 
 // Non-destructive edits. Each edit is rendered as CSS filters (+ optional overlay/frame) for
 // display, and replayed onto a canvas for export. Originals on disk are never modified.
@@ -14,7 +14,16 @@ export interface Edit {
   t?: string;
   p?: [number, number];
   c?: string;
+  /** Second setting of an effect (Glow radius, Soft Focus amount, Vignette shade...). */
+  a?: number;
+  /** Levels measured by the auto fixes: [lo, hi] or per channel [rlo, rhi, glo, ghi, blo, bhi]. */
+  lv?: number[];
+  /** Neutral Color Picker: red, green and blue gains. */
+  g?: number[];
 }
+
+/** An effect setting shown in its panel (Picasa's sliders and colour pickers). */
+export type Param = { key: "v" | "a"; label: string; def: number; min?: number } | { key: "c"; label: string; def: string };
 
 export type CropRect = [number, number, number, number];
 
@@ -24,7 +33,13 @@ export type Frame = "border" | "shadow" | "matte" | "polaroid";
 export interface EffectDef {
   id: string;
   label: string;
-  filter?: (v: number) => string;
+  /** CSS rendering: exact for simple colour effects, an approximation (for thumbnails) where the
+   *  real work is done on the pixels (see pixelfx). */
+  filter?: (v: number, e: Edit) => string;
+  /** Settings, edited in the effect's panel before applying. */
+  params?: Param[];
+  /** Value for edits saved before the effect had settings. */
+  legacy?: number;
   vignette?: number;
   overlay?: Overlay;
   frame?: Frame;
@@ -34,14 +49,33 @@ export interface EffectDef {
 
 const f = (s: string) => () => s;
 
+/** Thumbnail approximation of measured levels: the contrast stretch they amount to. */
+const levelsCss = (fallback: string) => (_v: number, e: Edit) => {
+  const lv = e.lv;
+  if (!lv) return fallback;
+  const spans = lv.length === 6 ? [lv[1] - lv[0], lv[3] - lv[2], lv[5] - lv[4]] : [lv[1] - lv[0]];
+  const span = spans.reduce((a, b) => a + b, 0) / spans.length;
+  return `contrast(${Math.min(2.5, 1 / Math.max(0.4, span)).toFixed(3)})`;
+};
+
+/** Thumbnail approximation of a tint colour. */
+const tintCss = (_v: number, e: Edit) => {
+  const [r, g, b] = hexRgb(e.c, [91, 143, 208]);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  if (max !== min) h = max === r ? ((g - b) / (max - min)) * 60 : max === g ? (2 + (b - r) / (max - min)) * 60 : (4 + (r - g) / (max - min)) * 60;
+  return `grayscale(1) sepia(1) hue-rotate(${Math.round(h - 38)}deg) saturate(${(1.2 + 1.3 * (1 - (e.v ?? 0))).toFixed(2)})`;
+};
+
 export const EFFECTS: Record<string, EffectDef> = {
   // Basic fixes
   crop: { id: "crop", label: "Crop" },
   straighten: { id: "straighten", label: "Straighten" },
   redeye: { id: "redeye", label: "Redeye" },
-  lucky: { id: "lucky", label: "I'm Feeling Lucky", filter: f("contrast(1.12) saturate(1.12) brightness(1.04)") },
-  autoContrast: { id: "autoContrast", label: "Auto Contrast", filter: f("contrast(1.2)") },
-  autoColor: { id: "autoColor", label: "Auto Color", filter: f("saturate(1.15) hue-rotate(-3deg)") },
+  lucky: { id: "lucky", label: "I'm Feeling Lucky", filter: levelsCss("contrast(1.12) saturate(1.12) brightness(1.04)") },
+  autoContrast: { id: "autoContrast", label: "Auto Contrast", filter: levelsCss("contrast(1.2)") },
+  autoColor: { id: "autoColor", label: "Auto Color", filter: levelsCss("saturate(1.15) hue-rotate(-3deg)") },
   retouch: { id: "retouch", label: "Retouch" },
   text: { id: "text", label: "Text" },
   // Tuning sliders (v in 0..1, temp in -1..1)
@@ -53,19 +87,62 @@ export const EFFECTS: Record<string, EffectDef> = {
     label: "Color Temperature",
     filter: (v) => (v >= 0 ? `sepia(${0.35 * v}) saturate(${1 + 0.15 * v})` : `hue-rotate(${-v * 18}deg) saturate(${1 - 0.15 * v})`),
   },
+  neutral: { id: "neutral", label: "Neutral Color" },
   // Effects — page 1
-  sharpen: { id: "sharpen", label: "Sharpen", filter: f("contrast(1.08) saturate(1.05)") },
+  sharpen: { id: "sharpen", label: "Sharpen", filter: (v) => `contrast(${1 + 0.12 * v})`, params: [{ key: "v", label: "Amount", def: 0.5 }], legacy: 0.5 },
   sepia: { id: "sepia", label: "Sepia", filter: f("sepia(1)") },
   bw: { id: "bw", label: "B&W", filter: f("grayscale(1)") },
   warmify: { id: "warmify", label: "Warmify", filter: f("sepia(0.25) saturate(1.25) hue-rotate(-8deg)") },
-  filmGrain: { id: "filmGrain", label: "Film Grain", filter: f("contrast(1.1)"), overlay: "grain" },
-  tint: { id: "tint", label: "Tint", filter: f("sepia(0.6) hue-rotate(160deg) saturate(1.4)") },
-  saturation: { id: "saturation", label: "Saturation", filter: f("saturate(1.7)") },
-  softFocus: { id: "softFocus", label: "Soft Focus", filter: f("blur(1.2px) brightness(1.05)") },
-  glow: { id: "glow", label: "Glow", filter: f("brightness(1.15) contrast(0.92) saturate(1.1)") },
-  filteredBW: { id: "filteredBW", label: "Filtered B&W", filter: f("grayscale(1) contrast(1.25) brightness(1.05)") },
-  focalBW: { id: "focalBW", label: "Focal B&W", filter: f("grayscale(0.85) contrast(1.1)"), vignette: 0.3 },
-  graduatedTint: { id: "graduatedTint", label: "Graduated Tint", overlay: "gradTint" },
+  filmGrain: { id: "filmGrain", label: "Film Grain", filter: f("contrast(1.1)") },
+  tint: {
+    id: "tint",
+    label: "Tint",
+    filter: tintCss,
+    params: [
+      { key: "c", label: "Pick color", def: "#5b8fd0" },
+      { key: "v", label: "Preserve color", def: 0 },
+    ],
+    legacy: 0,
+  },
+  saturation: { id: "saturation", label: "Saturation", filter: (v) => `saturate(${(1 + 1.2 * v).toFixed(3)})`, params: [{ key: "v", label: "Amount", def: 0.5, min: -1 }], legacy: 0.58 },
+  softFocus: {
+    id: "softFocus",
+    label: "Soft Focus",
+    filter: f("blur(0.6px)"),
+    params: [
+      { key: "v", label: "Size", def: 0.5 },
+      { key: "a", label: "Amount", def: 0.5 },
+    ],
+  },
+  glow: {
+    id: "glow",
+    label: "Glow",
+    filter: (v) => `brightness(${1 + 0.15 * v}) contrast(0.95)`,
+    params: [
+      { key: "v", label: "Intensity", def: 0.5 },
+      { key: "a", label: "Radius", def: 0.5 },
+    ],
+    legacy: 0.5,
+  },
+  filteredBW: { id: "filteredBW", label: "Filtered B&W", filter: f("grayscale(1) contrast(1.2)"), params: [{ key: "c", label: "Pick color", def: "#ff8a00" }] },
+  focalBW: {
+    id: "focalBW",
+    label: "Focal B&W",
+    filter: f("grayscale(0.85) contrast(1.1)"),
+    params: [
+      { key: "v", label: "Size", def: 0.5 },
+      { key: "a", label: "Sharpness", def: 0.5 },
+    ],
+  },
+  graduatedTint: {
+    id: "graduatedTint",
+    label: "Graduated Tint",
+    params: [
+      { key: "c", label: "Pick color", def: "#ff8c28" },
+      { key: "v", label: "Shade", def: 0.4 },
+      { key: "a", label: "Feather", def: 0.6 },
+    ],
+  },
   // Effects — page 2
   infrared: { id: "infrared", label: "Infrared Film", filter: f("grayscale(1) invert(0.15) brightness(1.35) contrast(1.4)") },
   lomo: { id: "lomo", label: "Lomo-ish", filter: f("contrast(1.35) saturate(1.4)"), vignette: 0.6 },
@@ -82,7 +159,15 @@ export const EFFECTS: Record<string, EffectDef> = {
   // Effects — page 3
   boost: { id: "boost", label: "Boost", filter: f("contrast(1.15) saturate(1.35) brightness(1.03)") },
   soften: { id: "soften", label: "Soften", filter: f("blur(0.7px)") },
-  vignette: { id: "vignette", label: "Vignette", vignette: 0.55 },
+  vignette: {
+    id: "vignette",
+    label: "Vignette",
+    vignette: 0.55,
+    params: [
+      { key: "v", label: "Size", def: 0.5 },
+      { key: "a", label: "Shade", def: 0.55 },
+    ],
+  },
   pixelate: { id: "pixelate", label: "Pixelate" },
   focalZoom: { id: "focalZoom", label: "Focal Zoom" },
   pencilSketch: { id: "pencilSketch", label: "Pencil Sketch", filter: f("grayscale(1) contrast(2.2) brightness(1.3)") },
@@ -121,14 +206,20 @@ export interface Rendered {
   filter: string;
   rotate: number;
   vignette: number;
+  /** How far the vignette reaches in (0 = only the corners, 1 = most of the picture). */
+  vignetteSize: number;
   overlays: Overlay[];
   frame: Frame | null;
   crop: CropRect | null;
   straighten: number;
 }
 
-export function render(edits: Edit[]): Rendered {
-  const out: Rendered = { filter: "", rotate: 0, vignette: 0, overlays: [], frame: null, crop: null, straighten: 0 };
+/**
+ * The edit stack as CSS. `forCanvas`: leave out the CSS approximations of effects that the canvas
+ * renderer does on the pixels.
+ */
+export function render(edits: Edit[], forCanvas = false): Rendered {
+  const out: Rendered = { filter: "", rotate: 0, vignette: 0, vignetteSize: 0.5, overlays: [], frame: null, crop: null, straighten: 0 };
   const parts: string[] = [];
   for (const e of edits) {
     if (e.op === "rotate") {
@@ -145,8 +236,11 @@ export function render(edits: Edit[]): Rendered {
     }
     const def = EFFECTS[e.op];
     if (!def || def.todo) continue;
-    if (def.filter) parts.push(def.filter(e.v ?? 1));
-    if (def.vignette) out.vignette = Math.max(out.vignette, def.vignette);
+    if (def.filter && !(forCanvas && isPixelEdit(e))) parts.push(def.filter(e.v ?? def.legacy ?? 1, e));
+    if (e.op === "vignette") {
+      out.vignette = Math.max(out.vignette, e.a ?? 0.55);
+      out.vignetteSize = e.v ?? 0.5;
+    } else if (def.vignette) out.vignette = Math.max(out.vignette, def.vignette);
     if (def.overlay && !out.overlays.includes(def.overlay)) out.overlays.push(def.overlay);
     if (def.frame) out.frame = def.frame;
   }
@@ -210,7 +304,7 @@ export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0):
     img = c;
   }
   const [naturalWidth, naturalHeight] = natural(img);
-  const r = render(edits);
+  const r = render(edits, true);
   const [cx, cy, cw, ch] = r.crop ?? [0, 0, 1, 1];
   const sx = cx * naturalWidth;
   const sy = cy * naturalHeight;
@@ -233,8 +327,9 @@ export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0):
   ctx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.filter = "none";
+  applyColorOps(canvas, edits);
   if (r.vignette > 0) {
-    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.hypot(w, h) / 2);
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * (0.1 + 0.4 * r.vignetteSize), w / 2, h / 2, Math.hypot(w, h) / 2);
     g.addColorStop(0, "rgba(0,0,0,0)");
     g.addColorStop(1, `rgba(0,0,0,${r.vignette})`);
     ctx.fillStyle = g;

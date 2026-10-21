@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, FaceProgress, ScanProgress } from "./api";
+import { api, FaceModels, FaceProgress, ScanProgress } from "./api";
+import { offerFaceModels, reportModelError } from "./faceModels";
 import { selectEditorSequence, useStore } from "./store";
 import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
 import { copyPicture, folderIds, trayIds } from "./share";
@@ -53,6 +54,21 @@ export default function App() {
     const unProgress = listen<ScanProgress>("scan-progress", (e) => useStore.getState().setScan(e.payload));
     const unFaces = listen<FaceProgress>("faces-progress", (e) => useStore.getState().setFaceProgress(e.payload));
     api.faceProgress().then(s.setFaceProgress).catch(() => {});
+    const unModels = listen<FaceModels>("face-models", (e) => {
+      const was = useStore.getState().faceModels;
+      useStore.getState().setFaceModels(e.payload);
+      if (was?.downloading && !e.payload.downloading) reportModelError(e.payload.error);
+    });
+    api.faceModelsStatus().then(s.setFaceModels).catch(() => {});
+    // Offer the face models once, a moment after startup (People needs them).
+    const offer = window.setTimeout(() => {
+      api
+        .getSettings()
+        .then((set) => {
+          if (set.faceRecognition && !set.faceModelsDeclined) offerFaceModels(true);
+        })
+        .catch(() => {});
+    }, 2500);
 
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
@@ -179,6 +195,8 @@ export default function App() {
       unChanged.then((f) => f());
       unProgress.then((f) => f());
       unFaces.then((f) => f());
+      unModels.then((f) => f());
+      clearTimeout(offer);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("contextmenu", noMenu);
     };

@@ -1,4 +1,5 @@
-// Pixel effects that CSS filters can't express: Red-eye, Retouch, Pixelate, Focal Zoom and Text.
+// Pixel effects that CSS filters can't express: Red-eye, Retouch, Pixelate, Focal Zoom, Text, and
+// the real tone and colour work (auto levels, tuning curves, sharpening, tints and blends).
 // Red-eye and Retouch work on the original image (their positions are fractions of it, so later
 // crops and rotations keep them on the right spot); the others work on the finished picture.
 
@@ -6,7 +7,247 @@ import type { Edit } from "./effects";
 
 export const SOURCE_OPS = new Set(["redeye", "retouch"]);
 export const FINAL_OPS = new Set(["pixelate", "focalZoom", "text"]);
-export const hasPixelOps = (edits: Edit[]) => edits.some((e) => SOURCE_OPS.has(e.op) || FINAL_OPS.has(e.op));
+/** Tone and colour work done on the pixels (CSS filters only approximate these, for thumbnails). */
+export const COLOR_OPS = new Set([
+  "fillLight",
+  "highlights",
+  "shadows",
+  "temp",
+  "neutral",
+  "sharpen",
+  "filteredBW",
+  "tint",
+  "softFocus",
+  "glow",
+  "focalBW",
+  "graduatedTint",
+  "filmGrain",
+]);
+/** Auto fixes measure the picture when applied and store the levels found (`lv`). */
+export const LEVEL_OPS = new Set(["autoContrast", "autoColor", "lucky"]);
+export const isPixelEdit = (e: Edit) => SOURCE_OPS.has(e.op) || FINAL_OPS.has(e.op) || COLOR_OPS.has(e.op) || (LEVEL_OPS.has(e.op) && !!e.lv);
+export const hasPixelOps = (edits: Edit[]) => edits.some(isPixelEdit);
+
+export function hexRgb(hex: string | undefined, fallback: [number, number, number]): [number, number, number] {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? "");
+  if (!m) return fallback;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/**
+ * Levels for the auto fixes, measured on the picture as it is so far: the darkest and brightest
+ * 0.5% are clipped. `perChannel` (Auto Color) stretches red, green and blue separately, which
+ * also removes a colour cast; otherwise (Auto Contrast) one stretch keeps the colours as they are.
+ */
+export function measureLevels(canvas: HTMLCanvasElement, perChannel: boolean, clip = 0.005): number[] {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hist = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)];
+  for (let i = 0; i < d.length; i += 4) {
+    hist[0][d[i]]++;
+    hist[1][d[i + 1]]++;
+    hist[2][d[i + 2]]++;
+    hist[3][Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++;
+  }
+  const n = d.length / 4;
+  const bounds = (h: Uint32Array): [number, number] => {
+    let lo = 0;
+    let hi = 255;
+    for (let acc = h[0]; lo < 254 && acc < n * clip; acc += h[++lo]);
+    for (let acc = h[255]; hi > lo + 1 && acc < n * clip; acc += h[--hi]);
+    // Never stretch more than 2.5×: very flat pictures (fog, night) stay believable.
+    if (hi - lo < 102) {
+      const mid = (hi + lo) / 2;
+      lo = Math.max(0, mid - 51);
+      hi = Math.min(255, mid + 51);
+    }
+    return [lo / 255, hi / 255];
+  };
+  return perChannel ? [...bounds(hist[0]), ...bounds(hist[1]), ...bounds(hist[2])] : bounds(hist[3]);
+}
+
+const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+type Curve = (x: number, ch: number) => number;
+
+/** Per-channel tone curve of one edit, or null if it isn't a curve. x and the result are 0..1. */
+function curveOf(e: Edit): Curve | null {
+  const v = e.v ?? 0;
+  switch (e.op) {
+    case "autoContrast":
+    case "autoColor":
+    case "lucky": {
+      const lv = e.lv;
+      if (!lv) return null;
+      return (x, ch) => {
+        const lo = lv.length === 6 ? lv[ch * 2] : lv[0];
+        const hi = lv.length === 6 ? lv[ch * 2 + 1] : lv[1];
+        return clamp01((x - lo) / Math.max(0.01, hi - lo));
+      };
+    }
+    // Fill Light lifts the shadows and midtones; Highlights brightens the bright end; Shadows
+    // deepens the dark end. Smooth curves that leave black and white where they are.
+    case "fillLight":
+      return (x) => clamp01(x + v * 0.4 * 6.75 * x * (1 - x) * (1 - x));
+    case "highlights":
+      return (x) => clamp01(x + v * 0.3 * 6.75 * x * x * (1 - x));
+    case "shadows":
+      return (x) => clamp01(x - v * 0.3 * 6.75 * x * (1 - x) * (1 - x));
+    case "temp": {
+      const gain = [1 + 0.14 * v, 1 + 0.02 * v, 1 - 0.14 * v];
+      return (x, ch) => clamp01(x * gain[ch]);
+    }
+    case "neutral": {
+      const g = e.g ?? [1, 1, 1];
+      return (x, ch) => clamp01(x * g[ch]);
+    }
+    default:
+      return null;
+  }
+}
+
+/** Tone curves, sharpening, colour effects and soft-focus style blends on the finished picture. */
+export function applyColorOps(canvas: HTMLCanvasElement, edits: Edit[]) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const W = canvas.width;
+  const H = canvas.height;
+  // 1. All curves folded into one lookup table per channel, in the order they were applied.
+  const curves = edits.map(curveOf).filter((c): c is Curve => !!c);
+  const pointwise = edits.filter((e) => e.op === "filteredBW" || e.op === "filmGrain");
+  const sharpen = edits.filter((e) => e.op === "sharpen");
+  if (curves.length || pointwise.length || sharpen.length) {
+    const img = ctx.getImageData(0, 0, W, H);
+    const d = img.data;
+    if (curves.length) {
+      const lut = [new Uint8ClampedArray(256), new Uint8ClampedArray(256), new Uint8ClampedArray(256)];
+      for (let ch = 0; ch < 3; ch++)
+        for (let i = 0; i < 256; i++) {
+          let x = i / 255;
+          for (const c of curves) x = c(x, ch);
+          lut[ch][i] = Math.round(x * 255);
+        }
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = lut[0][d[i]];
+        d[i + 1] = lut[1][d[i + 1]];
+        d[i + 2] = lut[2][d[i + 2]];
+      }
+    }
+    for (const e of sharpen) unsharp(d, W, H, (e.v ?? 0.5) * 1.6);
+    for (const e of pointwise) {
+      if (e.op === "filteredBW") {
+        // Black and white through a coloured filter: the filter's colour comes out light.
+        const [r, g, b] = hexRgb(e.c, [255, 138, 0]);
+        const sum = r + g + b + 30;
+        const w = [(r + 10) / sum, (g + 10) / sum, (b + 10) / sum];
+        for (let i = 0; i < d.length; i += 4) {
+          const y = w[0] * d[i] + w[1] * d[i + 1] + w[2] * d[i + 2];
+          d[i] = d[i + 1] = d[i + 2] = y;
+        }
+      } else {
+        // Film grain: fine monochrome noise, strongest in the midtones.
+        const amt = 18 + 30 * (e.v ?? 0.5);
+        let seed = 1234567;
+        for (let i = 0; i < d.length; i += 4) {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          const y = (d[i] + d[i + 1] + d[i + 2]) / 765;
+          const n = (seed / 0x7fffffff - 0.5) * amt * (1 - Math.abs(2 * y - 1) * 0.6);
+          d[i] += n;
+          d[i + 1] += n;
+          d[i + 2] += n;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  // 2. Blends, drawn with the canvas compositor.
+  const diag = Math.hypot(W, H);
+  for (const e of edits) {
+    const v = e.v ?? 0.5;
+    const a = e.a ?? 0.5;
+    if (e.op === "tint") {
+      // The tint's colour with the picture's brightness; "Preserve color" keeps some original colour.
+      ctx.save();
+      ctx.globalCompositeOperation = "color";
+      ctx.globalAlpha = 1 - 0.85 * (e.v ?? 0);
+      ctx.fillStyle = e.c ?? "#5b8fd0";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    } else if (e.op === "softFocus") {
+      // Sharp in the middle, softly blurred towards the edges.
+      const blurred = layer(canvas, `blur(${Math.max(1, a * 0.012 * diag)}px)`);
+      maskRadial(blurred, 0.12 + 0.45 * v, true);
+      ctx.drawImage(blurred, 0, 0);
+      blurred.width = 0;
+    } else if (e.op === "glow") {
+      const blurred = layer(canvas, `blur(${Math.max(1, (0.004 + a * 0.025) * diag)}px)`);
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.15 + 0.6 * v;
+      ctx.drawImage(blurred, 0, 0);
+      ctx.restore();
+      blurred.width = 0;
+    } else if (e.op === "focalBW") {
+      // Colour in the middle, black and white outside.
+      const grey = layer(canvas, "grayscale(1)");
+      maskRadial(grey, 0.12 + 0.45 * v, true, 0.05 + 0.5 * (1 - a));
+      ctx.drawImage(grey, 0, 0);
+      grey.width = 0;
+    } else if (e.op === "graduatedTint") {
+      const [r, g, b] = hexRgb(e.c, [255, 140, 40]);
+      const grad = ctx.createLinearGradient(0, 0, 0, H * (0.25 + 0.75 * a));
+      grad.addColorStop(0, `rgba(${r},${g},${b},${0.15 + 0.7 * v})`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+  }
+}
+
+/** A copy of the canvas through a CSS filter. */
+function layer(canvas: HTMLCanvasElement, filter: string): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = canvas.width;
+  c.height = canvas.height;
+  const x = c.getContext("2d")!;
+  x.filter = filter;
+  x.drawImage(canvas, 0, 0);
+  return c;
+}
+
+/** Keeps the layer only outside (or inside) an ellipse around the centre, with a soft edge. */
+function maskRadial(c: HTMLCanvasElement, radius: number, outside: boolean, soft = 0.3) {
+  const x = c.getContext("2d")!;
+  const W = c.width;
+  const H = c.height;
+  const r = (Math.hypot(W, H) / 2) * radius;
+  const g = x.createRadialGradient(W / 2, H / 2, r, W / 2, H / 2, r * (1 + soft * 3) + 1);
+  g.addColorStop(0, outside ? "rgba(0,0,0,0)" : "rgba(0,0,0,1)");
+  g.addColorStop(1, outside ? "rgba(0,0,0,1)" : "rgba(0,0,0,0)");
+  x.globalCompositeOperation = "destination-in";
+  x.fillStyle = g;
+  x.fillRect(0, 0, W, H);
+}
+
+/** Unsharp mask: adds back the difference from a small blur, so edges get crisper. */
+function unsharp(d: Uint8ClampedArray, W: number, H: number, amount: number) {
+  if (amount <= 0 || W < 3 || H < 3) return;
+  const src = new Uint8ClampedArray(d);
+  const row = W * 4;
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * row + x * 4;
+      for (let ch = 0; ch < 3; ch++) {
+        const k = i + ch;
+        const blur =
+          (src[k - row - 4] + 2 * src[k - row] + src[k - row + 4] + 2 * src[k - 4] + 4 * src[k] + 2 * src[k + 4] + src[k + row - 4] + 2 * src[k + row] + src[k + row + 4]) / 16;
+        d[k] = src[k] + amount * (src[k] - blur);
+      }
+    }
+  }
+}
 
 type Ctx = CanvasRenderingContext2D;
 

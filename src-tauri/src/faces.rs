@@ -6,12 +6,110 @@
 //!
 //! Both run on the CPU through tract, a pure-Rust ONNX runtime, so every platform and
 //! architecture Picaluma ships for gets the same results with no native libraries.
+//!
+//! The models (39 MB) aren't in the installer: they're downloaded once, when the user agrees,
+//! into the library folder's `models` folder, and checked against their SHA-256.
+
+use std::io::{Read, Write};
+use std::path::Path;
 
 use image::{imageops, RgbImage};
+use sha2::{Digest, Sha256};
 use tract_onnx::prelude::*;
 
-static YUNET: &[u8] = include_bytes!("../models/face_detection_yunet_2023mar.onnx");
-static SFACE: &[u8] = include_bytes!("../models/face_recognition_sface_2021dec.onnx");
+pub struct ModelFile {
+  pub name: &'static str,
+  pub size: u64,
+  sha256: &'static str,
+  /// Where else to get it if Picaluma's own copy can't be reached.
+  fallback: &'static str,
+}
+
+pub const MODELS: [ModelFile; 2] = [
+  ModelFile {
+    name: "face_detection_yunet_2023mar.onnx",
+    size: 232_589,
+    sha256: "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    fallback: "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+  },
+  ModelFile {
+    name: "face_recognition_sface_2021dec.onnx",
+    size: 38_696_353,
+    sha256: "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+    fallback: "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+  },
+];
+const HOME: &str = "https://github.com/mokyiichek/picaluma/releases/download/face-models-v1/";
+
+pub fn models_size() -> u64 {
+  MODELS.iter().map(|m| m.size).sum()
+}
+
+pub fn models_ready(dir: &Path) -> bool {
+  MODELS.iter().all(|m| std::fs::metadata(dir.join(m.name)).map(|md| md.len() == m.size).unwrap_or(false))
+}
+
+/// Downloads the models that are missing, reporting (bytes so far, total).
+pub fn download_models(dir: &Path, progress: impl Fn(u64, u64)) -> Result<(), String> {
+  std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+  let total = models_size();
+  let mut done = 0u64;
+  for m in &MODELS {
+    let target = dir.join(m.name);
+    if std::fs::metadata(&target).map(|md| md.len() == m.size).unwrap_or(false) {
+      done += m.size;
+      progress(done, total);
+      continue;
+    }
+    let mut last_err = String::new();
+    let mut ok = false;
+    for url in [format!("{HOME}{}", m.name), m.fallback.to_string()] {
+      match fetch(&url, &dir.join(format!("{}.part", m.name)), m, |n| progress(done + n, total)) {
+        Ok(()) => {
+          std::fs::rename(dir.join(format!("{}.part", m.name)), &target).map_err(|e| e.to_string())?;
+          ok = true;
+          break;
+        }
+        Err(e) => {
+          log::warn!("face models: {url}: {e}");
+          last_err = e;
+        }
+      }
+    }
+    if !ok {
+      return Err(format!("Couldn't download the face models ({last_err}). Check the internet connection and try again."));
+    }
+    done += m.size;
+    progress(done, total);
+  }
+  Ok(())
+}
+
+fn fetch(url: &str, part: &Path, m: &ModelFile, progress: impl Fn(u64)) -> Result<(), String> {
+  let resp = ureq::get(url).timeout(std::time::Duration::from_secs(60)).call().map_err(|e| e.to_string())?;
+  let mut reader = resp.into_reader();
+  let mut file = std::fs::File::create(part).map_err(|e| e.to_string())?;
+  let mut hasher = Sha256::new();
+  let mut buf = vec![0u8; 64 * 1024];
+  let mut n = 0u64;
+  loop {
+    let k = reader.read(&mut buf).map_err(|e| e.to_string())?;
+    if k == 0 {
+      break;
+    }
+    hasher.update(&buf[..k]);
+    file.write_all(&buf[..k]).map_err(|e| e.to_string())?;
+    n += k as u64;
+    progress(n);
+  }
+  file.flush().map_err(|e| e.to_string())?;
+  let hash: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+  if n != m.size || hash != m.sha256 {
+    let _ = std::fs::remove_file(part);
+    return Err("the downloaded file didn't match".into());
+  }
+  Ok(())
+}
 
 const DET: usize = 640;
 const SCORE_MIN: f32 = 0.82;
@@ -38,7 +136,9 @@ pub struct Engine {
 }
 
 impl Engine {
-  pub fn load() -> Result<Self, String> {
+  pub fn load(dir: &Path) -> Result<Self, String> {
+    let read = |name: &str| std::fs::read(dir.join(name)).map_err(|e| format!("{name}: {e}"));
+    let (yunet, sface) = (read(MODELS[0].name)?, read(MODELS[1].name)?);
     let load = |bytes: &[u8], shape: [usize; 4]| -> TractResult<Plan> {
       tract_onnx::onnx()
         .model_for_read(&mut std::io::Cursor::new(bytes))?
@@ -47,8 +147,8 @@ impl Engine {
         .into_runnable()
     };
     Ok(Engine {
-      det: load(YUNET, [1, 3, DET, DET]).map_err(|e| format!("face detector: {e}"))?,
-      rec: load(SFACE, [1, 3, 112, 112]).map_err(|e| format!("face recogniser: {e}"))?,
+      det: load(&yunet, [1, 3, DET, DET]).map_err(|e| format!("face detector: {e}"))?,
+      rec: load(&sface, [1, 3, 112, 112]).map_err(|e| format!("face recogniser: {e}"))?,
     })
   }
 
@@ -289,9 +389,19 @@ pub fn from_blob(b: &[u8]) -> Vec<f32> {
 mod tests {
   use super::*;
 
+  /// The models, if downloaded into src-tauri/models for development.
+  fn test_engine() -> Option<Engine> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("models");
+    if !models_ready(&dir) {
+      eprintln!("face models not in {} — skipping", dir.display());
+      return None;
+    }
+    Some(Engine::load(&dir).unwrap())
+  }
+
   #[test]
   fn finds_no_faces_in_a_plain_picture() {
-    let engine = Engine::load().unwrap();
+    let Some(engine) = test_engine() else { return };
     let img = RgbImage::from_pixel(800, 600, image::Rgb([120, 160, 200]));
     assert!(engine.analyze(&img).unwrap().is_empty());
   }
@@ -302,7 +412,7 @@ mod tests {
   #[ignore]
   fn eval_against_picasa() {
     let dirs = std::env::var("PICALUMA_FACE_EVAL").unwrap_or_default();
-    let engine = Engine::load().unwrap();
+    let engine = test_engine().expect("models in src-tauri/models");
     let mut tagged: Vec<(String, Vec<f32>)> = Vec::new();
     let (mut picasa_faces, mut matched, mut detected, mut photos) = (0, 0, 0, 0);
     let t0 = std::time::Instant::now();

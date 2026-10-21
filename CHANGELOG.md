@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.7.10 — 2026-10-21
+
+- **Real photo fixes** — the edits now work on the picture's pixels instead of fixed filters:
+  - *I'm Feeling Lucky*, *Auto Contrast* and *Auto Color* measure each photo and stretch its
+    levels (Auto Color also removes colour casts, like the orange of indoor lighting).
+  - *Fill Light*, *Highlights* and *Shadows* are proper tone curves; *Color Temperature* warms
+    or cools; the new **Neutral Color Picker** (Tuning tab) removes a colour cast when you click
+    something that should be grey or white.
+  - *Sharpen* is a real unsharp mask.
+- **Effect settings, as in Picasa** — Sharpen, Saturation, Soft Focus, Glow, Tint, Filtered B&W,
+  Focal B&W, Graduated Tint and Vignette open a panel with their sliders and colour pickers,
+  previewed live, then *Apply* or *Cancel*. Film Grain, Tint and the blends are now included in
+  exports, prints and e-mails exactly as shown.
+- **Before and after** — the A / AB buttons in Edit view show the edited picture, or the
+  original and the edited one side by side.
+- **Crop** — *Rotate* switches the crop between landscape and portrait, and *Custom...* takes any
+  ratio.
+- **Hold** — the tray's Hold button keeps pictures in the tray while you select more in other
+  folders; Email, Print and Export act on all of them.
+- **Hide / Unhide** (Picture menu, right-click) and *View › Hidden Pictures*.
+- **Recently Updated** in Albums: pictures changed or added in the last 30 days.
+- **People's face models are downloaded on request** — the installer is small again (4 MB
+  instead of 41 MB). Picaluma asks before downloading the face recognition models (39 MB, once);
+  "Not now" is remembered, and the People section and *Tools › Options › Name Tags* keep a
+  Download button. Picasa name tags are still imported without them.
+- The histogram shows the picture with all its edits.
+
 ## 0.7.9 — 2026-10-21
 
 - **People** — Picasa's face features, done on your computer (nothing is uploaded):

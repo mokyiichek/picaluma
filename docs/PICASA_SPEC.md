@@ -14,7 +14,7 @@ Top to bottom:
 | Toolbar           | 38     | Import · flat/tree view toggle · ▾ · people icon · **Filters** (☆, uploaded, faces, movies, geotag) + date-range slider · search box · busy spinner | 🟡 (flat/tree, ▾ sort, ☆, faces, movies, geotag and date slider ✅; uploaded dropped — Google Web Albums) |
 | Main              | flex   | Left tree (≈505 px, resizable) · splitter · thumbnail grid · Properties panel (≈278 px, toggle) | ✅ |
 | Status bar        | 17     | Blue `#568FB7`, white bold 11 px, centered: `252 pictures   Apr 12, 2013 to Aug 4, 2026   92.7MB on disk` | ✅ |
-| Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ⬜; Share and Places dropped — Google+ and Google Maps) |
+| Tray              | 88     | Selection holding area · hold/clear/add-to-album buttons · ☆ ⟲ ⟳ · green **Share** · Email · Print · Export · thumbnail-size slider · People/Places/Tags/Info toggles | ✅ Email/Print/Export (Hold ✅; Share and Places dropped — Google+ and Google Maps) |
 
 ### Palette (sampled)
 
@@ -41,7 +41,7 @@ Top to bottom:
   folder's most recent file modification). ✅
 - Row: folder icon · `Name (count)`. Selected row: dark-blue fill, white text. ✅
 - Scrolling the grid moves the tree highlight to the folder at the top of the grid. ✅
-- Albums include "Starred Photos", "Recently Updated", "Search results for 'x'" and user albums. ✅ (Recently Updated ⬜)
+- Albums include "Starred Photos", "Recently Updated", "Search results for 'x'" and user albums. ✅ (Recently Updated ✅ — files changed in the last 30 days)
 - People rows: face crop · `<Unknown Person> (0)` · orange "?" badge. ✅ (Picaluma: "Unnamed (n)" first, then people A–Z; the "?" badge opens that person's suggestions)
 
 ## 3. Thumbnail grid
@@ -79,14 +79,14 @@ Top to bottom:
 ## 6. Edit view
 
 Toolbar: `[← Back to Library]` · `[▶ Play]` · ◀ filmstrip (≈7 thumbs, current outlined) ▶ ·
-compare modes `[A] [AB] [AA]` (⬜). Status bar: `Folder > file.jpg  date  WxH pixels  size  (10 of 252)` ✅
+compare modes `[A] [AB] [AA]` (A and AB ✅; AA ⬜). Status bar: `Folder > file.jpg  date  WxH pixels  size  (10 of 252)` ✅
 
 Left panel (≈282 px), five tabs (icons: wrench, sun, brush, green brush, blue brush): ✅
 
 1. **Basic fixes** — Crop, Straighten, Redeye, I'm Feeling Lucky, Auto Contrast, Auto Color,
    Retouch, Text; Fill Light slider; Undo / Redo. (Crop/Straighten/Redeye/Retouch/Text ⬜)
 2. **Tuning** — Fill Light, Highlights, Shadows (with magic-wand auto), Color Temperature,
-   Neutral Color Picker. (pickers ⬜)
+   Neutral Color Picker. ✅
 3. **Effects 1** — Sharpen, Sepia, B&W, Warmify, Film Grain, Tint, Saturation, Soft Focus,
    Glow, Filtered B&W, Focal B&W, Graduated Tint.
 4. **Effects 2** — Infrared Film, Lomo-ish, Holga-ish, HDR-ish, Cinemascope, Orton-ish,
@@ -138,7 +138,7 @@ Albums, Order Prints, Publish to Blogger, Upload/Batch Upload, Download Name Tag
 Implemented: every File entry (Save writes a *copy*, originals are never changed), Copy Picture,
 Copy/Paste All Effects, Flat/Tree Folder View, Batch Edit ▸, Print Contact Sheet, Export as
 HTML Page, Set as Desktop, Make a Poster, Picture Collage, Help › Keyboard Shortcuts / Check for
-Updates. Still disabled: Movie, Hide/Unhide, Timeline, Places. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
+Updates. Still disabled: Movie, Timeline, Places. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
 
 ## 9. Controls, cursors and selection
 
@@ -173,7 +173,7 @@ Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML P
   (Manual · Current ratio · 4×6 Small print · 5×7 Large print · 8.5×11 Letter paper · 8×10 ·
   Square CD Cover · 4:3 Standard screen · 16:10 Widescreen monitor · 16:9 HDTV · 5:3 Widescreen
   Photo Frame · Add Custom Aspect Ratio…), three suggested crops, Rotate · Preview · Reset ·
-  Apply ✓ · Cancel ✕. The rest of the UI greys out while cropping. ✅ (Rotate/Preview/custom ⬜)
+  Apply ✓ · Cancel ✕. The rest of the UI greys out while cropping. ✅ (Rotate and custom ratio ✅; Preview ⬜)
 - **Straighten** overlays a dashed grid on the photo and shows a dark rounded bar below it with
   an angle slider, APPLY and CANCEL. ✅
 

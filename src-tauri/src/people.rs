@@ -83,19 +83,81 @@ fn face_dir(app: &AppHandle) -> PathBuf {
   app.state::<AppState>().data_dir.join("faces")
 }
 
+fn models_dir(app: &AppHandle) -> PathBuf {
+  app.state::<AppState>().data_dir.join("models")
+}
+
+static DOWNLOAD: Mutex<Models> = Mutex::new(Models { ready: false, downloading: false, received: 0, total: 0, error: None });
+
+/// The face models: whether they're here, or how the download is going.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Models {
+  ready: bool,
+  downloading: bool,
+  received: u64,
+  total: u64,
+  error: Option<String>,
+}
+
+#[tauri::command]
+pub fn face_models_status(app: AppHandle) -> Models {
+  let mut m = DOWNLOAD.lock().unwrap().clone();
+  m.ready = faces::models_ready(&models_dir(&app));
+  m.total = faces::models_size();
+  m
+}
+
+/// Downloads the face models (only ever on the user's say-so), then starts finding faces.
+#[tauri::command]
+pub fn download_face_models(app: AppHandle) {
+  {
+    let mut d = DOWNLOAD.lock().unwrap();
+    if d.downloading {
+      return;
+    }
+    *d = Models { ready: false, downloading: true, received: 0, total: faces::models_size(), error: None };
+  }
+  std::thread::spawn(move || {
+    let last = std::cell::Cell::new(Instant::now());
+    let result = faces::download_models(&models_dir(&app), |received, _| {
+      DOWNLOAD.lock().unwrap().received = received;
+      if last.get().elapsed() > Duration::from_millis(250) {
+        last.set(Instant::now());
+        let _ = app.emit("face-models", face_models_status(app.clone()));
+      }
+    });
+    {
+      let mut d = DOWNLOAD.lock().unwrap();
+      d.downloading = false;
+      d.error = result.as_ref().err().cloned();
+    }
+    let _ = app.emit("face-models", face_models_status(app.clone()));
+    if result.is_ok() {
+      log::info!("face models downloaded");
+      kick(&app);
+    }
+  });
+}
+
 fn run(app: &AppHandle) -> Result<(), String> {
   let state = app.state::<AppState>();
   let db = state.db.clone();
   let dir = face_dir(app);
   std::fs::create_dir_all(&dir).map_err(err)?;
   import_picasa_once(&db);
+  // Faces are only looked for once the user has agreed to download the models.
+  if !faces::models_ready(&models_dir(app)) {
+    let _ = app.emit("library-changed", ());
+    return Ok(());
+  }
   let total: u64 = db.lock().unwrap().query_row("SELECT COUNT(*) FROM photos WHERE faces_done = 0", [], |r| r.get(0)).map_err(err)?;
   if total == 0 {
     return Ok(());
   }
   *PROGRESS.lock().unwrap() = Progress { running: true, done: 0, total };
   let started = Instant::now();
-  let engine = Engine::load()?;
+  let engine = Engine::load(&models_dir(app))?;
   log::info!("face finder: {total} pictures to look at (models loaded in {:?})", started.elapsed());
   let mut index = Index::load(&db.lock().unwrap());
   let mut version = VERSION.load(Ordering::SeqCst);

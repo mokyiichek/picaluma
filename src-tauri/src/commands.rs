@@ -57,6 +57,10 @@ pub struct Snapshot {
   library_id: String,
   /// Videos (shown with a play badge and opened in the player).
   videos: Vec<i64>,
+  /// Picture › Hide: hidden pictures (shown with View › Hidden Pictures).
+  hidden: Vec<i64>,
+  /// Albums › Recently Updated: pictures whose file changed in the last 30 days.
+  recent: Vec<i64>,
   /// People albums, the photos with faces (Faces filter) and the number of unnamed faces.
   people: Vec<crate::people::PersonDto>,
   faced: Vec<i64>,
@@ -140,9 +144,12 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   let mut edits = Vec::new();
   let mut total = 0i64;
   let mut videos = Vec::new();
+  let mut hidden = Vec::new();
+  let mut recent = Vec::new();
+  let recent_since = chrono::Local::now().naive_local().and_utc().timestamp() - 30 * 86_400;
   let mut stmt = conn
     .prepare(
-      "SELECT p.id, p.folder_id, p.starred, p.has_gps, p.edits, p.path FROM photos p JOIN folders f ON f.id = p.folder_id
+      "SELECT p.id, p.folder_id, p.starred, p.has_gps, p.edits, p.path, p.hidden, p.mtime FROM photos p JOIN folders f ON f.id = p.folder_id
        ORDER BY p.folder_id,
          CASE WHEN f.sort = 'name' THEN p.name END COLLATE NOCASE,
          CASE WHEN f.sort = 'size' THEN p.size END DESC,
@@ -168,6 +175,12 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
     if crate::formats::is_video(&path) {
       videos.push(id);
     }
+    if r.get::<_, i64>(6).map_err(err)? != 0 {
+      hidden.push(id);
+    }
+    if r.get::<_, i64>(7).map_err(err)? >= recent_since {
+      recent.push(id);
+    }
     let e: String = r.get(4).map_err(err)?;
     if !e.is_empty() {
       edits.push((id, e));
@@ -178,7 +191,7 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   let library_id = db::library_id(&conn);
   let albums = load_albums(&conn).map_err(err)?;
   let (people, faced, unnamed) = crate::people::snapshot(&conn).map_err(err)?;
-  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, people, faced, unnamed })
+  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, hidden, recent, people, faced, unnamed })
 }
 
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
@@ -625,5 +638,16 @@ pub fn photos_since(state: State<'_, AppState>, since: i64) -> CmdResult<DateFil
   let mut stmt = conn.prepare(sql).map_err(err)?;
   let ids = stmt.query_map([since], |r| r.get(0)).map_err(err)?.filter_map(Result::ok).collect();
   Ok(DateFilter { ids, exclude })
+}
+
+/// Picture › Hide / Unhide.
+#[tauri::command]
+pub fn set_hidden(state: State<'_, AppState>, ids: Vec<i64>, hidden: bool) -> CmdResult<()> {
+  let mut conn = state.db.lock().map_err(err)?;
+  let tx = conn.transaction().map_err(err)?;
+  for id in ids {
+    tx.execute("UPDATE photos SET hidden = ?1 WHERE id = ?2", params![hidden as i64, id]).map_err(err)?;
+  }
+  tx.commit().map_err(err)
 }
 
