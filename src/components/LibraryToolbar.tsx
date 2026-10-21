@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, TagCount } from "../api";
 import { mod } from "../platform";
-import { FolderSort, useStore } from "../store";
-import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, TagIcon } from "./Icons";
+import { DATE_STEPS, FolderSort, useStore } from "../store";
+import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, MovieIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, TagIcon } from "./Icons";
 
 const SORTS: [FolderSort, string][] = [
   ["created", "Creation Date"],
@@ -62,6 +62,10 @@ export default function LibraryToolbar() {
   const setStarredOnly = useStore((s) => s.setStarredOnly);
   const geoOnly = useStore((s) => s.geoOnly);
   const setGeoOnly = useStore((s) => s.setGeoOnly);
+  const videoOnly = useStore((s) => s.videoOnly);
+  const setVideoOnly = useStore((s) => s.setVideoOnly);
+  const dateStep = useStore((s) => s.dateStep);
+  const setDateStep = useStore((s) => s.setDateStep);
   const folderView = useStore((s) => s.folderView);
   const setFolderView = useStore((s) => s.setFolderView);
   const scanning = useStore((s) => s.scan.scanning);
@@ -113,7 +117,7 @@ export default function LibraryToolbar() {
       </span>
       <SortMenu />
       <div className="filters">
-        <span className="label">Filters</span>
+        <span className="label">{dateStep ? `Filters · ${DATE_STEPS[dateStep][0].toLowerCase()}` : "Filters"}</span>
         <span className="row">
           <button className={`tbtn${starredOnly ? " pressed" : ""}`} title="Show only starred photos" onClick={() => setStarredOnly(!starredOnly)}>
             <StarIcon size={14} />
@@ -121,9 +125,23 @@ export default function LibraryToolbar() {
           <button className="tbtn" title="Show only photos with faces (coming with face grouping)" disabled>
             <PersonIcon size={14} />
           </button>
+          <button className={`tbtn${videoOnly ? " pressed" : ""}`} title="Show only movies" onClick={() => setVideoOnly(!videoOnly)}>
+            <MovieIcon size={14} />
+          </button>
           <button className={`tbtn${geoOnly ? " pressed" : ""}`} title="Show only geotagged photos" onClick={() => setGeoOnly(!geoOnly)}>
             <PinIcon size={14} />
           </button>
+          <input
+            type="range"
+            className="date-filter"
+            min={0}
+            max={DATE_STEPS.length - 1}
+            step={1}
+            value={dateStep}
+            title={`Drag to show only recent photos: ${DATE_STEPS[dateStep][0]}`}
+            onChange={(e) => setDateStep(Number(e.target.value))}
+            onDoubleClick={() => setDateStep(0)}
+          />
         </span>
       </div>
       <div className="searchbox" style={{ position: "relative" }}>

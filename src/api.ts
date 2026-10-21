@@ -118,6 +118,7 @@ export const api = {
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
   setSort: (id: number, sort: string) => invoke<void>("set_sort", { id, sort }),
+  photosSince: (since: number) => invoke<{ ids: number[]; exclude: boolean }>("photos_since", { since }),
   setHardwareAcceleration: (on: boolean) => invoke<void>("set_hardware_acceleration", { on }),
   setTags: (ids: number[], add: string[], remove: string[]) => invoke<void>("set_tags", { ids, add, remove }),
   getTags: (ids: number[]) => invoke<TagCount[]>("get_tags", { ids }),

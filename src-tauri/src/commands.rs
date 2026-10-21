@@ -586,3 +586,32 @@ pub fn set_sort(state: State<'_, AppState>, id: i64, sort: String) -> CmdResult<
   }
   Ok(())
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DateFilter {
+  ids: Vec<i64>,
+  /// True when `ids` lists the photos to hide (older ones) because that list is shorter.
+  exclude: bool,
+}
+
+/// Toolbar › Filters date slider: photos taken (or, without EXIF, modified) since `since`.
+/// Whichever list is shorter is returned, so a large library never sends 700k ids.
+#[tauri::command]
+pub fn photos_since(state: State<'_, AppState>, since: i64) -> CmdResult<DateFilter> {
+  let conn = state.db.lock().map_err(err)?;
+  let total: i64 = conn.query_row("SELECT COUNT(*) FROM photos", [], |r| r.get(0)).map_err(err)?;
+  let newer: i64 = conn
+    .query_row("SELECT COUNT(*) FROM photos WHERE COALESCE(taken, mtime) >= ?1", [since], |r| r.get(0))
+    .map_err(err)?;
+  let exclude = newer * 2 > total;
+  let sql = if exclude {
+    "SELECT id FROM photos WHERE COALESCE(taken, mtime) < ?1"
+  } else {
+    "SELECT id FROM photos WHERE COALESCE(taken, mtime) >= ?1"
+  };
+  let mut stmt = conn.prepare(sql).map_err(err)?;
+  let ids = stmt.query_map([since], |r| r.get(0)).map_err(err)?.filter_map(Result::ok).collect();
+  Ok(DateFilter { ids, exclude })
+}
+

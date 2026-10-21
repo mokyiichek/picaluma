@@ -25,6 +25,21 @@ export interface VisibleFolder {
 }
 
 export type Section = "albums" | "people" | "folders";
+const DAY = 86400;
+/** Filters date slider, like Picasa's: show only photos newer than… */
+export const DATE_STEPS: [string, number][] = [
+  ["Show all", 0],
+  ["Last 20 years", 7305 * DAY],
+  ["Last 10 years", 3653 * DAY],
+  ["Last 5 years", 1826 * DAY],
+  ["Last 2 years", 730 * DAY],
+  ["Last year", 365 * DAY],
+  ["Last 6 months", 183 * DAY],
+  ["Last 3 months", 91 * DAY],
+  ["Last month", 30 * DAY],
+  ["Last week", 7 * DAY],
+];
+
 export type FolderSort = "updated" | "created" | "name" | "size";
 
 interface State {
@@ -57,6 +72,11 @@ interface State {
   starredOnly: boolean;
   /** Filters › geotagged: only pictures with GPS coordinates. */
   geoOnly: boolean;
+  /** Filters › movies: only movies. */
+  videoOnly: boolean;
+  /** Filters date slider: index into DATE_STEPS (0 = show all) and the matching photos. */
+  dateStep: number;
+  dateFilter: { ids: Set<number>; exclude: boolean } | null;
   /** Folder list: Picasa's flat (grouped by date) or tree (disk hierarchy) view. */
   folderView: "flat" | "tree";
   folderSort: FolderSort;
@@ -110,6 +130,8 @@ interface State {
   runSearch: (q: string) => Promise<void>;
   clearSearch: () => void;
   setStarredOnly: (on: boolean) => void;
+  setVideoOnly: (on: boolean) => void;
+  setDateStep: (step: number) => Promise<void>;
   setGeoOnly: (on: boolean) => void;
   setFolderView: (v: "flat" | "tree") => void;
   setFolderSort: (sort: FolderSort, reverse: boolean) => void;
@@ -166,6 +188,9 @@ export const useStore = create<State>((set, get) => ({
   search: null,
   starredOnly: false,
   geoOnly: false,
+  videoOnly: false,
+  dateStep: 0,
+  dateFilter: null,
   folderView: localStorageGet("folderView") === "tree" ? "tree" : "flat",
   folderSort: (["updated", "created", "name", "size"].includes(localStorageGet("folderSort") ?? "") ? localStorageGet("folderSort") : "updated") as FolderSort,
   sortReverse: localStorageGet("sortReverse") === "1",
@@ -213,6 +238,9 @@ export const useStore = create<State>((set, get) => ({
     // Re-run an active search so results reflect newly scanned photos.
     const q = get().query;
     if (q) get().runSearch(q);
+    // …and the date filter, so new photos within the range appear.
+    const step = get().dateStep;
+    if (step) get().setDateStep(step);
   },
 
   setScan: (scan) => set({ scan }),
@@ -340,6 +368,15 @@ export const useStore = create<State>((set, get) => ({
 
   setStarredOnly: (starredOnly) => set({ starredOnly }),
   setGeoOnly: (geoOnly) => set({ geoOnly }),
+  setVideoOnly: (videoOnly) => set({ videoOnly }),
+  setDateStep: async (dateStep) => {
+    set({ dateStep });
+    if (!dateStep) return set({ dateFilter: null });
+    // Stored dates are local wall-clock seconds.
+    const nowLocal = Date.now() / 1000 - new Date().getTimezoneOffset() * 60;
+    const res = await api.photosSince(Math.floor(nowLocal - DATE_STEPS[dateStep][1]));
+    if (get().dateStep === dateStep) set({ dateFilter: { ids: new Set(res.ids), exclude: res.exclude } });
+  },
   setFolderView: (folderView) => {
     localStorageSet("folderView", folderView);
     set({ folderView });
@@ -462,7 +499,7 @@ export function selectAlbum(s: State): Album | undefined {
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.geoOnly, s.folderView, s.folderSort, s.sortReverse];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.geoOnly, s.videoOnly, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
   const album = selectAlbum(s);
   const folders = album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
@@ -470,8 +507,16 @@ export function selectVisible(s: State): VisibleFolder[] {
   const value: VisibleFolder[] = [];
   for (const folder of folders) {
     let photos = folder.photos;
-    if (ids || s.starredOnly || s.geoOnly) {
-      photos = photos.filter((p) => (!ids || ids.has(p)) && (!s.starredOnly || s.starred.has(p)) && (!s.geoOnly || s.geotagged.has(p)));
+    const df = s.dateFilter;
+    if (ids || s.starredOnly || s.geoOnly || s.videoOnly || df) {
+      photos = photos.filter(
+        (p) =>
+          (!ids || ids.has(p)) &&
+          (!s.starredOnly || s.starred.has(p)) &&
+          (!s.geoOnly || s.geotagged.has(p)) &&
+          (!s.videoOnly || s.videos.has(p)) &&
+          (!df || df.ids.has(p) !== df.exclude),
+      );
       if (!photos.length) continue;
     }
     value.push({ folder, photos });

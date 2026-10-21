@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.8 — 2026-10-21
+
+- **Filters like Picasa's** — the toolbar Filters now include **Movies** (show only movies) and
+  Picasa's **date slider**: drag it to show only photos from the last 20 years down to the last
+  week; double-click it to show everything again. The chosen range appears above the filters.
+- **Taskbar icon on Windows** — the taskbar and Alt+Tab showed a blank window icon instead of
+  Picaluma's; they now show the Picaluma icon.
+
 ## 0.7.7 — 2026-10-21
 
 - **More photo formats** — HEIC/HEIF (iPhone), AVIF, camera RAW from Canon, Nikon, Sony,

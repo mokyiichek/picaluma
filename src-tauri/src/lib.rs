@@ -102,6 +102,8 @@ pub fn run() {
         window = window.additional_browser_args(&settings::browser_args(&prefs));
       }
       let win = window.build()?;
+      #[cfg(windows)]
+      set_taskbar_icon(&win);
       // `maximized` alone is unreliable on multi-monitor Windows setups.
       let _ = win.maximize();
       Ok(())
@@ -134,6 +136,7 @@ pub fn run() {
       commands::export_picture,
       commands::prioritize_folder,
       commands::set_sort,
+      commands::photos_since,
       share::make_export_dir,
       share::copy_into,
       share::email_dir,
@@ -165,4 +168,23 @@ pub fn run() {
     ])
     .run(tauri::generate_context!())
     .expect("error while running Picaluma");
+}
+
+/// A window built in code gets only the small (title bar) icon, so the taskbar and Alt+Tab
+/// showed a blank generic icon. Give it the large icon embedded in the program file.
+#[cfg(windows)]
+fn set_taskbar_icon(win: &tauri::WebviewWindow) {
+  use std::os::windows::ffi::OsStrExt;
+  use windows::core::PCWSTR;
+  use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+  use windows::Win32::UI::Shell::ExtractIconExW;
+  use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, HICON, ICON_BIG, WM_SETICON};
+  let (Ok(hwnd), Ok(exe)) = (win.hwnd(), std::env::current_exe()) else { return };
+  let wide: Vec<u16> = exe.as_os_str().encode_wide().chain(Some(0)).collect();
+  let mut large = HICON::default();
+  unsafe {
+    if ExtractIconExW(PCWSTR(wide.as_ptr()), 0, Some(&mut large), None, 1) > 0 && !large.is_invalid() {
+      SendMessageW(HWND(hwnd.0 as _), WM_SETICON, Some(WPARAM(ICON_BIG as usize)), Some(LPARAM(large.0 as isize)));
+    }
+  }
 }

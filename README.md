@@ -44,7 +44,8 @@ import your old Picasa folder list in one click.
 - **Tags, stars and captions** — Tags panel (Ctrl+T) with one-click Quick Tags.
 - **Flat or tree folder view** — Picasa's date-grouped list or your disk's folder tree;
   sort by creation date, recent changes, size or name, and sort the pictures inside each folder
-  or album (right-click › Sort Folder By). Filters for starred and geotagged photos.
+  or album (right-click › Sort Folder By). Filters for starred photos, movies and
+  geotagged photos, and Picasa's date slider to show only recent photos.
 - **Every common format** — JPEG, PNG, GIF, BMP, TIFF and WebP, plus HEIC/HEIF, AVIF, camera
   RAW (Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, Leica, DNG…), Photoshop and
   Targa — choose which in *Tools › Options › File Types*.

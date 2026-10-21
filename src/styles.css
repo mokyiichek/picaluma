@@ -226,6 +226,21 @@ textarea {
   height: 18px;
   padding: 0 3px;
 }
+.filters input.date-filter {
+  width: 92px;
+  height: 18px;
+  margin-left: 6px;
+}
+.filters input.date-filter::-webkit-slider-runnable-track {
+  height: 6px;
+}
+.filters input.date-filter::-webkit-slider-thumb {
+  width: 12px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, transparent 5px, #8e959c 5px, #8e959c 6px, transparent 6px), linear-gradient(#ffffff, #d9dde1);
+}
 .searchbox {
   display: flex;
   align-items: center;
