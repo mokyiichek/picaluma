@@ -2789,3 +2789,134 @@ button.link:hover {
 .places-panel .leaflet-container {
   font: inherit;
 }
+
+/* ---------- Timeline ---------- */
+.timeline {
+  position: fixed;
+  inset: 0;
+  z-index: 290;
+  background: radial-gradient(ellipse at 50% 40%, #3a3f46, #111 75%);
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+}
+.tl-close {
+  position: absolute;
+  right: 18px;
+  top: 14px;
+  border: none;
+  background: none;
+  color: #ccc;
+  font-size: 22px;
+  cursor: pointer;
+}
+.tl-empty {
+  margin: auto;
+  color: #aaa;
+}
+.tl-stage {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+}
+.tl-arrow {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  width: 44px;
+  height: 64px;
+  border-radius: 6px;
+  font-size: 36px;
+  cursor: pointer;
+}
+.tl-arrow:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+.tl-fan {
+  position: relative;
+  width: 520px;
+  height: 300px;
+  cursor: pointer;
+  animation: tl-in 230ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes tl-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+.tl-fan img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: 300px;
+  max-height: 240px;
+  margin: 0;
+  border: 5px solid #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  background: #ddd;
+}
+.tl-caption {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.tl-caption h2 {
+  margin: 0 0 4px;
+  font: 400 26px Georgia, "Times New Roman", serif;
+}
+.tl-caption span {
+  color: #aaa;
+}
+.tl-caption p {
+  margin: 6px 0 0;
+  color: #ccc;
+}
+.tl-buttons {
+  margin-top: 12px;
+}
+.tl-caption .tbtn {
+  margin: 0 4px;
+  color: #222;
+}
+.tl-track {
+  position: relative;
+  width: calc(100% - 120px);
+  height: 46px;
+  margin-bottom: 8px;
+  border-top: 1px solid #666;
+  cursor: pointer;
+}
+.tl-tick {
+  position: absolute;
+  top: -6px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  background: #888;
+}
+.tl-tick.on {
+  top: -11px;
+  width: 4px;
+  height: 22px;
+  margin-left: -2px;
+  background: #4aa3ff;
+  border-radius: 2px;
+}
+.tl-year {
+  position: absolute;
+  top: 14px;
+  transform: translateX(-50%);
+  color: #999;
+  font-size: 11px;
+}
+.tl-count {
+  color: #888;
+  font-size: 11px;
+  margin-bottom: 14px;
+}

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.12 — 2026-10-22
+
+- **Timeline** (*View › Timeline*, Ctrl+5) — the library's folders in date order on a timeline,
+  each shown as a fan of its pictures. ← / → or the mouse wheel to move, click the timeline to
+  jump, Enter or *Play* for a slideshow of that folder (Esc comes back to the timeline),
+  *Open Folder* to go to it.
+- **Thumbnails show edits exactly** — pictures with auto fixes, tuning, Tint, Retouch and other
+  pixel effects now show them in the library grid as they will export, instead of an
+  approximation.
+
 ## 0.7.11 — 2026-10-22
 
 - **Import** (toolbar *Import*, *File › Import From*, Ctrl+M) — pictures and movies from a

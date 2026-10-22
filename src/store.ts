@@ -117,6 +117,8 @@ interface State {
   folderManager: boolean;
   /** File › Import From. */
   importOpen: boolean;
+  /** View › Timeline. */
+  timelineOpen: boolean;
   /** A folder to open as soon as the scan finds it (after an import). */
   pendingFolderPath: string | null;
   scrollTarget: { folderId: number; photoId?: number; nonce: number } | null;
@@ -163,6 +165,7 @@ interface State {
   setHoverFace: (f: Face | null) => void;
   setCompare: (on: boolean) => void;
   setImportOpen: (on: boolean) => void;
+  setTimelineOpen: (on: boolean) => void;
   selectFolderByPath: (path: string) => void;
   setShowHidden: (on: boolean) => void;
   setRecentOnly: (on: boolean) => void;
@@ -262,6 +265,7 @@ export const useStore = create<State>((set, get) => ({
   slideshow: null,
   folderManager: false,
   importOpen: false,
+  timelineOpen: false,
   pendingFolderPath: null,
   scrollTarget: null,
   albumView: null,
@@ -437,6 +441,7 @@ export const useStore = create<State>((set, get) => ({
   setDrawFace: (drawFace) => set({ drawFace }),
   setHoverFace: (hoverFace) => set({ hoverFace }),
   setCompare: (compare) => set({ compare }),
+  setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
   setImportOpen: (importOpen) => set({ importOpen, peopleManager: importOpen ? null : get().peopleManager }),
   selectFolderByPath: (path) => {
     const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/$/, "").toLowerCase();

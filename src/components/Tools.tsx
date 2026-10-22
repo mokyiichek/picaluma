@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { thumbUrl } from "../api";
 import { askText, notify } from "../dialogs";
+import { aspectCache } from "../aspect";
 import { CropRect, cropViewBox, type Edit } from "../effects";
 import type { PixelTool } from "./PixelTools";
 
@@ -131,6 +132,8 @@ export function CropPanel({
 }
 
 function imgAspectOf(id: number): number {
+  const known = aspectCache.get(id);
+  if (known) return known;
   const img = document.querySelector(`img[data-photo="${id}"]`) as HTMLImageElement | null;
   if (img?.naturalWidth) return img.naturalWidth / img.naturalHeight;
   const stage = document.querySelector(".edit-photo") as HTMLElement | null;

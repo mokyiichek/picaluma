@@ -138,7 +138,7 @@ Albums, Order Prints, Publish to Blogger, Upload/Batch Upload, Download Name Tag
 Implemented: every File entry (Save writes a *copy*, originals are never changed), Copy Picture,
 Copy/Paste All Effects, Flat/Tree Folder View, Batch Edit ▸, Print Contact Sheet, Export as
 HTML Page, Set as Desktop, Make a Poster, Picture Collage, Help › Keyboard Shortcuts / Check for
-Updates. Still disabled: Movie, Timeline. Places ✅ (OpenStreetMap), Import From ✅. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
+Updates. Still disabled: Movie. Timeline ✅. Places ✅ (OpenStreetMap), Import From ✅. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
 
 ## 9. Controls, cursors and selection
 

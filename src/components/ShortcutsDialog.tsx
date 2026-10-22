@@ -20,6 +20,7 @@ const GROUPS: [string, [string, string][]][] = [
       ["Rotate clockwise / counterclockwise", "Ctrl+R / Ctrl+Shift+R"],
       ["Small / normal thumbnails", "Ctrl+1 / Ctrl+2"],
       ["Slideshow", "Ctrl+4"],
+      ["Timeline", "Ctrl+5"],
       ["Tags panel", "Ctrl+T"],
       [isMac ? "Get Info" : "Properties", isMac ? "Ctrl+I" : "Alt+Enter"],
       ["New album from selection", "Ctrl+N"],

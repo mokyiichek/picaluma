@@ -16,6 +16,7 @@ import Tray from "./components/Tray";
 import EditView, { EditToolbar } from "./components/EditView";
 import FlightOverlay from "./components/FlightOverlay";
 import Slideshow from "./components/Slideshow";
+import Timeline from "./components/Timeline";
 import FolderManager from "./components/FolderManager";
 import TagsPanel from "./components/TagsPanel";
 import PeoplePanel from "./components/PeoplePanel";
@@ -75,7 +76,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
-      if (typing || st.slideshow || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
+      if (typing || st.slideshow || st.timelineOpen || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
       const sel = [...st.selected];
       if (e.key === "F11") {
         e.preventDefault();
@@ -94,6 +95,9 @@ export default function App() {
         e.preventDefault();
         const f = st.currentFolderId != null ? st.folderById.get(st.currentFolderId) : undefined;
         if (f) st.startSlideshow(f.photos);
+      } else if (mod(e) && e.key === "5") {
+        e.preventDefault();
+        st.setTimelineOpen(true);
       } else if (mod(e) && e.key === "1") {
         e.preventDefault();
         st.setThumbSize(100);
@@ -230,6 +234,7 @@ export default function App() {
       <StatusBar />
       <Tray />
       <FlightOverlay />
+      <Timeline />
       <Slideshow />
       <FolderManager />
       <ContextMenu />

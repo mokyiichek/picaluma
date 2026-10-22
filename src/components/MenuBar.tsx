@@ -123,6 +123,7 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Tree Folder View", checked: s.folderView === "tree", action: () => s.setFolderView("tree") },
         sep,
         { label: "Slideshow", shortcut: "Ctrl+4", action: folderPhotos.length ? () => s.startSlideshow(folderPhotos) : undefined },
+        { label: "Timeline", shortcut: "Ctrl+5", action: () => s.setTimelineOpen(true) },
         sep,
         { label: "Small Thumbnails", shortcut: "Ctrl+1", checked: s.thumbSize <= 110, action: () => s.setThumbSize(100) },
         { label: "Normal Thumbnails", shortcut: "Ctrl+2", checked: s.thumbSize > 110, action: () => s.setThumbSize(150) },

@@ -60,7 +60,8 @@ function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | 
 }
 
 /** Oriented thumbnail aspect ratios, filled by the grid as thumbnails load. */
-export const aspectCache = new Map<number, number>();
+export { aspectCache } from "../aspect";
+import { aspectCache } from "../aspect";
 
 /** Shared editor state: the current photo's edit stack plus a redo stack. */
 function useEditStack(id: number | null) {

@@ -6,6 +6,7 @@ import { cropViewBox, render } from "../effects";
 import { fmtDate } from "../format";
 import { isPersonId, PERSON_BASE, selectAlbum, selectPerson, selectVisible, useStore } from "../store";
 import PeopleManager from "./PeopleManager";
+import { useEditedThumb } from "../editedThumbs";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
@@ -435,7 +436,9 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const edits = useStore((s) => s.edits.get(id));
   const clickPhoto = useStore((s) => s.clickPhoto);
   const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
-  const r = edits ? render(edits) : null;
+  // Pixel effects: the thumbnail rendered with its edits (crop and rotation included).
+  const baked = useEditedThumb(id, edits);
+  const r = edits && !baked ? render(edits) : null;
   const style = r
     ? ({
         filter: r.filter || undefined,
@@ -461,14 +464,14 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
     >
       <img
         data-photo={id}
-        src={thumbUrl(id)}
+        src={baked ?? thumbUrl(id)}
         className={loaded ? "" : "loading"}
         decoding="async"
         draggable={false}
         style={style}
         onLoad={(e) => {
           const img = e.currentTarget;
-          aspectCache.set(id, img.naturalWidth / img.naturalHeight);
+          if (!baked) aspectCache.set(id, img.naturalWidth / img.naturalHeight);
           loadedThumbs.add(id);
           setLoaded(true);
         }}
