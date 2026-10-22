@@ -5,7 +5,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, photoUrl } from "../api";
 import { renderToCanvas } from "../effects";
 import { useStore } from "../store";
-import { notify } from "../dialogs";
+import { confirmAsk, notify } from "../dialogs";
 import { plural } from "../format";
 
 type Transition = "dissolve" | "panzoom" | "cut";
@@ -191,8 +191,8 @@ export default function MovieMaker() {
       const blob = new Blob(chunks, { type: fmt.mime });
       const saved = await invoke<string>("write_bytes", new Uint8Array(await blob.arrayBuffer()), { headers: { path: encodeURIComponent(target) } });
       close();
-      revealItemInDir(saved).catch(() => {});
-      notify(`Movie saved: ${saved}`);
+      if (await confirmAsk(`Movie saved:
+${saved}`, { title: "Movie", ok: "Show in Folder", cancel: "OK" })) revealItemInDir(saved).catch(() => {});
     } catch (e) {
       if (String(e).includes("cancelled")) setProgress(null);
       else {

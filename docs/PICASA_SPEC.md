@@ -138,7 +138,7 @@ Albums, Order Prints, Publish to Blogger, Upload/Batch Upload, Download Name Tag
 Implemented: every File entry (Save writes a *copy*, originals are never changed), Copy Picture,
 Copy/Paste All Effects, Flat/Tree Folder View, Batch Edit ▸, Print Contact Sheet, Export as
 HTML Page, Set as Desktop, Make a Poster, Picture Collage, Help › Keyboard Shortcuts / Check for
-Updates. Still disabled: Movie. Timeline ✅. Places ✅ (OpenStreetMap), Import From ✅. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
+Updates. Movie ✅. Timeline ✅. Places ✅ (OpenStreetMap), Import From ✅. Hide/Unhide ✅. People Manager ✅ (Unnamed groups with "Add a name", Suggestions with ✔/✖).
 
 ## 9. Controls, cursors and selection
 
@@ -173,7 +173,7 @@ Picasa… · Move Folder… · Delete Folder… · Upload… · Export as HTML P
   (Manual · Current ratio · 4×6 Small print · 5×7 Large print · 8.5×11 Letter paper · 8×10 ·
   Square CD Cover · 4:3 Standard screen · 16:10 Widescreen monitor · 16:9 HDTV · 5:3 Widescreen
   Photo Frame · Add Custom Aspect Ratio…), three suggested crops, Rotate · Preview · Reset ·
-  Apply ✓ · Cancel ✕. The rest of the UI greys out while cropping. ✅ (Rotate and custom ratio ✅; Preview ⬜)
+  Apply ✓ · Cancel ✕. The rest of the UI greys out while cropping. ✅ (Rotate, custom ratio and Preview ✅)
 - **Straighten** overlays a dashed grid on the photo and shows a dark rounded bar below it with
   an angle slider, APPLY and CANCEL. ✅
 

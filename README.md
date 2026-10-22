@@ -87,6 +87,7 @@ import your old Picasa folder list in one click.
 - **E-mail** — resized copies attached to a new message in Outlook, Thunderbird, Apple Mail or
   your Linux mail app, or saved to a folder for Gmail and other web mail.
 - **Print** — wallet to 8×10 and full-page layouts, contact sheets, borders, copies, Letter/A4.
+- **Movie** — pictures to MP4 with music, transitions, titles and captions.
 - **Picture Collage**, **Make a Poster**, **Set as Desktop**, **Export as HTML Page**.
 - Timeline view of all folders by date (Ctrl+5).
 - Fullscreen slideshow (display time, cross fade or pan and zoom, captions, repeat), EXIF
@@ -101,7 +102,7 @@ import your old Picasa folder list in one click.
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned: Movie maker,
+Planned:
 `.picasa.ini` import, Folder Manager redesign.
 
 ## Build from source

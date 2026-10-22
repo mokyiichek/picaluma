@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.14 — 2026-10-23
+
+- **Movie** (*Create › Movie*, or the movie button above a folder), Picasa's Movie Maker: the
+  pictures as a video with a title card, a soundtrack (faded out at the end), Dissolve / Pan and
+  zoom / Cut transitions, slide length, 720p or 1080p, captions and full-frame crop. Edits are
+  included. Saved as MP4 (WebM where MP4 recording isn't available); made on this computer, in
+  real time.
+- **Crop › Preview** — see the picture cropped before applying; press again to keep adjusting.
+
 ## 0.7.13 — 2026-10-22
 
 - **Double-click a folder** (in the folder list, or its title above the pictures) for **Folder
