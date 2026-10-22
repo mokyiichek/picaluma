@@ -620,6 +620,48 @@ pub fn export_picture(path: String, data_base64: String) -> CmdResult<String> {
   Ok(target.to_string_lossy().into_owned())
 }
 
+/// Saves a file made in the window (Create › Movie): the bytes come raw (no base64 for a large
+/// video) and the target path in the `path` header. Never overwrites; returns the path used.
+#[tauri::command(async)]
+pub fn write_bytes(request: tauri::ipc::Request<'_>) -> CmdResult<String> {
+  let tauri::ipc::InvokeBody::Raw(data) = request.body() else { return Err("expected file data".into()) };
+  let path = request.headers().get("path").and_then(|v| v.to_str().ok()).ok_or("no path")?;
+  let path = PathBuf::from(percent_decode(path).ok_or("bad path")?);
+  let dir = path.parent().map(PathBuf::from).unwrap_or_default();
+  std::fs::create_dir_all(&dir).map_err(err)?;
+  let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+  let target = crate::fileops::unique_target(&dir, name);
+  std::fs::write(&target, data).map_err(err)?;
+  Ok(target.to_string_lossy().into_owned())
+}
+
+fn percent_decode(s: &str) -> Option<String> {
+  let b = s.as_bytes();
+  let mut out = Vec::with_capacity(b.len());
+  let mut i = 0;
+  while i < b.len() {
+    if b[i] == b'%' && i + 2 < b.len() {
+      out.push(u8::from_str_radix(std::str::from_utf8(&b[i + 1..i + 3]).ok()?, 16).ok()?);
+      i += 3;
+    } else {
+      out.push(b[i]);
+      i += 1;
+    }
+  }
+  String::from_utf8(out).ok()
+}
+
+/// A sound file the user picked (Create › Movie music) may be played through
+/// `photo://localhost/media?p=…`; nothing else outside the library can be.
+#[tauri::command(async)]
+pub fn allow_media(path: String) -> CmdResult<()> {
+  if !std::path::Path::new(&path).is_file() {
+    return Err(format!("{path} isn't a file."));
+  }
+  crate::thumbs::allow_media(path);
+  Ok(())
+}
+
 /// The user opened a folder: list and index it now, ahead of the running scan.
 #[tauri::command(async)]
 pub fn prioritize_folder(app: AppHandle, id: i64) {

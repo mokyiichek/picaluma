@@ -408,7 +408,7 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
         <button className="tbtn icon sq" title="Create a picture collage" disabled={photos.length < 2} onClick={() => useStore.getState().setCollage(photos)}>
           <CollageIcon />
         </button>
-        <button className="tbtn icon sq" title="Create a movie (coming soon)" disabled>
+        <button className="tbtn icon sq" title="Make a movie of this folder" onClick={() => useStore.getState().setMovie(photos)}>
           <MovieIcon />
         </button>
         <button className="tbtn icon sq" title="Star all photos in this folder" onClick={() => toggleStar(photos)}>

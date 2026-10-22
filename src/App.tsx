@@ -18,6 +18,7 @@ import FlightOverlay from "./components/FlightOverlay";
 import Slideshow from "./components/Slideshow";
 import Timeline from "./components/Timeline";
 import FolderProperties from "./components/FolderProperties";
+import MovieMaker from "./components/MovieMaker";
 import FolderManager from "./components/FolderManager";
 import TagsPanel from "./components/TagsPanel";
 import PeoplePanel from "./components/PeoplePanel";
@@ -77,7 +78,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
-      if (typing || st.slideshow || st.timelineOpen || st.folderProps != null || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
+      if (typing || st.slideshow || st.timelineOpen || st.folderProps != null || st.movie != null || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
       const sel = [...st.selected];
       if (e.key === "F11") {
         e.preventDefault();
@@ -237,6 +238,7 @@ export default function App() {
       <FlightOverlay />
       <Timeline />
       <FolderProperties />
+      <MovieMaker />
       <Slideshow />
       <FolderManager />
       <ContextMenu />

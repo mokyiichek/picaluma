@@ -7,7 +7,7 @@ import type { PixelTool } from "./PixelTools";
 
 export type Tool =
   /** `aspect`: the crop's width ÷ height as it will look (portrait < 1), or null for Manual. */
-  | { kind: "crop"; rect: CropRect; aspect: number | null }
+  | { kind: "crop"; rect: CropRect; aspect: number | null; preview?: boolean }
   | { kind: "straighten"; angle: number }
   | PixelTool
   /** An effect's settings panel (Sharpen amount, Tint colour...), previewed live until Apply. */
@@ -115,9 +115,14 @@ export function CropPanel({
         ))}
       </div>
       <div className="tool-buttons">
-        <button className="tbtn" onClick={() => setTool({ ...tool, rect: [0, 0, 1, 1], aspect: null })}>
-          Reset
-        </button>
+        <span className="row">
+          <button className="tbtn" onClick={() => setTool({ ...tool, rect: [0, 0, 1, 1], aspect: null, preview: false })}>
+            Reset
+          </button>
+          <button className={`tbtn${tool.preview ? " pressed" : ""}`} title="See the picture cropped (click again to keep adjusting)" onClick={() => setTool({ ...tool, preview: !tool.preview })}>
+            Preview
+          </button>
+        </span>
         <div className="row">
           <button className="tbtn apply" onClick={onApply}>
             Apply <span className="dot ok">✓</span>

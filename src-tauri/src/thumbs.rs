@@ -259,7 +259,21 @@ fn prune_cache(db: &Arc<Mutex<rusqlite::Connection>>, dir: &Path) {
   }
 }
 
+/// Sound files picked for a movie (see `allow_media`).
+static MEDIA: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+pub fn allow_media(path: String) {
+  MEDIA.lock().unwrap().get_or_insert_with(HashSet::new).insert(path);
+}
+
 pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+  if req.uri().path().trim_matches('/') == "media" {
+    let path = req.uri().query().and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("p="))).and_then(percent_decode);
+    return match path {
+      Some(p) if MEDIA.lock().unwrap().as_ref().is_some_and(|m| m.contains(&p)) => video_response(&p, req),
+      _ => not_found(),
+    };
+  }
   if let Some(folder) = req.uri().path().trim_matches('/').strip_prefix("music/") {
     let music: Option<String> = folder.parse::<i64>().ok().and_then(|id| {
       let state = app.state::<AppState>();

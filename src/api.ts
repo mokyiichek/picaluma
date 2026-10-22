@@ -216,6 +216,7 @@ export const api = {
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
   setSort: (id: number, sort: string, reverse = false) => invoke<void>("set_sort", { id, sort, reverse }),
+  allowMedia: (path: string) => invoke<void>("allow_media", { path }),
   setFolderProps: (id: number, date: number, place: string, music: string) => invoke<void>("set_folder_props", { id, date, place, music }),
   importSources: () => invoke<ImportSource[]>("import_sources"),
   scanImport: (path: string) => invoke<ImportItem[]>("scan_import", { path }),

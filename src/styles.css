@@ -2967,3 +2967,52 @@ button.link:hover {
 .folder-head .date {
   cursor: default;
 }
+
+/* ---------- Movie ---------- */
+.movie-maker {
+  width: 900px;
+  max-width: calc(100vw - 40px);
+}
+.mm-body {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.mm-opts {
+  flex: 1;
+  min-width: 0;
+}
+.mm-opts .opt-row > input:not([type]),
+.mm-opts .opt-row > input:not([type="range"]) {
+  flex: 1;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid #b8c0c8;
+  border-radius: 3px;
+}
+.mm-music {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.mm-preview {
+  width: 400px;
+  height: 225px;
+  background: #000;
+  border-radius: 3px;
+  flex: none;
+}
+.mm-progress {
+  height: 6px;
+  margin: 0 16px 6px;
+  background: #dde2e7;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.mm-progress div {
+  height: 100%;
+  background: #1a8cff;
+  transition: width 200ms linear;
+}

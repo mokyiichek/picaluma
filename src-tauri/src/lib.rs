@@ -145,6 +145,8 @@ pub fn run() {
       commands::prioritize_folder,
       commands::set_sort,
       commands::set_folder_props,
+      commands::write_bytes,
+      commands::allow_media,
       commands::photos_since,
       commands::set_hidden,
       commands::places,

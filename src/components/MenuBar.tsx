@@ -194,7 +194,7 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Make a Poster...", action: one != null ? () => printPhotos([one], "poster") : undefined },
         { label: "Set as Desktop", action: one != null ? () => setAsDesktop(one) : undefined },
         sep,
-        { label: "Movie (coming soon)" },
+        { label: "Movie...", action: targets.length ? () => s.setMovie(targets) : undefined },
       ],
     ],
     [

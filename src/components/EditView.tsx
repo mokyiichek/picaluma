@@ -380,6 +380,8 @@ function previewEdits(edits: Edit[], tool: Tool): Edit[] {
   if (!tool) return edits;
   if (tool.kind === "effect") return [...edits, tool.edit];
   if (tool.kind === "neutral") return edits;
+  // Crop › Preview: the picture as it will be cropped.
+  if (tool.kind === "crop" && tool.preview) return [...edits.filter((e) => e.op !== "crop"), { op: "crop", r: tool.rect }];
   const original = tool.kind === "crop" || (PIXEL_TOOLS.has(tool.kind) && worksOnOriginal(tool as PixelTool));
   if (original) return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
   if (tool.kind !== "straighten") return edits;
@@ -615,7 +617,7 @@ function Stage({
           )}
           {tool && PIXEL_TOOLS.has(tool.kind) && <PixelToolOverlay tool={tool as PixelTool} setTool={setTool} />}
           {tool?.kind === "straighten" && <div className="straighten-grid" />}
-          {tool?.kind === "crop" && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
+          {tool?.kind === "crop" && !tool.preview && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
         </div>
       )}
       </div>

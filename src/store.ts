@@ -119,6 +119,8 @@ interface State {
   importOpen: boolean;
   /** View › Timeline. */
   timelineOpen: boolean;
+  /** Create › Movie: the pictures to make a movie from. */
+  movie: number[] | null;
   /** Folder Properties dialog (double-click a folder). */
   folderProps: number | null;
   /** The ▾ menu's Sort People by: "name", "amount" or "top" (the ten with most pictures). */
@@ -171,6 +173,7 @@ interface State {
   setImportOpen: (on: boolean) => void;
   setTimelineOpen: (on: boolean) => void;
   setFolderProps: (id: number | null) => void;
+  setMovie: (ids: number[] | null) => void;
   setPeopleSort: (s: "name" | "amount" | "top") => void;
   selectFolderByPath: (path: string) => void;
   setShowHidden: (on: boolean) => void;
@@ -273,6 +276,7 @@ export const useStore = create<State>((set, get) => ({
   importOpen: false,
   timelineOpen: false,
   folderProps: null,
+  movie: null,
   peopleSort: (localStorageGet("peopleSort") as "name" | "amount" | "top") || "name",
   pendingFolderPath: null,
   scrollTarget: null,
@@ -452,6 +456,7 @@ export const useStore = create<State>((set, get) => ({
   setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
   // Albums and people have no folder properties.
   setFolderProps: (folderProps) => set({ folderProps: folderProps != null && folderProps > 0 ? folderProps : null }),
+  setMovie: (ids) => set({ movie: ids && ids.length ? ids : null }),
   setPeopleSort: (peopleSort) => {
     localStorageSet("peopleSort", peopleSort);
     set({ peopleSort });
