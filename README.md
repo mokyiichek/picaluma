@@ -102,8 +102,7 @@ import your old Picasa folder list in one click.
 **Reliability**
 - The library database checks itself on start and repairs itself if it was damaged.
 
-Planned:
-`.picasa.ini` import, Folder Manager redesign.
+Planned: Picasa-style Folder Manager, Projects.
 
 ## Build from source
 
