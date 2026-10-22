@@ -27,23 +27,23 @@ import { askText, confirmAsk } from "../dialogs";
 
 const sep: MenuEntry = { label: "", sep: true };
 
-/** Folder › Sort Folder By / Album › Sort Album By. `id` < 0 is an album; the order is kept per folder. */
-function sortEntry(id: number, current: string): MenuEntry {
+/** Sort Folder By / Sort Album By, as in Picasa: Name, Date, Size, Reverse order. `id` < 0 is an
+ *  album (which can also keep the order pictures were added); the order is kept per folder. */
+function sortEntry(id: number, current: string, reverse: boolean): MenuEntry {
   const album = id < 0;
   const opts: [string, string][] = [
     ...(album ? ([["Order Added", ""]] as [string, string][]) : []),
-    ["Date Taken", album ? "date" : ""],
-    ["Recent Changes", "modified"],
-    ["Size", "size"],
     ["Name", "name"],
+    ["Date", album ? "date" : ""],
+    ["Size", "size"],
   ];
+  const apply = (sort: string, rev: boolean) => api.setSort(id, sort, rev).then(() => useStore.getState().loadSnapshot());
   return {
     label: album ? "Sort Album By" : "Sort Folder By",
-    submenu: opts.map(([label, sort]) => ({
-      label,
-      checked: current === sort,
-      action: () => api.setSort(id, sort).then(() => useStore.getState().loadSnapshot()),
-    })),
+    submenu: [
+      ...opts.map(([label, sort]) => ({ label, checked: current === sort, action: () => apply(sort, reverse) })),
+      { label: "Reverse order", checked: reverse, action: () => apply(current === "modified" && !album ? "" : current, !reverse) },
+    ],
   };
 }
 
@@ -170,7 +170,7 @@ function albumEntries(albumId: number): MenuEntry[] {
   return [
     { label: "View Album", action: () => s.openAlbum(albumId) },
     { label: "View Slideshow", shortcut: "Ctrl+4", action: album.photos.length ? () => s.startSlideshow(album.photos) : undefined },
-    sortEntry(-albumId, album.sort ?? ""),
+    sortEntry(-albumId, album.sort ?? "", !!album.reverse),
     sep,
     {
       label: "Rename Album...",
@@ -238,10 +238,7 @@ function folderEntries(folderId: number): MenuEntry[] {
   return [
     {
       label: "Edit Folder Description...",
-      action: () => {
-        s.selectFolder(folderId);
-        setTimeout(() => (document.querySelector(`[data-desc="${folderId}"]`) as HTMLInputElement | null)?.focus(), 80);
-      },
+      action: () => s.setFolderProps(folderId),
     },
     sep,
     { label: "Select All Pictures", shortcut: "Ctrl+A", action: () => s.selectOnly(photos) },
@@ -249,7 +246,7 @@ function folderEntries(folderId: number): MenuEntry[] {
     { label: "Invert Selection", shortcut: isMac ? "Ctrl+Shift+I" : "Ctrl+I", action: () => s.selectOnly(photos.filter((p) => !s.selected.has(p))) },
     sep,
     { label: "View Slideshow", shortcut: "Ctrl+4", action: () => s.startSlideshow(photos) },
-    ...(folder ? [sortEntry(folderId, folder.sort ?? "")] : []),
+    ...(folder ? [sortEntry(folderId, folder.sort ?? "", !!folder.reverse)] : []),
     { label: "Refresh Thumbnails", action: () => api.rescan() },
     { label: "Picture Collage...", action: photos.length > 1 ? () => s.setCollage(photos) : undefined },
     sep,

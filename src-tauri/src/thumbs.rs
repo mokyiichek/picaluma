@@ -260,6 +260,17 @@ fn prune_cache(db: &Arc<Mutex<rusqlite::Connection>>, dir: &Path) {
 }
 
 pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+  if let Some(folder) = req.uri().path().trim_matches('/').strip_prefix("music/") {
+    let music: Option<String> = folder.parse::<i64>().ok().and_then(|id| {
+      let state = app.state::<AppState>();
+      let conn = state.db.lock().ok()?;
+      conn.query_row("SELECT music FROM folders WHERE id = ?1", [id], |r| r.get(0)).ok()
+    });
+    return match music.filter(|m| !m.is_empty()) {
+      Some(path) => video_response(&path, req),
+      None => not_found(),
+    };
+  }
   let Some(id) = parse_id(req) else { return not_found() };
   let Some(photo) = lookup(app, id) else { return not_found() };
   if formats::is_video(&photo.path) {
@@ -509,6 +520,12 @@ fn video_mime(path: &str) -> &'static str {
     "3g2" => "video/3gpp2",
     "mts" | "m2ts" => "video/mp2t",
     "flv" => "video/x-flv",
+    "mp3" => "audio/mpeg",
+    "m4a" | "aac" => "audio/mp4",
+    "wav" => "audio/wav",
+    "ogg" | "oga" => "audio/ogg",
+    "flac" => "audio/flac",
+    "wma" => "audio/x-ms-wma",
     _ => "video/mp4",
   }
 }

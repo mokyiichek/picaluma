@@ -5,10 +5,15 @@ import { DATE_STEPS, FolderSort, useStore } from "../store";
 import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, MovieIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, TagIcon } from "./Icons";
 
 const SORTS: [FolderSort, string][] = [
-  ["created", "Creation Date"],
-  ["updated", "Recent Changes"],
-  ["size", "Size"],
-  ["name", "Name"],
+  ["created", "Sort by Date"],
+  ["updated", "Sort by Recent Changes"],
+  ["size", "Sort by Size"],
+  ["name", "Sort by Name"],
+];
+const PEOPLE_SORTS: ["name" | "amount" | "top", string][] = [
+  ["name", "Sort People by Name"],
+  ["amount", "Sort People by Amount"],
+  ["top", "Sort People by Top 10"],
 ];
 
 /** The ▾ next to the view buttons: Picasa's folder sort order. */
@@ -18,6 +23,7 @@ function SortMenu() {
   const reverse = useStore((s) => s.sortReverse);
   const view = useStore((s) => s.folderView);
   const setSort = useStore((s) => s.setFolderSort);
+  const peopleSort = useStore((s) => s.peopleSort);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -44,8 +50,18 @@ function SortMenu() {
           ))}
           <div className="menu-sep" />
           <div className={`menu-item${reverse ? " checked" : ""}`} onMouseDown={() => (setSort(sort, !reverse), setOpen(false))}>
-            Reverse Order
+            Reverse sort
           </div>
+          <div className="menu-sep" />
+          {PEOPLE_SORTS.map(([id, label]) => (
+            <div
+              key={id}
+              className={`menu-item${peopleSort === id ? " checked" : ""}`}
+              onMouseDown={() => (useStore.getState().setPeopleSort(id), setOpen(false))}
+            >
+              {label}
+            </div>
+          ))}
         </div>
       )}
     </span>

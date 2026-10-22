@@ -182,6 +182,17 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   // v0.7.9: People. Faces are found in the background (faces_done: 0 to do, 1 done, 2 skipped).
   // Face state: 0 unnamed, 1 named, 2 suggested name awaiting confirmation, 3 ignored.
   // Face source: 0 found by Picaluma, 1 added by hand, 2 imported from Picasa's name tags.
+  // v0.7.13: Sort Folder By › Reverse order, and Folder Properties (Picasa's double-click on a
+  // folder): a date set by hand (0 = automatic), place taken and slideshow music.
+  if !has_col("folders", "sort_rev")? {
+    conn.execute_batch(
+      "ALTER TABLE folders ADD COLUMN sort_rev INTEGER NOT NULL DEFAULT 0;
+       ALTER TABLE folders ADD COLUMN date_set INTEGER NOT NULL DEFAULT 0;
+       ALTER TABLE folders ADD COLUMN place TEXT NOT NULL DEFAULT '';
+       ALTER TABLE folders ADD COLUMN music TEXT NOT NULL DEFAULT '';
+       ALTER TABLE albums ADD COLUMN sort_rev INTEGER NOT NULL DEFAULT 0;",
+    )?;
+  }
   // v0.7.11: Places (EXIF GPS positions, in degrees).
   if !has("lat")? {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN lat REAL; ALTER TABLE photos ADD COLUMN lon REAL;")?;

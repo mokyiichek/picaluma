@@ -119,6 +119,10 @@ interface State {
   importOpen: boolean;
   /** View › Timeline. */
   timelineOpen: boolean;
+  /** Folder Properties dialog (double-click a folder). */
+  folderProps: number | null;
+  /** The ▾ menu's Sort People by: "name", "amount" or "top" (the ten with most pictures). */
+  peopleSort: "name" | "amount" | "top";
   /** A folder to open as soon as the scan finds it (after an import). */
   pendingFolderPath: string | null;
   scrollTarget: { folderId: number; photoId?: number; nonce: number } | null;
@@ -166,6 +170,8 @@ interface State {
   setCompare: (on: boolean) => void;
   setImportOpen: (on: boolean) => void;
   setTimelineOpen: (on: boolean) => void;
+  setFolderProps: (id: number | null) => void;
+  setPeopleSort: (s: "name" | "amount" | "top") => void;
   selectFolderByPath: (path: string) => void;
   setShowHidden: (on: boolean) => void;
   setRecentOnly: (on: boolean) => void;
@@ -266,6 +272,8 @@ export const useStore = create<State>((set, get) => ({
   folderManager: false,
   importOpen: false,
   timelineOpen: false,
+  folderProps: null,
+  peopleSort: (localStorageGet("peopleSort") as "name" | "amount" | "top") || "name",
   pendingFolderPath: null,
   scrollTarget: null,
   albumView: null,
@@ -442,6 +450,12 @@ export const useStore = create<State>((set, get) => ({
   setHoverFace: (hoverFace) => set({ hoverFace }),
   setCompare: (compare) => set({ compare }),
   setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
+  // Albums and people have no folder properties.
+  setFolderProps: (folderProps) => set({ folderProps: folderProps != null && folderProps > 0 ? folderProps : null }),
+  setPeopleSort: (peopleSort) => {
+    localStorageSet("peopleSort", peopleSort);
+    set({ peopleSort });
+  },
   setImportOpen: (importOpen) => set({ importOpen, peopleManager: importOpen ? null : get().peopleManager }),
   selectFolderByPath: (path) => {
     const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/$/, "").toLowerCase();
@@ -628,7 +642,7 @@ function homeFolder(s: State, photoId: number): number | null {
 
 /** An album presented with the Folder shape so the grid can render it like a folder. */
 export function albumAsFolder(a: Album): Folder {
-  return { id: -a.id, name: a.name, path: "Album", description: a.description, dateMin: a.created, dateMax: a.created, updated: a.created, bytes: 0, sort: a.sort, photos: a.photos };
+  return { id: -a.id, name: a.name, path: "Album", description: a.description, dateMin: a.created, dateMax: a.created, updated: a.created, bytes: 0, sort: a.sort, reverse: a.reverse, photos: a.photos };
 }
 
 /** A person album presented with the Folder shape. */

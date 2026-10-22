@@ -223,3 +223,13 @@ turned face recognition on or off. Name tags were saved in each folder's `.picas
 imported. Picaluma's detection (YuNet) and recognition (SFace) run on the computer; nothing is
 uploaded. Not copied: contact sync with Google, web album face sync, movies from faces.
 
+## Folder double-click and sorting (checked in Picasa 3.9, 2026-10-22)
+
+- Double-click a folder in the folder list, or its title in the grid → **Folder Properties**:
+  Name, Date (date picker + *Automatic date*), Music (*Use music for Slideshow and Movie
+  presentation* + Browse…), Place taken (optional), Description (optional), OK / Cancel. ✅
+- Folder right-click › **Sort Folder By ▸ Name · Date · Size · Reverse order**. ✅
+- Toolbar ▾: Sort by Date · Sort by Recent Changes · Sort by Size · Sort by Name · Reverse sort ·
+  Sort People by Name · Sort People by Amount · Sort People by Top 10 · Shortcuts ▸ · Show
+  Thumbnails in Library · Simplified Tree View. ✅ (except the last three)
+

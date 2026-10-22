@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, photoUrl } from "../api";
+import { api, musicUrl, photoUrl } from "../api";
 import { loadSlideshowOpts } from "../slideshowOpts";
 import { render } from "../effects";
 import { useStore } from "../store";
@@ -18,6 +18,19 @@ export default function Slideshow() {
   // Options are read when the slideshow starts.
   const opts = useMemo(() => loadSlideshowOpts(), [show != null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [caption, setCaption] = useState("");
+  // Folder Properties › music: the folder of the first picture.
+  const music = useMemo(() => {
+    if (!show) return null;
+    const s = useStore.getState();
+    const folder = s.folderOfPhoto.get(show.photos[0]);
+    return folder != null && s.folderById.get(folder)?.music ? musicUrl(folder) : null;
+  }, [show != null]); // eslint-disable-line react-hooks/exhaustive-deps
+  const audio = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const a = audio.current;
+    if (!a) return;
+    playing ? a.play().catch(() => {}) : a.pause();
+  }, [playing, music]);
 
   useEffect(() => {
     if (!show) return;
@@ -98,6 +111,7 @@ export default function Slideshow() {
         <img key={`b${layers.b}`} className={`${layers.front === "b" ? "front" : ""}${style(layers.b).transform ? " rot" : ""}`} src={photoUrl(layers.b)} style={{ ...style(layers.b), opacity: layers.front === "b" ? 1 : 0 }} alt="" />
       )}
       {caption && <div className="slide-caption">{caption}</div>}
+      {music && <audio ref={audio} src={music} autoPlay loop />}
       <div className="bar" onClick={(e) => e.stopPropagation()}>
         <button onClick={() => setIndex(Math.max(0, show.index - 1))}>⏮</button>
         <button onClick={() => setPlaying((p) => !p)}>{playing ? "⏸" : "▶"}</button>

@@ -2920,3 +2920,50 @@ button.link:hover {
   font-size: 11px;
   margin-bottom: 14px;
 }
+
+/* Folder Properties */
+.folder-props {
+  width: 540px;
+}
+.fp-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 10px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.fp-grid > label,
+.fp-grid > span:not(.fp-row):not(.fp-col) {
+  text-align: right;
+}
+.fp-grid input:not([type="checkbox"]),
+.fp-grid textarea {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid #b8c0c8;
+  border-radius: 3px;
+  font: inherit;
+}
+.fp-grid textarea {
+  height: auto;
+  padding: 4px 6px;
+  resize: vertical;
+}
+.fp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fp-music {
+  flex: 1;
+  color: var(--muted);
+}
+.folder-head h2,
+.folder-head .date {
+  cursor: default;
+}

@@ -393,8 +393,12 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
       <div className="title-row">
         {person?.cover != null ? <img className="face-ico head" src={faceUrl(person.cover)} alt="" /> : <FolderIcon size={34} />}
         <div style={{ minWidth: 0 }}>
-          <h2 title={person ? person.name : folder.path}>{folder.name}</h2>
-          <div className="date">{person ? `${person.photos.length.toLocaleString()} pictures` : range}</div>
+          <h2 title={person ? person.name : `${folder.path}\nDouble-click for Folder Properties`} onDoubleClick={() => useStore.getState().setFolderProps(folder.id)}>
+            {folder.name}
+          </h2>
+          <div className="date" onDoubleClick={() => useStore.getState().setFolderProps(folder.id)}>
+            {person ? `${person.photos.length.toLocaleString()} pictures` : folder.place ? `${range} · ${folder.place}` : range}
+          </div>
         </div>
       </div>
       <div className="actions">

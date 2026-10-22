@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.13 — 2026-10-22
+
+- **Double-click a folder** (in the folder list, or its title above the pictures) for **Folder
+  Properties**, as in Picasa: rename it, set its date (or *Automatic date* from the pictures),
+  choose music for its slideshow, and add the place taken and a description. *Edit Folder
+  Description* opens the same window.
+- **Sort Folder By** now matches Picasa: Name, Date, Size and **Reverse order** (albums too).
+- The ▾ sort menu uses Picasa's wording and adds **Sort People by Name / Amount / Top 10**.
+
 ## 0.7.12 — 2026-10-22
 
 - **Timeline** (*View › Timeline*, Ctrl+5) — the library's folders in date order on a timeline,

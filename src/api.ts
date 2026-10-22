@@ -11,6 +11,12 @@ export interface Folder {
   bytes: number;
   /** Sort Folder By: "" (date taken), "modified", "name" or "size". */
   sort: string;
+  /** Sort Folder By › Reverse order. */
+  reverse?: boolean;
+  /** Folder Properties: date set by hand (dateMin/dateMax hold it), place taken, slideshow music. */
+  dateSet?: boolean;
+  place?: string;
+  music?: string;
   photos: number[];
 }
 
@@ -21,6 +27,7 @@ export interface Album {
   created: number;
   /** Sort Album By: "" (as arranged), "date", "modified", "name" or "size". */
   sort: string;
+  reverse?: boolean;
   photos: number[];
 }
 
@@ -138,6 +145,8 @@ export const setLibraryTag = (id: string) => (libraryTag = id);
 export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}`;
 export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}`;
 export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;
+/** A folder's slideshow music (Folder Properties). */
+export const musicUrl = (folderId: number) => `${PHOTO}music/${folderId}?l=${libraryTag}&t=${Date.now()}`;
 /** Thumbnail of a file being imported (not in the library yet). */
 export const importThumbUrl = (path: string) => `${THUMB}file?p=${encodeURIComponent(path)}`;
 
@@ -206,7 +215,8 @@ export const api = {
   importPicasaFaces: () => invoke<[number, number]>("import_picasa_faces"),
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
-  setSort: (id: number, sort: string) => invoke<void>("set_sort", { id, sort }),
+  setSort: (id: number, sort: string, reverse = false) => invoke<void>("set_sort", { id, sort, reverse }),
+  setFolderProps: (id: number, date: number, place: string, music: string) => invoke<void>("set_folder_props", { id, date, place, music }),
   importSources: () => invoke<ImportSource[]>("import_sources"),
   scanImport: (path: string) => invoke<ImportItem[]>("scan_import", { path }),
   importDefaultDest: () => invoke<string>("import_default_dest"),

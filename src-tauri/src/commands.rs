@@ -30,6 +30,13 @@ pub struct FolderDto {
   bytes: i64,
   /// Sort Folder By: "" (date taken), "modified", "name" or "size".
   sort: String,
+  /// Sort Folder By › Reverse order.
+  reverse: bool,
+  /// Folder Properties: the date was set by hand (date_min/date_max hold it).
+  date_set: bool,
+  place: String,
+  /// Slideshow music file ("" = none).
+  music: String,
   photos: Vec<i64>,
 }
 
@@ -43,6 +50,8 @@ pub struct AlbumDto {
   photos: Vec<i64>,
   /// Sort Album By: "" (as arranged), "date", "modified", "name" or "size".
   sort: String,
+  /// Sort Album By › Reverse order.
+  reverse: bool,
 }
 
 #[derive(Serialize)]
@@ -115,7 +124,7 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   let mut folders: Vec<FolderDto> = {
     let mut stmt = conn
       .prepare(
-        "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort FROM folders
+        "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort, sort_rev, date_set, place, music FROM folders
          WHERE photo_count > 0 ORDER BY updated DESC, name",
       )
       .map_err(err)?;
@@ -131,6 +140,10 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
           updated: r.get(6)?,
           bytes: r.get(7)?,
           sort: r.get(8)?,
+          reverse: r.get::<_, i64>(9)? != 0,
+          date_set: r.get::<_, i64>(10)? != 0,
+          place: r.get(11)?,
+          music: r.get(12)?,
           photos: Vec::new(),
         })
       })
@@ -189,6 +202,17 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   drop(rows);
   drop(stmt);
   let library_id = db::library_id(&conn);
+  for f in folders.iter_mut() {
+    if f.reverse {
+      f.photos.reverse();
+    }
+    // A date set in Folder Properties replaces the pictures' dates.
+    if f.date_set {
+      let set: i64 = conn.query_row("SELECT date_set FROM folders WHERE id = ?1", [f.id], |r| r.get(0)).unwrap_or(0);
+      f.date_min = set;
+      f.date_max = set;
+    }
+  }
   let albums = load_albums(&conn).map_err(err)?;
   let (people, faced, unnamed) = crate::people::snapshot(&conn).map_err(err)?;
   Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, hidden, recent, people, faced, unnamed })
@@ -196,9 +220,17 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
 
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
   let mut albums: Vec<AlbumDto> = {
-    let mut stmt = conn.prepare("SELECT id, name, description, created, sort FROM albums ORDER BY created DESC, id DESC")?;
+    let mut stmt = conn.prepare("SELECT id, name, description, created, sort, sort_rev FROM albums ORDER BY created DESC, id DESC")?;
     let rows = stmt.query_map([], |r| {
-      Ok(AlbumDto { id: r.get(0)?, name: r.get(1)?, description: r.get(2)?, created: r.get(3)?, sort: r.get(4)?, photos: Vec::new() })
+      Ok(AlbumDto {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        description: r.get(2)?,
+        created: r.get(3)?,
+        sort: r.get(4)?,
+        reverse: r.get::<_, i64>(5)? != 0,
+        photos: Vec::new(),
+      })
     })?;
     rows.filter_map(Result::ok).collect()
   };
@@ -218,6 +250,9 @@ fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
     if let Some(&i) = index.get(&r.get::<_, i64>(0)?) {
       albums[i].photos.push(r.get(1)?);
     }
+  }
+  for a in albums.iter_mut().filter(|a| a.reverse) {
+    a.photos.reverse();
   }
   Ok(albums)
 }
@@ -597,18 +632,33 @@ pub fn prioritize_folder(app: AppHandle, id: i64) {
 
 /// Folder › Sort Folder By / Album › Sort Album By. `id` < 0 is an album (as in the UI).
 #[tauri::command(async)]
-pub fn set_sort(state: State<'_, AppState>, id: i64, sort: String) -> CmdResult<()> {
+pub fn set_sort(state: State<'_, AppState>, id: i64, sort: String, reverse: Option<bool>) -> CmdResult<()> {
   let allowed = ["", "date", "modified", "name", "size"];
   if !allowed.contains(&sort.as_str()) {
     return Err(format!("unknown sort {sort}"));
   }
+  let rev = reverse.unwrap_or(false) as i64;
   let conn = state.db.lock().map_err(err)?;
   if id < 0 {
-    conn.execute("UPDATE albums SET sort = ?1 WHERE id = ?2", params![sort, -id]).map_err(err)?;
+    conn.execute("UPDATE albums SET sort = ?1, sort_rev = ?3 WHERE id = ?2", params![sort, -id, rev]).map_err(err)?;
   } else {
     let sort = if sort == "date" { "" } else { sort.as_str() };
-    conn.execute("UPDATE folders SET sort = ?1 WHERE id = ?2", params![sort, id]).map_err(err)?;
+    conn.execute("UPDATE folders SET sort = ?1, sort_rev = ?3 WHERE id = ?2", params![sort, id, rev]).map_err(err)?;
   }
+  Ok(())
+}
+
+/// Folder Properties (double-click a folder): the date (0 = automatic, from its pictures), the
+/// place taken and slideshow music. Name and description have their own commands.
+#[tauri::command(async)]
+pub fn set_folder_props(state: State<'_, AppState>, id: i64, date: i64, place: String, music: String) -> CmdResult<()> {
+  if !music.is_empty() && !std::path::Path::new(&music).is_file() {
+    return Err(format!("{music} isn't a file."));
+  }
+  let conn = state.db.lock().map_err(err)?;
+  conn
+    .execute("UPDATE folders SET date_set = ?2, place = ?3, music = ?4 WHERE id = ?1", params![id, date.max(0), place.trim(), music])
+    .map_err(err)?;
   Ok(())
 }
 

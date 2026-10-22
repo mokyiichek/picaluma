@@ -33,7 +33,14 @@ export default function LeftPanel() {
   const albumView = useStore((s) => s.albumView);
   const openAlbum = useStore((s) => s.openAlbum);
   const folderCount = useStore((s) => s.snapshot?.folders.length ?? 0);
-  const people = useStore((s) => s.snapshot?.people ?? NO_PEOPLE);
+  const allPeople = useStore((s) => s.snapshot?.people ?? NO_PEOPLE);
+  const peopleSort = useStore((s) => s.peopleSort);
+  // Sort People by Name (as loaded), Amount (most pictures first) or Top 10.
+  const people = useMemo(() => {
+    if (peopleSort === "name") return allPeople;
+    const byCount = [...allPeople].sort((a, b) => b.photos.length - a.photos.length);
+    return peopleSort === "top" ? byCount.slice(0, 10) : byCount;
+  }, [allPeople, peopleSort]);
   const unnamed = useStore((s) => s.snapshot?.unnamed ?? 0);
   const personView = useStore((s) => s.personView);
   const openPerson = useStore((s) => s.openPerson);
@@ -326,6 +333,8 @@ function FolderTree() {
               className={`tree-row${r.id === current ? " sel" : ""}`}
               style={{ ...style, ...indent }}
               onMouseDown={(e) => e.button === 0 && selectFolder(r.id)}
+              onDoubleClick={() => useStore.getState().setFolderProps(r.id)}
+              title="Double-click for Folder Properties"
               onContextMenu={(e) => {
                 e.preventDefault();
                 selectFolder(r.id);

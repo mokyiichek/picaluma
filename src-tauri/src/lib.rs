@@ -144,6 +144,7 @@ pub fn run() {
       commands::export_picture,
       commands::prioritize_folder,
       commands::set_sort,
+      commands::set_folder_props,
       commands::photos_since,
       commands::set_hidden,
       commands::places,
