@@ -7,6 +7,7 @@ import { renderToCanvas } from "../effects";
 import { useStore } from "../store";
 import { confirmAsk, notify } from "../dialogs";
 import { plural } from "../format";
+import { takeRemake } from "../projects";
 
 type Transition = "dissolve" | "panzoom" | "cut";
 const SIZES: [string, number, number][] = [
@@ -61,6 +62,17 @@ export default function MovieMaker() {
     setTitle(f?.name ?? "");
     setMusic(f?.music ?? "");
     setProgress(null);
+    // Make Again: the options this movie was made with.
+    const r = takeRemake<{ seconds: number; transition: Transition; size: number; captions: boolean; fill: boolean; music: string; title: string }>("movie");
+    if (r) {
+      if (r.seconds) setSeconds(r.seconds);
+      if (r.transition) setTransition(r.transition);
+      if (r.size != null) setSize(r.size);
+      if (r.captions != null) setCaptions(r.captions);
+      if (r.fill != null) setFill(r.fill);
+      if (r.music != null) setMusic(r.music);
+      if (r.title != null) setTitle(r.title);
+    }
   }, [ids]);
 
   if (!ids) return null;
@@ -190,6 +202,7 @@ export default function MovieMaker() {
       if (cancel.current) throw new Error("cancelled");
       const blob = new Blob(chunks, { type: fmt.mime });
       const saved = await invoke<string>("write_bytes", new Uint8Array(await blob.arrayBuffer()), { headers: { path: encodeURIComponent(target) } });
+      api.addProject("movie", title || "Movie", saved, pics, { seconds, transition, size, captions, fill, music, title }).then(() => useStore.getState().loadSnapshot());
       close();
       if (await confirmAsk(`Movie saved:
 ${saved}`, { title: "Movie", ok: "Show in Folder", cancel: "OK" })) revealItemInDir(saved).catch(() => {});

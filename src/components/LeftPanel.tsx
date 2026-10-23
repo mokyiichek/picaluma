@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { pathParts, Section, selectVisible, useStore } from "../store";
 import { fmtMonth } from "../format";
-import { CollapseIcon, FolderIcon, PersonIcon, PicturesIcon, StarIcon } from "./Icons";
-import { faceUrl, type Album, type Person } from "../api";
+import { CollageIcon, CollapseIcon, FolderIcon, MovieIcon, PersonIcon, PicturesIcon, StarIcon } from "./Icons";
+import { faceUrl, type Album, type Person, type Project } from "../api";
 import { fmtMB, offerFaceModels } from "../faceModels";
 
 const NO_ALBUMS: Album[] = [];
 const NO_PEOPLE: Person[] = [];
+const NO_PROJECTS: Project[] = [];
 
 type Row =
   | { kind: "group"; label: string }
@@ -47,6 +48,8 @@ export default function LeftPanel() {
   const pm = useStore((s) => s.peopleManager);
   const progress = useStore((s) => s.faceProgress);
   const models = useStore((s) => s.faceModels);
+  const projects = useStore((s) => s.snapshot?.projects ?? NO_PROJECTS);
+  const projectView = useStore((s) => s.projectView);
 
   // Picasa: clicking a header toggles just that section; any combination can be open.
   const head = (id: Section, label: string) => (
@@ -174,7 +177,30 @@ export default function LeftPanel() {
           )}
         </div>
       )}
-      {head("folders", `Folders (${(albumView != null || personView != null ? folderCount : visible.length).toLocaleString()})`)}
+      {head("projects", `Projects (${projects.length.toLocaleString()})`)}
+      {open.projects && (
+        <div className="section-body auto">
+          {projects.map((p) => (
+            <div
+              key={p.id}
+              className={`tree-row${projectView === p.id ? " sel" : ""}`}
+              onMouseDown={(e) => e.button === 0 && useStore.getState().openProject(projectView === p.id ? null : p.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                useStore.getState().openContextMenu({ x: e.clientX, y: e.clientY, kind: "project", projectId: p.id });
+              }}
+              title={p.output || p.name}
+            >
+              {p.kind === "movie" ? <MovieIcon size={15} /> : <CollageIcon size={15} />}
+              <span className="name">
+                {p.name} ({p.photos.length.toLocaleString()})
+              </span>
+            </div>
+          ))}
+          {!projects.length && <div className="tree-hint">Collages and movies you make appear here.</div>}
+        </div>
+      )}
+      {head("folders", `Folders (${(albumView != null || personView != null || projectView != null ? folderCount : visible.length).toLocaleString()})`)}
       {open.folders && <FolderTree />}
     </div>
   );
@@ -204,11 +230,13 @@ function FolderTree() {
   const filtered = useStore(selectVisible);
   const albumView = useStore((s) => s.albumView);
   const personView = useStore((s) => s.personView);
+  const projectView = useStore((s) => s.projectView);
   const allFolders = useStore((s) => s.snapshot?.folders);
   // In album and person view the grid shows the album, but the tree still lists every folder.
   const visible = useMemo(
-    () => (albumView != null || personView != null ? (allFolders ?? []).map((folder) => ({ folder, photos: folder.photos })) : filtered),
-    [albumView, personView, allFolders, filtered],
+    () =>
+      albumView != null || personView != null || projectView != null ? (allFolders ?? []).map((folder) => ({ folder, photos: folder.photos })) : filtered,
+    [albumView, personView, projectView, allFolders, filtered],
   );
   const current = useStore((s) => s.currentFolderId);
   const selectFolder = useStore((s) => s.selectFolder);

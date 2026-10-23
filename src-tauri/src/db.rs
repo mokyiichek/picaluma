@@ -182,6 +182,18 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   // v0.7.9: People. Faces are found in the background (faces_done: 0 to do, 1 done, 2 skipped).
   // Face state: 0 unnamed, 1 named, 2 suggested name awaiting confirmation, 3 ignored.
   // Face source: 0 found by Picaluma, 1 added by hand, 2 imported from Picasa's name tags.
+  // v0.7.15: Projects (Picasa's section for the collages and movies you made).
+  conn.execute_batch(
+    "CREATE TABLE IF NOT EXISTS projects (
+       id       INTEGER PRIMARY KEY,
+       kind     TEXT NOT NULL,
+       name     TEXT NOT NULL,
+       created  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+       output   TEXT NOT NULL DEFAULT '',
+       photos   TEXT NOT NULL DEFAULT '[]',
+       settings TEXT NOT NULL DEFAULT '{}'
+     );",
+  )?;
   // v0.7.13: Sort Folder By › Reverse order, and Folder Properties (Picasa's double-click on a
   // folder): a date set by hand (0 = automatic), place taken and slideshow music.
   if !has_col("folders", "sort_rev")? {

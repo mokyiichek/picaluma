@@ -11,6 +11,7 @@ import { ArrowIcon, BackIcon, BrushIcon, PlayIcon, SunIcon, WrenchIcon } from ".
 import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
 import { askText, notify } from "../dialogs";
+import { menuOwnsShortcut } from "../nativeMenu";
 
 const STAGE_PAD = 14;
 /** Edit view zoom steps, as multiples of the fitted size. */
@@ -170,6 +171,7 @@ export default function EditView({ active }: { active: boolean }) {
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
+      if (menuOwnsShortcut(e)) return;
       const t = e.target as HTMLElement;
       if (t.tagName === "INPUT" && (t as HTMLInputElement).type !== "range") return;
       const s = useStore.getState();

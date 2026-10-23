@@ -6,6 +6,7 @@ import { plural } from "../format";
 import { joinPath, renderPicture } from "../share";
 import { useStore } from "../store";
 import { notify } from "../dialogs";
+import { takeRemake } from "../projects";
 
 const FORMATS = {
   "Screen (16:9)": 16 / 9,
@@ -109,6 +110,14 @@ export default function CollageDialog() {
   useEffect(() => {
     if (!ids) return;
     setThumbs([]);
+    // Make Again: the options this collage was made with.
+    const r = takeRemake<{ style: Style; format: Format; bg: keyof typeof BACKGROUNDS; spacing: number }>("collage");
+    if (r) {
+      if (r.style) setStyle(r.style);
+      if (r.format) setFormat(r.format);
+      if (r.bg) setBg(r.bg);
+      if (r.spacing != null) setSpacing(r.spacing);
+    }
     Promise.all(ids.map((id) => loadThumb(id).catch(() => null))).then((list) => setThumbs(list.filter((x): x is HTMLImageElement => !!x)));
   }, [ids]);
 
@@ -154,6 +163,7 @@ export default function CollageDialog() {
       const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", "");
       const dir = joinPath(joinPath(await pictureDir(), "Picaluma"), "Collages");
       const out = await api.exportPicture(joinPath(dir, `Collage ${stamp}.jpg`), data);
+      api.addProject("collage", `Collage ${stamp}`, out, ids, { style, format, bg, spacing }).then(() => useStore.getState().loadSnapshot());
       useStore.getState().setCollage(null);
       if (!desktop) revealItemInDir(out).catch(() => {});
     } catch (e) {

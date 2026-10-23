@@ -1,5 +1,6 @@
 import { fmtShortcut, isMac, platformItem } from "../platform";
 import { useEffect, useRef, useState } from "react";
+import { setNativeMenu } from "../nativeMenu";
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -277,6 +278,14 @@ export default function MenuBar() {
       window.removeEventListener("keydown", esc);
     };
   }, [open]);
+
+  // macOS: the menus go in the system menu bar, as in Picasa for Mac (falls back to this row).
+  const [native, setNative] = useState(isMac);
+  useEffect(() => {
+    if (!isMac) return;
+    setNativeMenu(menus).then((ok) => !ok && setNative(false));
+  });
+  if (native) return null;
 
   const openEntries = menus.find(([name]) => name === open)?.[1];
   const left = open ? titleRefs.current[open]?.offsetLeft ?? 0 : 0;

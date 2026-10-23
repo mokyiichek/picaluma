@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, FaceModels, FaceProgress, ScanProgress } from "./api";
 import { offerFaceModels, reportModelError } from "./faceModels";
+import { menuOwnsShortcut } from "./nativeMenu";
 import { selectEditorSequence, useStore } from "./store";
 import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
 import { copyPicture, folderIds, trayIds } from "./share";
@@ -77,6 +78,8 @@ export default function App() {
 
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
+      // On a Mac the menu bar answers its own ⌘ shortcuts.
+      if (menuOwnsShortcut(e)) return;
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
       if (typing || st.slideshow || st.timelineOpen || st.folderProps != null || st.movie != null || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
       const sel = [...st.selected];
@@ -195,6 +198,29 @@ export default function App() {
       }
     };
     window.addEventListener("keydown", onKey);
+    // Mac: ⌘C goes through the menu bar's Copy; with no text selected it copies the picture.
+    const onCopy = (e: ClipboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+      if (!isMac || typing || window.getSelection()?.toString() || trayIds().length !== 1) return;
+      e.preventDefault();
+      copyPicture(trayIds()[0]);
+    };
+    document.addEventListener("copy", onCopy);
+    // Esc closes the dialog in front, as in Picasa: its Cancel (or Close / OK) button.
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const backs = document.querySelectorAll(".modal-back");
+      const top = backs[backs.length - 1];
+      if (!top) return;
+      const buttons = [...top.querySelectorAll<HTMLButtonElement>(".foot button, .tool-buttons button")];
+      const pick = buttons.find((b) => /^(cancel|close)/i.test(b.textContent?.trim() ?? "")) ?? (buttons.length === 1 ? buttons[0] : undefined);
+      if (pick && !pick.disabled) {
+        e.preventDefault();
+        pick.click();
+      }
+    };
+    window.addEventListener("keydown", onEsc);
     // Block the webview's own context menu; Picaluma will add its own later.
     const noMenu = (e: MouseEvent) => e.preventDefault();
     window.addEventListener("contextmenu", noMenu);
@@ -206,6 +232,8 @@ export default function App() {
       unModels.then((f) => f());
       clearTimeout(offer);
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("copy", onCopy);
+      window.removeEventListener("keydown", onEsc);
       window.removeEventListener("contextmenu", noMenu);
     };
   }, []);

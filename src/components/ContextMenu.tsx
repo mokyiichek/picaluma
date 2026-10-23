@@ -3,7 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
 import { Edit } from "../effects";
-import { isPersonId, PERSON_BASE, selectVisible, useStore } from "../store";
+import { isPersonId, isProjectId, PERSON_BASE, PROJECT_BASE, selectVisible, useStore } from "../store";
+import { remakeProject } from "../projects";
 import { Item, MenuEntry } from "./MenuBar";
 import {
   copyEffects,
@@ -23,7 +24,7 @@ import {
   transferPhotos,
 } from "../actions";
 import { copyPicture } from "../share";
-import { askText, confirmAsk } from "../dialogs";
+import { askText, confirmAsk, notify } from "../dialogs";
 
 const sep: MenuEntry = { label: "", sep: true };
 
@@ -85,10 +86,11 @@ export default function ContextMenu() {
   }, [menu]);
 
   if (!menu) return null;
+  const projectId = menu.kind === "project" ? menu.projectId! : menu.kind === "folder" && isProjectId(menu.folderId!) ? PROJECT_BASE - menu.folderId! : null;
   const personId = menu.kind === "person" ? menu.personId! : menu.kind === "folder" && isPersonId(menu.folderId!) ? PERSON_BASE - menu.folderId! : null;
-  const albumId = menu.kind === "album" ? menu.albumId! : menu.kind === "folder" && menu.folderId! < 0 && personId == null ? -menu.folderId! : null;
+  const albumId = menu.kind === "album" ? menu.albumId! : menu.kind === "folder" && menu.folderId! < 0 && personId == null && projectId == null ? -menu.folderId! : null;
   const entries =
-    menu.kind === "photo" ? photoEntries() : personId != null ? personEntries(personId) : albumId != null ? albumEntries(albumId) : folderEntries(menu.folderId!);
+    menu.kind === "photo" ? photoEntries() : projectId != null ? projectEntries(projectId) : personId != null ? personEntries(personId) : albumId != null ? albumEntries(albumId) : folderEntries(menu.folderId!);
 
   return (
     <div className="menu-drop context" ref={ref} style={{ left: pos.x, top: pos.y, position: "fixed" }}>
@@ -183,6 +185,40 @@ function albumEntries(albumId: number): MenuEntry[] {
       label: "Delete Album",
       action: async () => {
         if (await confirmAsk(`Delete the album "${album.name}"?\n\nOnly the album is removed — the pictures stay in their folders.`, { ok: "Delete Album" })) s.deleteAlbum(albumId);
+      },
+    },
+  ];
+}
+
+/** Right-click on a project (a collage or movie that was made). */
+function projectEntries(projectId: number): MenuEntry[] {
+  const s = useStore.getState();
+  const p = s.snapshot?.projects?.find((x) => x.id === projectId);
+  if (!p) return [];
+  return [
+    { label: "View Pictures", action: () => s.openProject(projectId) },
+    { label: p.kind === "movie" ? "Play Movie" : "Open Collage", action: p.output ? () => api.openInDefaultApp(p.output).catch((e) => notify(String(e), "error")) : undefined },
+    { label: "Locate on Disk", shortcut: "Ctrl+Enter", action: p.output ? () => revealItemInDir(p.output).catch(() => {}) : undefined },
+    sep,
+    { label: "Make Again...", action: p.photos.length ? () => remakeProject(p) : undefined },
+    {
+      label: "Rename Project...",
+      action: async () => {
+        const n = await askText("Project name:", p.name, "Rename");
+        if (n && n.trim() && n !== p.name) {
+          await api.updateProject(projectId, { name: n });
+          s.loadSnapshot();
+        }
+      },
+    },
+    {
+      label: "Remove Project",
+      action: async () => {
+        if (await confirmAsk(`Remove "${p.name}" from Projects?\n\nThe ${p.kind === "movie" ? "movie" : "collage"} file and the pictures stay where they are.`, { ok: "Remove" })) {
+          await api.updateProject(projectId, { delete: true });
+          if (useStore.getState().projectView === projectId) useStore.getState().openProject(null);
+          s.loadSnapshot();
+        }
       },
     },
   ];

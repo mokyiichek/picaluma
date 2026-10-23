@@ -4,7 +4,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { faceUrl, thumbUrl, Folder } from "../api";
 import { cropViewBox, render } from "../effects";
 import { fmtDate } from "../format";
-import { isPersonId, PERSON_BASE, selectAlbum, selectPerson, selectVisible, useStore } from "../store";
+import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, selectProject, selectVisible, useStore } from "../store";
+import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
 import { useEditedThumb } from "../editedThumbs";
 import ImportView from "./ImportView";
@@ -48,6 +49,7 @@ export default function LibraryGrid() {
   const effects = useStore((s) => s.effects);
   const album = useStore(selectAlbum);
   const person = useStore(selectPerson);
+  const project = useStore(selectProject);
   const peopleManager = useStore((s) => s.peopleManager != null);
 
   useLayoutEffect(() => {
@@ -301,6 +303,15 @@ export default function LibraryGrid() {
     <div className="gridwrap">
       {peopleManager && <PeopleManager />}
       <ImportView />
+      {project && (
+        <div className="album-banner">
+          <button onClick={() => useStore.getState().openProject(null)}>Back to Folders</button>
+          <span>
+            {project.kind === "movie" ? "Movie" : "Collage"}: {project.name} — made from {project.photos.length.toLocaleString()} pictures
+          </span>
+          <button onClick={() => remakeProject(project)}>Make Again</button>
+        </div>
+      )}
       {person && (
         <div className="album-banner">
           <button onClick={() => useStore.getState().openPerson(null)}>Back to Folders</button>
@@ -418,7 +429,7 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
           <SaveIcon />
         </button>
       </div>
-      {!person && <input
+      {!person && !isProjectId(folder.id) && <input
         className="desc"
         data-desc={folder.id}
         value={desc}

@@ -225,7 +225,8 @@ fn run_scan(app: &AppHandle) {
   let db = state.db.clone();
   let started = Instant::now();
   let (roots, excluded) = load_roots(&db);
-  crate::watch::refresh(app, &roots);
+  let once = scan_once_roots(&db);
+  crate::watch::refresh(app, &roots.iter().filter(|r| !once.contains(r)).cloned().collect::<Vec<_>>());
   let mut progress = ScanProgress { scanning: true, phase: "listing".into(), ..Default::default() };
   let mut last_emit = Instant::now() - EVENT_THROTTLE;
   let mut seen: Vec<String> = Vec::new();
@@ -263,9 +264,18 @@ pub(crate) fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<Strin
     .unwrap()
     .filter_map(Result::ok)
     .collect();
-  let roots = rows.iter().filter(|r| r.1 == 0).map(|r| r.0.clone()).collect();
-  let excluded = rows.iter().filter(|r| r.1 != 0).map(|r| normalize(&r.0)).collect();
+  // Scan Always (0) and Scan Once (2) folders are scanned; Remove from Picaluma (1) excludes.
+  let roots = rows.iter().filter(|r| r.1 == 0 || r.1 == 2).map(|r| r.0.clone()).collect();
+  let excluded = rows.iter().filter(|r| r.1 == 1).map(|r| normalize(&r.0)).collect();
   (roots, excluded)
+}
+
+/// Scan Once folders: scanned, but not watched for changes.
+pub(crate) fn scan_once_roots(db: &Arc<Mutex<Connection>>) -> Vec<String> {
+  let conn = db.lock().unwrap();
+  let mut stmt = conn.prepare("SELECT path FROM roots WHERE excluded = 2").unwrap();
+  let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+  rows.filter_map(Result::ok).collect()
 }
 
 // ---------------------------------------------------------------------------------------------

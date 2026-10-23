@@ -39,6 +39,7 @@ const MAC_LABELS: Record<string, string> = {
   Exit: "Close Window",
 };
 const MAC_SHORTCUTS: Record<string, string> = {
+  "Close Window": "Ctrl+W",
   "Get Info": "Ctrl+I",
   "Preferences...": "Ctrl+,",
 };

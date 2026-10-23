@@ -31,6 +31,17 @@ export interface Album {
   photos: number[];
 }
 
+/** Projects: a collage or movie that was made, with the pictures and options it used. */
+export interface Project {
+  id: number;
+  kind: "collage" | "movie";
+  name: string;
+  created: number;
+  output: string;
+  photos: number[];
+  settings: string;
+}
+
 /** A person album (People). */
 export interface Person {
   id: number;
@@ -87,6 +98,7 @@ export interface Snapshot {
   videos: number[];
   hidden: number[];
   recent: number[];
+  projects: Project[];
   people: Person[];
   /** Photos with faces (Faces filter). */
   faced: number[];
@@ -113,6 +125,14 @@ export interface Photo {
 export interface Root {
   path: string;
   excluded: boolean;
+  /** Folder Manager: Scan Always, Scan Once or Remove from Picaluma. */
+  mode: "always" | "once" | "excluded";
+}
+
+export interface DirEntry {
+  name: string;
+  path: string;
+  hasChildren: boolean;
 }
 
 export interface ScanProgress {
@@ -169,6 +189,8 @@ export const api = {
   listRoots: () => invoke<Root[]>("list_roots"),
   addRoot: (path: string, excluded = false) => invoke<void>("add_root", { path, excluded }),
   removeRoot: (path: string) => invoke<void>("remove_root", { path }),
+  listDirs: (path: string | null) => invoke<DirEntry[]>("list_dirs", { path }),
+  applyFolderManager: (changes: [string, string][]) => invoke<void>("apply_folder_manager", { changes }),
   rescan: () => invoke<void>("rescan"),
   scanStatus: () => invoke<ScanProgress>("scan_status"),
   picasaScanlist: () => invoke<PicasaScanlist>("picasa_scanlist"),
@@ -216,6 +238,9 @@ export const api = {
   setFileTypes: (types: FileTypes) => invoke<void>("set_file_types", { types }),
   /** Folder or album (negative id) sort order. */
   setSort: (id: number, sort: string, reverse = false) => invoke<void>("set_sort", { id, sort, reverse }),
+  addProject: (kind: string, name: string, output: string, photos: number[], settings: object) =>
+    invoke<number>("add_project", { kind, name, output, photos, settings: JSON.stringify(settings) }),
+  updateProject: (id: number, patch: { name?: string; delete?: boolean }) => invoke<void>("update_project", { id, name: patch.name ?? null, delete: patch.delete ?? null }),
   allowMedia: (path: string) => invoke<void>("allow_media", { path }),
   setFolderProps: (id: number, date: number, place: string, music: string) => invoke<void>("set_folder_props", { id, date, place, music }),
   importSources: () => invoke<ImportSource[]>("import_sources"),

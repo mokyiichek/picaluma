@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Album, api, Face, FaceModels, FaceProgress, Folder, Person, ScanProgress, setLibraryTag, Snapshot } from "./api";
+import { Album, api, Face, FaceModels, FaceProgress, Folder, Person, Project, ScanProgress, setLibraryTag, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
 
 export interface Rect {
@@ -24,7 +24,7 @@ export interface VisibleFolder {
   photos: number[];
 }
 
-export type Section = "albums" | "people" | "folders";
+export type Section = "albums" | "people" | "projects" | "folders";
 const DAY = 86400;
 /** Filters date slider, like Picasa's: show only photos newer than… */
 export const DATE_STEPS: [string, number][] = [
@@ -42,7 +42,10 @@ export const DATE_STEPS: [string, number][] = [
 
 /** Person albums are shown through the folder grid with ids at or below this. */
 export const PERSON_BASE = -1_000_000;
-export const isPersonId = (id: number) => id <= PERSON_BASE;
+export const isPersonId = (id: number) => id <= PERSON_BASE && id > PROJECT_BASE;
+/** Projects are shown through the folder grid with ids at or below this. */
+export const PROJECT_BASE = -2_000_000;
+export const isProjectId = (id: number) => id <= PROJECT_BASE;
 
 export type FolderSort = "updated" | "created" | "name" | "size";
 
@@ -66,6 +69,10 @@ interface State {
   held: number[];
   /** Person album shown in the grid (People section). */
   personView: number | null;
+  /** Project shown in the grid (Projects section): the pictures it was made from. */
+  projectView: number | null;
+  /** Reopen Collage / Movie with a project's options ("Make Again"). */
+  remake: { kind: string; settings: string } | null;
   /** People Manager in place of the grid: unnamed face groups or suggestions to confirm. */
   peopleManager: { tab: "unnamed" | "suggestions"; person?: number } | null;
   /** Filters › faces: only photos with faces. */
@@ -91,7 +98,7 @@ interface State {
   effects: boolean;
   optionsOpen: boolean;
   sidePanel: "props" | "tags" | "people" | "places";
-  contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album" | "person"; folderId?: number; albumId?: number; personId?: number } | null;
+  contextMenu: { x: number; y: number; kind: "photo" | "folder" | "album" | "person" | "project"; folderId?: number; albumId?: number; personId?: number; projectId?: number } | null;
   leftWidth: number;
   /** Left-panel sections, each opened/closed independently like Picasa's. */
   openSections: Record<Section, boolean>;
@@ -163,6 +170,8 @@ interface State {
   togglePeople: () => void;
   togglePlaces: () => void;
   openPerson: (id: number | null) => void;
+  openProject: (id: number | null) => void;
+  setRemake: (r: { kind: string; settings: string } | null) => void;
   setPeopleManager: (pm: { tab: "unnamed" | "suggestions"; person?: number } | null) => void;
   setFacesOnly: (on: boolean) => void;
   setFaceProgress: (p: FaceProgress) => void;
@@ -236,6 +245,8 @@ export const useStore = create<State>((set, get) => ({
   recentOnly: false,
   held: [],
   personView: null,
+  projectView: null,
+  remake: null,
   peopleManager: null,
   facesOnly: false,
   faceProgress: { running: false, done: 0, total: 0 },
@@ -306,6 +317,8 @@ export const useStore = create<State>((set, get) => ({
     const albumAlive = albumView != null && snapshot.albums.some((a) => a.id === albumView);
     const personView = get().personView;
     const personAlive = personView != null && (snapshot.people ?? []).some((p) => p.id === personView);
+    const projectView = get().projectView;
+    const projectAlive = projectView != null && (snapshot.projects ?? []).some((p) => p.id === projectView);
     set({
       snapshot,
       folderById,
@@ -320,7 +333,10 @@ export const useStore = create<State>((set, get) => ({
       edits,
       albumView: albumAlive ? albumView : null,
       personView: personAlive ? personView : null,
-      currentFolderId: personAlive
+      projectView: projectAlive ? projectView : null,
+      currentFolderId: projectAlive
+        ? PROJECT_BASE - projectView!
+        : personAlive
         ? PERSON_BASE - personView!
         : albumAlive
           ? -albumView!
@@ -347,6 +363,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       albumView: id < 0 ? get().albumView : null,
       personView: id < 0 ? get().personView : null,
+      projectView: id < 0 ? get().projectView : null,
       peopleManager: null,
       currentFolderId: id,
       selected: new Set(),
@@ -433,8 +450,23 @@ export const useStore = create<State>((set, get) => ({
     set({ showProps: !(showProps && sidePanel === "places"), sidePanel: "places" });
   },
 
+  openProject: (id) =>
+    set({
+      projectView: id,
+      personView: null,
+      albumView: null,
+      peopleManager: null,
+      openSections: id != null ? { ...get().openSections, projects: true } : get().openSections,
+      starredOnly: false,
+      selected: new Set(),
+      anchor: null,
+      currentFolderId: id != null ? PROJECT_BASE - id : get().snapshot?.folders[0]?.id ?? null,
+      scrollTarget: id != null ? { folderId: PROJECT_BASE - id, nonce: Date.now() } : get().scrollTarget,
+    }),
+  setRemake: (remake) => set({ remake }),
   openPerson: (id) =>
     set({
+      projectView: null,
       personView: id,
       albumView: null,
       peopleManager: null,
@@ -574,8 +606,8 @@ export const useStore = create<State>((set, get) => ({
   setFolderManager: (folderManager) => set({ folderManager }),
 
   setFolderDescription: (id, text) => {
-    // Negative ids are albums shown through the folder header (people have no description).
-    if (isPersonId(id)) return;
+    // Negative ids are albums shown through the folder header (people and projects have none).
+    if (isPersonId(id) || isProjectId(id)) return;
     if (id < 0) {
       const a = get().snapshot?.albums.find((x) => x.id === -id);
       if (a) a.description = text;
@@ -591,6 +623,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       albumView: id,
       personView: null,
+      projectView: null,
       peopleManager: null,
       openSections: id != null ? { ...get().openSections, albums: true } : get().openSections,
       starredOnly: false,
@@ -640,6 +673,7 @@ export const useStore = create<State>((set, get) => ({
 
 /** The grid section a photo belongs to: the open album, else its folder. */
 function homeFolder(s: State, photoId: number): number | null {
+  if (s.projectView != null) return PROJECT_BASE - s.projectView;
   if (s.personView != null) return PERSON_BASE - s.personView;
   if (s.albumView != null) return -s.albumView;
   return s.folderOfPhoto.get(photoId) ?? s.currentFolderId;
@@ -655,6 +689,15 @@ export function personAsFolder(p: Person): Folder {
   return { id: PERSON_BASE - p.id, name: p.name, path: "Person", description: "", dateMin: 0, dateMax: 0, updated: 0, bytes: 0, sort: "", photos: p.photos };
 }
 
+/** A project presented with the Folder shape. */
+export function projectAsFolder(p: Project): Folder {
+  return { id: PROJECT_BASE - p.id, name: p.name, path: p.output || "Project", description: "", dateMin: p.created, dateMax: p.created, updated: p.created, bytes: 0, sort: "", photos: p.photos };
+}
+
+export function selectProject(s: State): Project | undefined {
+  return s.projectView != null ? s.snapshot?.projects?.find((p) => p.id === s.projectView) : undefined;
+}
+
 export function selectPerson(s: State): Person | undefined {
   return s.personView != null ? s.snapshot?.people?.find((p) => p.id === s.personView) : undefined;
 }
@@ -666,11 +709,12 @@ export function selectAlbum(s: State): Album | undefined {
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.geoOnly, s.videoOnly, s.facesOnly, s.recentOnly, s.showHidden, s.hidden, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.projectView, s.geoOnly, s.videoOnly, s.facesOnly, s.recentOnly, s.showHidden, s.hidden, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
   const album = selectAlbum(s);
   const person = selectPerson(s);
-  const folders = person ? [personAsFolder(person)] : album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
+  const project = selectProject(s);
+  const folders = project ? [projectAsFolder(project)] : person ? [personAsFolder(person)] : album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
   const ids = s.search?.ids;
   const value: VisibleFolder[] = [];
   for (const folder of folders) {
@@ -730,7 +774,7 @@ function sortFolders(folders: Folder[], view: "flat" | "tree", sort: FolderSort,
 /** Photos the editor's prev/next and filmstrip walk through: the current folder, filtered. */
 export function selectEditorSequence(s: State): number[] {
   if (s.editId == null) return [];
-  if (s.albumView != null || s.personView != null) return selectVisible(s)[0]?.photos ?? [];
+  if (s.albumView != null || s.personView != null || s.projectView != null) return selectVisible(s)[0]?.photos ?? [];
   const fid = s.folderOfPhoto.get(s.editId);
   const vis = selectVisible(s).find((v) => v.folder.id === fid);
   return vis?.photos ?? (fid != null ? s.folderById.get(fid)?.photos ?? [] : []);
@@ -743,7 +787,7 @@ function applyEffectsClass(on: boolean): boolean {
 }
 
 function loadSections(): Record<Section, boolean> {
-  const fallback = { albums: true, people: false, folders: true };
+  const fallback = { albums: true, people: false, projects: false, folders: true };
   try {
     return { ...fallback, ...JSON.parse(localStorageGet("sections") ?? "{}") };
   } catch {

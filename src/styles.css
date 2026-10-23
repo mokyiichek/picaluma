@@ -3016,3 +3016,154 @@ button.link:hover {
   background: #1a8cff;
   transition: width 200ms linear;
 }
+
+/* ---------- Folder Manager (Picasa layout) ---------- */
+.folder-manager {
+  width: 900px;
+  max-width: calc(100vw - 40px);
+}
+.fm-intro {
+  margin: 10px 16px 6px;
+}
+.fm-quick {
+  display: flex;
+  gap: 8px;
+  margin: 0 16px 6px;
+}
+.fm-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 16px 10px;
+  height: 380px;
+}
+.fm-body > div {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #b8c0c8;
+  background: #fff;
+}
+.fm-cap {
+  padding: 4px 8px;
+  background: linear-gradient(#f6f7f8, #e3e6e9);
+  border-bottom: 1px solid #c8ced4;
+  font-weight: 600;
+  font-size: 11px;
+  flex: none;
+}
+.fm-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.fm-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 21px;
+  padding-right: 6px;
+  white-space: nowrap;
+  cursor: default;
+}
+.fm-row:hover {
+  background: #e3edf7;
+}
+.fm-row.sel {
+  background: #3875d7;
+  color: #fff;
+}
+.fm-row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fm-mark {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+.fm-row.sel .fm-mark {
+  color: #fff !important;
+}
+.fm-opts {
+  padding-bottom: 8px;
+  overflow: auto;
+}
+.fm-watched .fm-row .name {
+  direction: rtl;
+  text-align: left;
+}
+.fm-opts > :not(.fm-cap) {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.fm-path {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.fm-radio {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 6px 10px;
+}
+.fm-pending {
+  margin-right: auto;
+}
+
+/* ---------- Dialog standard (Picasa style, same on every platform) ----------
+   Caption with the app icon, light grey body, standard 75 × 23 px push buttons right-aligned
+   (default button outlined in blue), Esc closes. Sizes: prompts 420 px, small 460–540 px,
+   standard 640 px, large 760–900 px. */
+.modal {
+  font-size: 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.modal h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+.modal h3::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background: url("/logo.png") center / contain no-repeat;
+}
+.modal .foot {
+  align-items: center;
+  background: #e8e8e8;
+}
+.modal .foot .tbtn,
+.modal .tool-buttons .tbtn {
+  min-width: 75px;
+  height: 23px;
+  justify-content: center;
+}
+.modal .tbtn {
+  height: 23px;
+}
+.modal .tbtn.default {
+  box-shadow: inset 0 0 0 1px rgba(75, 125, 190, 0.35);
+}
+.modal.confirm,
+.modal.text-prompt {
+  width: 420px;
+}
+.modal.folder-props,
+.modal.share-dialog,
+.modal.options,
+.modal.shortcuts {
+  width: 540px;
+}

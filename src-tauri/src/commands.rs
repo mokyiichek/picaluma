@@ -70,6 +70,8 @@ pub struct Snapshot {
   hidden: Vec<i64>,
   /// Albums › Recently Updated: pictures whose file changed in the last 30 days.
   recent: Vec<i64>,
+  /// Projects: the collages and movies made, newest first.
+  projects: Vec<ProjectDto>,
   /// People albums, the photos with faces (Faces filter) and the number of unnamed faces.
   people: Vec<crate::people::PersonDto>,
   faced: Vec<i64>,
@@ -81,6 +83,8 @@ pub struct Snapshot {
 pub struct RootDto {
   path: String,
   excluded: bool,
+  /// "always", "once" or "excluded" (Folder Manager).
+  mode: &'static str,
 }
 
 #[derive(Serialize)]
@@ -215,7 +219,8 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
   }
   let albums = load_albums(&conn).map_err(err)?;
   let (people, faced, unnamed) = crate::people::snapshot(&conn).map_err(err)?;
-  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, hidden, recent, people, faced, unnamed })
+  let projects = load_projects(&conn).map_err(err)?;
+  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, hidden, recent, projects, people, faced, unnamed })
 }
 
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
@@ -322,7 +327,10 @@ pub fn list_roots(state: State<'_, AppState>) -> CmdResult<Vec<RootDto>> {
   let conn = state.db.lock().map_err(err)?;
   let mut stmt = conn.prepare("SELECT path, excluded FROM roots ORDER BY excluded, path").map_err(err)?;
   let rows = stmt
-    .query_map([], |r| Ok(RootDto { path: r.get(0)?, excluded: r.get::<_, i64>(1)? != 0 }))
+    .query_map([], |r| {
+      let m: i64 = r.get(1)?;
+      Ok(RootDto { path: r.get(0)?, excluded: m == 1, mode: match m { 1 => "excluded", 2 => "once", _ => "always" } })
+    })
     .map_err(err)?;
   Ok(rows.filter_map(Result::ok).collect())
 }
@@ -764,5 +772,161 @@ pub fn places(state: State<'_, AppState>, ids: Option<Vec<i64>>) -> CmdResult<Ve
     }
   }
   Ok(out)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
+  name: String,
+  path: String,
+  has_children: bool,
+}
+
+/// Folder Manager tree: the drives (no `path`), or the folders inside `path`.
+#[tauri::command(async)]
+pub fn list_dirs(app: AppHandle, path: Option<String>) -> Vec<DirEntry> {
+  let has_children = |p: &std::path::Path| {
+    std::fs::read_dir(p)
+      .map(|rd| rd.filter_map(Result::ok).take(400).any(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false) && !hidden_name(&e.file_name().to_string_lossy())))
+      .unwrap_or(false)
+  };
+  let Some(path) = path else {
+    let mut out = Vec::new();
+    #[cfg(windows)]
+    for letter in b'A'..=b'Z' {
+      let root = format!("{}:\\", letter as char);
+      if std::path::Path::new(&root).exists() {
+        out.push(DirEntry { name: format!("{}:", letter as char), path: root.clone(), has_children: true });
+      }
+    }
+    #[cfg(not(windows))]
+    {
+      use tauri::Manager;
+      if let Ok(home) = app.path().home_dir() {
+        out.push(DirEntry { name: home.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or("Home".into()), path: home.to_string_lossy().into_owned(), has_children: true });
+      }
+      let vols = if cfg!(target_os = "macos") { "/Volumes" } else { "/media" };
+      if let Ok(rd) = std::fs::read_dir(vols) {
+        for e in rd.filter_map(Result::ok) {
+          out.push(DirEntry { name: e.file_name().to_string_lossy().into_owned(), path: e.path().to_string_lossy().into_owned(), has_children: true });
+        }
+      }
+      out.push(DirEntry { name: "/".into(), path: "/".into(), has_children: true });
+    }
+    let _ = &app;
+    return out;
+  };
+  let mut out: Vec<DirEntry> = std::fs::read_dir(&path)
+    .map(|rd| {
+      rd.filter_map(Result::ok)
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter(|e| !hidden_name(&e.file_name().to_string_lossy()))
+        .map(|e| {
+          let p = e.path();
+          DirEntry { name: e.file_name().to_string_lossy().into_owned(), has_children: has_children(&p), path: p.to_string_lossy().into_owned() }
+        })
+        .collect()
+    })
+    .unwrap_or_default();
+  out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+  out
+}
+
+/// System and hidden folders the tree doesn't show.
+fn hidden_name(n: &str) -> bool {
+  n.starts_with('.') || n.starts_with('$') || matches!(n, "System Volume Information" | "Recovery" | "PerfLogs" | "Windows" | "node_modules")
+}
+
+/// Folder Manager › OK: each folder's new setting — "always" (Scan Always), "once" (Scan Once),
+/// "remove" (Remove from Picaluma) or "none" (no setting of its own) — then rescan.
+#[tauri::command(async)]
+pub fn apply_folder_manager(app: AppHandle, state: State<'_, AppState>, changes: Vec<(String, String)>) -> CmdResult<()> {
+  {
+    let mut conn = state.db.lock().map_err(err)?;
+    let tx = conn.transaction().map_err(err)?;
+    for (path, mode) in &changes {
+      match mode.as_str() {
+        "none" => {
+          tx.execute("DELETE FROM roots WHERE path = ?1", [path]).map_err(err)?;
+        }
+        m => {
+          let v = match m {
+            "always" => 0,
+            "remove" => 1,
+            "once" => 2,
+            _ => return Err(format!("unknown setting {m}")),
+          };
+          tx.execute("INSERT INTO roots(path, excluded) VALUES (?1, ?2) ON CONFLICT(path) DO UPDATE SET excluded = ?2", params![path, v]).map_err(err)?;
+        }
+      }
+    }
+    tx.commit().map_err(err)?;
+  }
+  scanner::spawn_rescan(app);
+  Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDto {
+  id: i64,
+  /// "collage" or "movie".
+  kind: String,
+  name: String,
+  created: i64,
+  /// The file it made ("" if none was kept).
+  output: String,
+  /// Pictures it was made from (those still in the library).
+  photos: Vec<i64>,
+  /// The options used, to make it again.
+  settings: String,
+}
+
+fn load_projects(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<ProjectDto>> {
+  let mut stmt = conn.prepare("SELECT id, kind, name, created, output, photos, settings FROM projects ORDER BY created DESC, id DESC")?;
+  let rows = stmt.query_map([], |r| {
+    let photos: String = r.get(5)?;
+    Ok(ProjectDto {
+      id: r.get(0)?,
+      kind: r.get(1)?,
+      name: r.get(2)?,
+      created: r.get(3)?,
+      output: r.get(4)?,
+      photos: serde_json::from_str(&photos).unwrap_or_default(),
+      settings: r.get(6)?,
+    })
+  })?;
+  let mut out: Vec<ProjectDto> = rows.filter_map(Result::ok).collect();
+  // Drop pictures that have since left the library.
+  let mut exists = conn.prepare_cached("SELECT 1 FROM photos WHERE id = ?1")?;
+  for p in out.iter_mut() {
+    p.photos.retain(|id| exists.exists([id]).unwrap_or(false));
+  }
+  Ok(out)
+}
+
+/// Remembers a collage or movie in Projects.
+#[tauri::command(async)]
+pub fn add_project(state: State<'_, AppState>, kind: String, name: String, output: String, photos: Vec<i64>, settings: String) -> CmdResult<i64> {
+  let conn = state.db.lock().map_err(err)?;
+  conn
+    .execute(
+      "INSERT INTO projects(kind, name, output, photos, settings, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+      params![kind, name, output, serde_json::to_string(&photos).map_err(err)?, settings, chrono::Local::now().naive_local().and_utc().timestamp()],
+    )
+    .map_err(err)?;
+  Ok(conn.last_insert_rowid())
+}
+
+/// Projects › Rename / Delete (deleting forgets the project; the file it made stays).
+#[tauri::command(async)]
+pub fn update_project(state: State<'_, AppState>, id: i64, name: Option<String>, delete: Option<bool>) -> CmdResult<()> {
+  let conn = state.db.lock().map_err(err)?;
+  if delete.unwrap_or(false) {
+    conn.execute("DELETE FROM projects WHERE id = ?1", [id]).map_err(err)?;
+  } else if let Some(n) = name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) {
+    conn.execute("UPDATE projects SET name = ?1 WHERE id = ?2", params![n, id]).map_err(err)?;
+  }
+  Ok(())
 }
 

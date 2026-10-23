@@ -82,3 +82,12 @@ From the View › Folder View menu and the toolbar dropdown:
   Buttons… · Options… / Preferences… *(Mac)*
 - **Help**: Help Contents / Picasa Help *(Mac)* · Keyboard Shortcuts · Forums · Online ReadMe ·
   Release Notes · Privacy Policy · Terms · Uninstalling Picasa · Check for Updates · About Picasa
+
+## Menu bar (decided 2026-10-23)
+
+Picasa for Mac used the **system menu bar** (Picasa's own menus — File, Edit, View, Folder,
+Picture, Create, Tools, Help — plus the standard app menu with About, Preferences… and Quit),
+not a menu row inside the window. Picaluma does the same on macOS (`src/nativeMenu.ts`), built
+from the same menu definitions as the in-window row on Windows and Linux. Picasa's own look —
+toolbar, panels, buttons and dialogs — stays the same on every platform, as it did in Picasa.
+

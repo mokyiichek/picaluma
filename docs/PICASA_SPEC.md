@@ -36,7 +36,7 @@ Top to bottom:
 
 - Collapsible sections: **Albums (n)**, **People (n)**, **Projects (n)**, **Folders (n)**. Each header
   toggles its own section open/closed independently; a collapsed Folders header shows the current
-  folder name in grey. ✅ (Projects ⬜)
+  folder name in grey. ✅ (Projects ✅: collages and movies made)
 - Folders sorted newest-first and grouped under headings `Updated <Month Year>` (by the
   folder's most recent file modification). ✅
 - Row: folder icon · `Name (count)`. Selected row: dark-blue fill, white text. ✅
@@ -186,7 +186,7 @@ Search suggestions show matching tags with counts, bold prefix (`house`hold (3))
 ## 13. Folder Manager / watched folders
 
 Dialog: folder tree on the left; for the current folder Scan Once / Remove from Picasa /
-Scan Always (+ Face Detection toggle); Watched Folders list; OK · Cancel · Help. 🟡
+Scan Always (+ Face Detection toggle); Watched Folders list; OK · Cancel · Help. ✅ (Face Detection lives in Options › Name Tags)
 
 Picasa stores its scan list in `<AppLocalDataPath>\Google\Picasa2\db3\scanlist.txt`
 (`AppLocalDataPath` from `HKCU\Software\Google\Picasa\Picasa2\Preferences`, default

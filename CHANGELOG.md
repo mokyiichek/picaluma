@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.15 — 2026-10-23
+
+- **Folder Manager, the Picasa way** (*Tools › Folder Manager*) — the folders on your disks as a
+  tree with Picasa's marks; for the selected folder choose **Scan Once**, **Remove from
+  Picaluma** or **Scan Always**; the watched folders listed on the right (click one to find it
+  in the tree). Changes apply with OK.
+- **Projects** — a new section in the left panel lists the collages and movies you make. Click
+  one to see the pictures it was made from; right-click to play or open it, find it on disk,
+  **Make Again** with the same options, rename or remove it.
+- **Mac: the standard menu bar** — on macOS the menus now sit in the system menu bar at the top
+  of the screen, as Picasa for Mac did: an app menu with About, Preferences and Quit, the usual
+  Edit commands for text, and ⌘ shortcuts. Windows and Linux keep the menu row in the window.
+- **Dialogs** follow one Picasa-style standard on every platform: caption with the app icon,
+  standard-size buttons with the default one highlighted, consistent widths, and Esc closes.
+
 ## 0.7.14 — 2026-10-23
 
 - **Movie** (*Create › Movie*, or the movie button above a folder), Picasa's Movie Maker: the
