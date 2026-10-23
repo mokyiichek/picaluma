@@ -62,7 +62,7 @@ Top to bottom:
   `[Back to View All]  Displaying 13,023 pictures in 155 albums (0.697 seconds) 11.3GB` ✅
 - The tree shrinks to only matching folders. ✅
 - A suggestion dropdown under the box lists matching tags/labels with counts
-  (`household (3)`, `house (3)`). ⬜
+  (`household (3)`, `house (3)`). ✅
 - Measured: "h" → 74,009 pictures in 1,427 albums (0.756 s); "house" → 13,023 in 155 (0.697 s).
 - Esc or the red ⊗ clears the search. ✅
 
@@ -79,12 +79,12 @@ Top to bottom:
 ## 6. Edit view
 
 Toolbar: `[← Back to Library]` · `[▶ Play]` · ◀ filmstrip (≈7 thumbs, current outlined) ▶ ·
-compare modes `[A] [AB] [AA]` (A and AB ✅; AA ⬜). Status bar: `Folder > file.jpg  date  WxH pixels  size  (10 of 252)` ✅
+compare modes `[A] [AB] [AA]` ✅ (AA pins the current picture on the left). Status bar: `Folder > file.jpg  date  WxH pixels  size  (10 of 252)` ✅
 
 Left panel (≈282 px), five tabs (icons: wrench, sun, brush, green brush, blue brush): ✅
 
 1. **Basic fixes** — Crop, Straighten, Redeye, I'm Feeling Lucky, Auto Contrast, Auto Color,
-   Retouch, Text; Fill Light slider; Undo / Redo. (Crop/Straighten/Redeye/Retouch/Text ⬜)
+   Retouch, Text; Fill Light slider; Undo / Redo. ✅
 2. **Tuning** — Fill Light, Highlights, Shadows (with magic-wand auto), Color Temperature,
    Neutral Color Picker. ✅
 3. **Effects 1** — Sharpen, Sepia, B&W, Warmify, Film Grain, Tint, Saturation, Soft Focus,
@@ -92,7 +92,7 @@ Left panel (≈282 px), five tabs (icons: wrench, sun, brush, green brush, blue 
 4. **Effects 2** — Infrared Film, Lomo-ish, Holga-ish, HDR-ish, Cinemascope, Orton-ish,
    1960's, Invert Colors, Heat Map, Cross Process, Posterize, Duo-Tone.
 5. **Effects 3** — Boost, Soften, Vignette, Pixelate, Focal Zoom, Pencil Sketch, Neon,
-   Comic Book, Border, Drop Shadow, Museum Matte, Polaroid. (Pixelate/Focal Zoom ⬜)
+   Comic Book, Border, Drop Shadow, Museum Matte, Polaroid. ✅
 
 Effect tiles show a live preview of the *current photo* with that effect; a blue counter
 badge shows how many times it is applied. Undo button names the last edit ("Undo B&W"). ✅

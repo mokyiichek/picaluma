@@ -241,6 +241,7 @@ export const api = {
   addProject: (kind: string, name: string, output: string, photos: number[], settings: object) =>
     invoke<number>("add_project", { kind, name, output, photos, settings: JSON.stringify(settings) }),
   updateProject: (id: number, patch: { name?: string; delete?: boolean }) => invoke<void>("update_project", { id, name: patch.name ?? null, delete: patch.delete ?? null }),
+  photoLabels: (ids: number[], kind: string) => invoke<[number, string][]>("photo_labels", { ids, kind }),
   allowMedia: (path: string) => invoke<void>("allow_media", { path }),
   setFolderProps: (id: number, date: number, place: string, music: string) => invoke<void>("set_folder_props", { id, date, place, music }),
   importSources: () => invoke<ImportSource[]>("import_sources"),

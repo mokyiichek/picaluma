@@ -8,6 +8,7 @@ import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, select
 import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
 import { useEditedThumb } from "../editedThumbs";
+import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
@@ -448,6 +449,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const geo = useStore((s) => s.geotagged.has(id));
   const video = useStore((s) => s.videos.has(id));
   const hidden = useStore((s) => s.hidden.has(id));
+  const caption = useThumbCaption(id);
   const edits = useStore((s) => s.edits.get(id));
   const clickPhoto = useStore((s) => s.clickPhoto);
   const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
@@ -497,6 +499,11 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
           <svg viewBox="0 0 24 24" width="12" height="12">
             <path d="M8 5v14l11-7z" fill="#fff" />
           </svg>
+        </span>
+      )}
+      {caption && (
+        <span className="thumb-caption" title={caption}>
+          {caption}
         </span>
       )}
       {starred && <StarIcon size={14} className="star" />}

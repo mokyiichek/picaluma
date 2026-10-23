@@ -137,11 +137,18 @@ export function EditToolbar() {
         </button>
       </div>
       <div className="compare-modes">
-        <button className={`tbtn mode${compare ? "" : " pressed"}`} title="The edited picture" onClick={() => setCompare(false)}>
+        <button className={`tbtn mode${compare === "a" ? " pressed" : ""}`} title="The edited picture" onClick={() => setCompare("a")}>
           A
         </button>
-        <button className={`tbtn mode${compare ? " pressed" : ""}`} title="Before and after, side by side" onClick={() => setCompare(true)}>
+        <button className={`tbtn mode${compare === "ab" ? " pressed" : ""}`} title="Before and after, side by side" onClick={() => setCompare("ab")}>
           AB
+        </button>
+        <button
+          className={`tbtn mode${compare === "aa" ? " pressed" : ""}`}
+          title="Compare two pictures: this one stays on the left while you move to others"
+          onClick={() => setCompare("aa")}
+        >
+          AA
         </button>
       </div>
     </div>
@@ -446,7 +453,13 @@ function Stage({
   const aspectNow = aspectCache.get(id) ?? baseAspect;
   const cropKey = r.crop?.join(",");
   // Before and after: the stage splits in two (not while a tool is open).
-  const compare = useStore((s) => s.compare) && !tool;
+  const mode = useStore((s) => s.compare);
+  const pin = useStore((s) => s.comparePin);
+  const pinEdits = useStore((s) => (pin != null ? s.edits.get(pin) : undefined));
+  // AA: the pinned picture on the left (once you've moved on to another one).
+  const pair = mode === "aa" && pin != null && pin !== id ? pin : null;
+  const compare = !tool && (mode === "ab" || pair != null);
+  const pinPreview = usePixelPreview(pair ?? id, pinEdits ?? [], pair != null);
   const halfW = compare ? (stage.w - STAGE_PAD) / 2 : stage.w;
   const box = useMemo(() => {
     if (!aspectNow || !stage.w) return null;
@@ -582,16 +595,22 @@ function Stage({
       onMouseDown={onPanStart}
     >
       <div className="zoom-layer" style={zoom.z > 1 ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.z})` } : undefined}>
-      {before && (
+      {before && pair == null && (
         <div className="edit-photo before" style={{ left: before.x, top: before.y, width: before.w, height: before.h }}>
           <img src={thumbUrl(id)} alt="" draggable={false} />
           <img className="full ready" src={photoUrl(id)} alt="" draggable={false} />
           <span className="compare-label">Before</span>
         </div>
       )}
+      {pair != null && stage.w > 0 && (
+        <div className="aa-pane" style={{ width: halfW }}>
+          <img src={pinPreview ?? thumbUrl(pair)} alt="" draggable={false} />
+          <span className="compare-label">Pinned</span>
+        </div>
+      )}
       {box && compare && (
         <span className="compare-label after" style={{ left: box.x + 8, top: box.y + box.h - 26 }}>
-          After
+          {pair != null ? "This picture" : "After"}
         </span>
       )}
       {box && (

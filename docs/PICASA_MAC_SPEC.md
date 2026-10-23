@@ -30,12 +30,12 @@ variants below on macOS. ✅ = implemented in Picaluma, ⬜ = planned.
 | Properties (Alt+Enter) | **Get Info** | ✅ (⌘I) |
 | Tools › Options | **Preferences…** | ✅ (⌘,) |
 | File › Exit | **Close Window** (Quit in the app menu) | ✅ |
-| My Documents / My Pictures / My Computer | **Documents / Pictures / On My Mac** | ⬜ (tree view) |
+| My Documents / My Pictures / My Computer | **Documents / Pictures / On My Mac** | ✅ (Folder Manager) |
 | Delete folder → Recycle Bin | "move the folder … to the **Bin**" (Trash) | ✅ (Trash) |
 | First scan: "Only search My Documents, My Pictures and the Desktop" | "**Only search Documents, Pictures, the Desktop and iPhoto Library**" | ✅ "Watch my Pictures folder" |
 | Ctrl shortcuts | ⌘ shortcuts | ✅ |
-| Movies saved as WMV/AVI | Movies saved as **QuickTime** | ⬜ (no movie maker yet) |
-| Music for movies: MP3/WMA | **MP3, M4A** | ⬜ |
+| Movies saved as WMV/AVI | Movies saved as **QuickTime** | ✅ MP4 (plays in QuickTime) |
+| Music for movies: MP3/WMA | **MP3, M4A** | ✅ (also AAC, WAV, OGG, FLAC) |
 | — | **File › Import from iPhoto…** — reads the iPhoto/Aperture library *in place* (read-only; editing a photo copies it out to `Picasa/Imported from iPhoto/`) | ⬜ modern equivalent: Photos library import |
 
 Native Mac touches noted by reviewers: native scrollbars in the left panel (Windows used
@@ -47,10 +47,10 @@ From the View › Folder View menu and the toolbar dropdown:
 
 - **Flat Folder View** — one list of folders, grouped by date (Picaluma's current view ✅).
 - **Tree View** — the full disk hierarchy (Windows root: *My Computer*; Mac root: *On My Mac*,
-  with *Documents* and *Pictures* shortcuts). ⬜
+  with *Documents* and *Pictures* shortcuts). ✅
 - **Simplified Tree View** — the hierarchy limited to watched folders. ⬜
-- **Sort by** Creation Date · Recent Changes · Size · Name, plus **Reverse sort**. ⬜
-- Folder › Sort By (photos inside a folder): Name · Date · Size · Reverse order. ⬜
+- **Sort by** Creation Date · Recent Changes · Size · Name, plus **Reverse sort**. ✅
+- Folder › Sort By (photos inside a folder): Name · Date · Size · Reverse order. ✅
 
 ## Full menu structure (shared, with Mac variants)
 

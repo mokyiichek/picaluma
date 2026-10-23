@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.16 — 2026-10-24
+
+- **AA compare** in Edit view, Picasa's third mode: the picture you're on is pinned on the left
+  while you move to others with ← → or the filmstrip — handy for choosing the best of similar
+  shots.
+- **View › Thumbnail Caption** — show the file name, caption, tags or size under every
+  thumbnail.
+- **Folder Manager on Mac** uses Picasa for Mac's names: Pictures, Documents, your home folder,
+  the disks and *On My Mac*.
+- Submenus stay open while the pointer moves to them; Esc closes every dialog; after making a
+  collage Picaluma asks before opening the folder.
+
 ## 0.7.15 — 2026-10-23
 
 - **Folder Manager, the Picasa way** (*Tools › Folder Manager*) — the folders on your disks as a

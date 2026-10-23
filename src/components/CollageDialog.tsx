@@ -5,7 +5,7 @@ import { api, thumbUrl } from "../api";
 import { plural } from "../format";
 import { joinPath, renderPicture } from "../share";
 import { useStore } from "../store";
-import { notify } from "../dialogs";
+import { confirmAsk, notify } from "../dialogs";
 import { takeRemake } from "../projects";
 
 const FORMATS = {
@@ -165,7 +165,8 @@ export default function CollageDialog() {
       const out = await api.exportPicture(joinPath(dir, `Collage ${stamp}.jpg`), data);
       api.addProject("collage", `Collage ${stamp}`, out, ids, { style, format, bg, spacing }).then(() => useStore.getState().loadSnapshot());
       useStore.getState().setCollage(null);
-      if (!desktop) revealItemInDir(out).catch(() => {});
+      if (!desktop && (await confirmAsk(`Collage saved:
+${out}`, { title: "Picture Collage", ok: "Show in Folder", cancel: "OK" }))) revealItemInDir(out).catch(() => {});
     } catch (e) {
       notify(`The collage couldn't be made: ${e}`, "error");
     }

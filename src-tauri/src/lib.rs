@@ -151,6 +151,7 @@ pub fn run() {
       commands::apply_folder_manager,
       commands::add_project,
       commands::update_project,
+      commands::photo_labels,
       commands::photos_since,
       commands::set_hidden,
       commands::places,

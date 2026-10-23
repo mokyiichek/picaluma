@@ -2,7 +2,7 @@ import { thumbUrl } from "../api";
 import { Edit } from "../effects";
 import { emailPhotos, exportPhotos, printPhotos } from "../actions";
 import { plural } from "../format";
-import { selectVisible, useStore } from "../store";
+import { isPersonId, isProjectId, selectVisible, useStore } from "../store";
 import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon } from "./Icons";
 
 export default function Tray() {
@@ -30,7 +30,7 @@ export default function Tray() {
   // Email / Print / Export act on the selection, or the whole folder when nothing is selected (as in Picasa).
   const targets = ids.length ? ids : folderPhotos;
   const stack = targets.slice(0, 3);
-  const kind = current != null && current < 0 ? "Album" : "Folder";
+  const kind = current == null || current > 0 ? "Folder" : isProjectId(current) ? "Project" : isPersonId(current) ? "Person" : "Album";
   const label = held.length
     ? `${plural(held.length, "photo")} held${ids.length > held.length ? ` + ${ids.length - held.length} selected` : ""}`
     : ids.length

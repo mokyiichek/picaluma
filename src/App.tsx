@@ -209,7 +209,7 @@ export default function App() {
     document.addEventListener("copy", onCopy);
     // Esc closes the dialog in front, as in Picasa: its Cancel (or Close / OK) button.
     const onEsc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (e.key !== "Escape") return;
       const backs = document.querySelectorAll(".modal-back");
       const top = backs[backs.length - 1];
       if (!top) return;
@@ -217,10 +217,12 @@ export default function App() {
       const pick = buttons.find((b) => /^(cancel|close)/i.test(b.textContent?.trim() ?? "")) ?? (buttons.length === 1 ? buttons[0] : undefined);
       if (pick && !pick.disabled) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         pick.click();
       }
     };
-    window.addEventListener("keydown", onEsc);
+    // Capture phase: the dialog in front gets Esc before the views behind it.
+    window.addEventListener("keydown", onEsc, true);
     // Block the webview's own context menu; Picaluma will add its own later.
     const noMenu = (e: MouseEvent) => e.preventDefault();
     window.addEventListener("contextmenu", noMenu);
@@ -233,7 +235,7 @@ export default function App() {
       clearTimeout(offer);
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("copy", onCopy);
-      window.removeEventListener("keydown", onEsc);
+      window.removeEventListener("keydown", onEsc, true);
       window.removeEventListener("contextmenu", noMenu);
     };
   }, []);

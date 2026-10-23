@@ -83,8 +83,10 @@ interface State {
   drawFace: boolean;
   /** Face highlighted on the picture (hovered in the People panel). */
   hoverFace: Face | null;
-  /** Edit view compare mode: [A] the picture, [AB] before and after side by side. */
-  compare: boolean;
+  /** Edit view compare mode: [A] the picture, [AB] before and after side by side, [AA] two
+   *  pictures side by side — the one pinned when AA was chosen, and the one you move to. */
+  compare: "a" | "ab" | "aa";
+  comparePin: number | null;
   edits: Map<number, Edit[]>;
 
   view: "library" | "edit";
@@ -128,6 +130,8 @@ interface State {
   timelineOpen: boolean;
   /** Create › Movie: the pictures to make a movie from. */
   movie: number[] | null;
+  /** View › Thumbnail Caption. */
+  thumbCaption: "none" | "filename" | "caption" | "tags" | "resolution";
   /** Folder Properties dialog (double-click a folder). */
   folderProps: number | null;
   /** The ▾ menu's Sort People by: "name", "amount" or "top" (the ten with most pictures). */
@@ -178,10 +182,11 @@ interface State {
   setFaceModels: (m: FaceModels) => void;
   setDrawFace: (on: boolean) => void;
   setHoverFace: (f: Face | null) => void;
-  setCompare: (on: boolean) => void;
+  setCompare: (mode: "a" | "ab" | "aa") => void;
   setImportOpen: (on: boolean) => void;
   setTimelineOpen: (on: boolean) => void;
   setFolderProps: (id: number | null) => void;
+  setThumbCaption: (k: State["thumbCaption"]) => void;
   setMovie: (ids: number[] | null) => void;
   setPeopleSort: (s: "name" | "amount" | "top") => void;
   selectFolderByPath: (path: string) => void;
@@ -253,7 +258,8 @@ export const useStore = create<State>((set, get) => ({
   faceModels: null,
   drawFace: false,
   hoverFace: null,
-  compare: false,
+  compare: "a",
+  comparePin: null,
   edits: new Map(),
 
   view: "library",
@@ -287,6 +293,7 @@ export const useStore = create<State>((set, get) => ({
   importOpen: false,
   timelineOpen: false,
   folderProps: null,
+  thumbCaption: (["filename", "caption", "tags", "resolution"].includes(localStorageGet("thumbCaption") ?? "") ? localStorageGet("thumbCaption") : "none") as State["thumbCaption"],
   movie: null,
   peopleSort: (localStorageGet("peopleSort") as "name" | "amount" | "top") || "name",
   pendingFolderPath: null,
@@ -484,10 +491,14 @@ export const useStore = create<State>((set, get) => ({
   setFaceModels: (faceModels) => set({ faceModels }),
   setDrawFace: (drawFace) => set({ drawFace }),
   setHoverFace: (hoverFace) => set({ hoverFace }),
-  setCompare: (compare) => set({ compare }),
+  setCompare: (compare) => set({ compare, comparePin: compare === "aa" ? get().editId : null }),
   setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
   // Albums and people have no folder properties.
   setFolderProps: (folderProps) => set({ folderProps: folderProps != null && folderProps > 0 ? folderProps : null }),
+  setThumbCaption: (thumbCaption) => {
+    localStorageSet("thumbCaption", thumbCaption);
+    set({ thumbCaption });
+  },
   setMovie: (ids) => set({ movie: ids && ids.length ? ids : null }),
   setPeopleSort: (peopleSort) => {
     localStorageSet("peopleSort", peopleSort);

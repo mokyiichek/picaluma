@@ -118,6 +118,18 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Tags", shortcut: "Ctrl+T", checked: s.showProps && s.sidePanel === "tags", action: s.toggleTags },
         { label: "People", checked: s.showProps && s.sidePanel === "people", action: s.togglePeople },
         { label: "Places", checked: s.showProps && s.sidePanel === "places", action: s.togglePlaces },
+        {
+          label: "Thumbnail Caption",
+          submenu: (
+            [
+              ["None", "none"],
+              ["Filename", "filename"],
+              ["Caption", "caption"],
+              ["Tags", "tags"],
+              ["Resolution", "resolution"],
+            ] as const
+          ).map(([label, k]) => ({ label, checked: s.thumbCaption === k, action: () => s.setThumbCaption(k) })),
+        },
         { label: "Hidden Pictures", checked: s.showHidden, action: () => s.setShowHidden(!s.showHidden) },
         sep,
         { label: "Flat Folder View", checked: s.folderView === "flat", action: () => s.setFolderView("flat") },
@@ -230,13 +242,20 @@ function focusDescription(folderId: number) {
 
 export function Item({ e, close, bold }: { e: MenuEntry; close: () => void; bold?: boolean }) {
   const [sub, setSub] = useState(false);
+  // A submenu stays open briefly after the pointer leaves, so it can travel diagonally to it.
+  const leave = useRef<number>();
   const p = platformItem(e.label, e.shortcut);
   const enabled = !!e.action || !!e.submenu?.some((x) => x.action);
   return (
     <div
       className={`menu-item${enabled ? "" : " disabled"}${e.checked ? " checked" : ""}${e.submenu ? " has-sub" : ""}${bold ? " bold" : ""}`}
-      onMouseEnter={() => e.submenu && setSub(true)}
-      onMouseLeave={() => e.submenu && setSub(false)}
+      onMouseEnter={() => {
+        clearTimeout(leave.current);
+        if (e.submenu) setSub(true);
+      }}
+      onMouseLeave={() => {
+        if (e.submenu) leave.current = window.setTimeout(() => setSub(false), 350);
+      }}
       onMouseUp={() => {
         if (!e.action) return;
         close();

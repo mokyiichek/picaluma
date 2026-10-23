@@ -802,6 +802,13 @@ pub fn list_dirs(app: AppHandle, path: Option<String>) -> Vec<DirEntry> {
     #[cfg(not(windows))]
     {
       use tauri::Manager;
+      // Picasa for Mac's names: Pictures, Documents, the home folder, the disks, "On My Mac".
+      if let Ok(p) = app.path().picture_dir() {
+        out.push(DirEntry { name: "Pictures".into(), path: p.to_string_lossy().into_owned(), has_children: true });
+      }
+      if let Ok(p) = app.path().document_dir() {
+        out.push(DirEntry { name: "Documents".into(), path: p.to_string_lossy().into_owned(), has_children: true });
+      }
       if let Ok(home) = app.path().home_dir() {
         out.push(DirEntry { name: home.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or("Home".into()), path: home.to_string_lossy().into_owned(), has_children: true });
       }
@@ -811,7 +818,7 @@ pub fn list_dirs(app: AppHandle, path: Option<String>) -> Vec<DirEntry> {
           out.push(DirEntry { name: e.file_name().to_string_lossy().into_owned(), path: e.path().to_string_lossy().into_owned(), has_children: true });
         }
       }
-      out.push(DirEntry { name: "/".into(), path: "/".into(), has_children: true });
+      out.push(DirEntry { name: if cfg!(target_os = "macos") { "On My Mac".into() } else { "/".into() }, path: "/".into(), has_children: true });
     }
     let _ = &app;
     return out;
@@ -930,3 +937,25 @@ pub fn update_project(state: State<'_, AppState>, id: i64, name: Option<String>,
   Ok(())
 }
 
+
+/// View › Thumbnail Caption: the text under each visible thumbnail — "filename", "caption",
+/// "tags" or "resolution".
+#[tauri::command(async)]
+pub fn photo_labels(state: State<'_, AppState>, ids: Vec<i64>, kind: String) -> CmdResult<Vec<(i64, String)>> {
+  let col = match kind.as_str() {
+    "filename" => "name",
+    "caption" => "caption",
+    "tags" => "tags",
+    "resolution" => "CASE WHEN width > 0 THEN width || ' x ' || height ELSE '' END",
+    _ => return Err(format!("unknown caption {kind}")),
+  };
+  let conn = state.db.lock().map_err(err)?;
+  let mut stmt = conn.prepare_cached(&format!("SELECT {col} FROM photos WHERE id = ?1")).map_err(err)?;
+  let mut out = Vec::with_capacity(ids.len());
+  for id in ids.into_iter().take(2000) {
+    if let Ok(text) = stmt.query_row([id], |r| r.get::<_, String>(0)) {
+      out.push((id, text.trim().to_string()));
+    }
+  }
+  Ok(out)
+}
