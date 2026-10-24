@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.18 — 2026-10-24
+
+- **Edits are kept with your pictures, the way Picasa did it** — every edit is recorded in a
+  small hidden `.picaluma.ini` file in the picture's folder, never in the picture. The edits go
+  wherever the folder goes (another computer, a backup, a synced drive).
+- **File › Save (Ctrl+S)** writes the edits into the picture, as in Picasa: the original is
+  first kept in a hidden `.picalumaoriginals` folder beside it. **File › Undo Save** puts the
+  original back, with its edits, so you can carry on changing them. *Save a Copy* still makes a
+  separate edited copy.
+- **Edits made in Picasa are picked up** from its `.picasa.ini` (crop, straighten, rotate, Fill
+  Light and tuning, sharpen, I'm Feeling Lucky, auto fixes and most effects), and pictures saved
+  in Picasa can go back to their original with Undo Save (from `.picasaoriginals`).
+- **Crop works like Picasa's** — no box until you drag one; Apply, Preview, Reset and Rotate wake
+  up once there is a box; the box size shows in the list (*Manual: 603 x 482*); drag any edge or
+  corner to resize, inside to move, outside to start again; suggested crops shown as thumbnails.
+
 ## 0.7.17 — 2026-10-24
 
 - **Crop works again** — dragging on the picture draws the crop box (before, the first drag

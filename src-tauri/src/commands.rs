@@ -514,9 +514,64 @@ pub fn set_folder_description(state: State<'_, AppState>, id: i64, description: 
 /// Edits are stored as a JSON stack and rendered non-destructively; originals are never touched.
 #[tauri::command(async)]
 pub fn set_edits(state: State<'_, AppState>, id: i64, edits: String) -> CmdResult<()> {
-  let conn = state.db.lock().map_err(err)?;
-  conn.execute("UPDATE photos SET edits = ?1 WHERE id = ?2", params![edits, id]).map_err(err)?;
+  let path: String = {
+    let conn = state.db.lock().map_err(err)?;
+    conn.execute("UPDATE photos SET edits = ?1 WHERE id = ?2", params![edits, id]).map_err(err)?;
+    conn.query_row("SELECT path FROM photos WHERE id = ?1", [id], |r| r.get(0)).map_err(err)?
+  };
+  // The folder's .picaluma.ini is the record (as Picasa's .picasa.ini was); the picture itself
+  // is only changed by Save.
+  if let Err(e) = crate::folderini::save_edits(std::path::Path::new(&path), &edits) {
+    log::warn!("edits for {path}: {e}");
+  }
   Ok(())
+}
+
+/// File › Save (Ctrl+S), as in Picasa: the edited picture replaces the original, which is kept in
+/// the folder's `.picalumaoriginals`; the edits are then part of the picture.
+#[tauri::command(async)]
+pub fn save_picture(app: AppHandle, state: State<'_, AppState>, id: i64, data_base64: String) -> CmdResult<()> {
+  let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(err)?;
+  let (path, edits): (String, String) = {
+    let conn = state.db.lock().map_err(err)?;
+    conn.query_row("SELECT path, edits FROM photos WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?
+  };
+  crate::folderini::save_over(std::path::Path::new(&path), &bytes, &edits)?;
+  {
+    let conn = state.db.lock().map_err(err)?;
+    // Re-read: new size, date, dimensions; orientation is now upright.
+    conn.execute("UPDATE photos SET edits = '', meta_done = 0, orientation = 1 WHERE id = ?1", [id]).map_err(err)?;
+  }
+  scanner::spawn_rescan(app);
+  Ok(())
+}
+
+/// File › Undo Save: the original comes back from `.picalumaoriginals` (or Picasa's
+/// `.picasaoriginals`), with the edits it had.
+#[tauri::command(async)]
+pub fn undo_save_picture(app: AppHandle, state: State<'_, AppState>, id: i64) -> CmdResult<String> {
+  let path: String = {
+    let conn = state.db.lock().map_err(err)?;
+    conn.query_row("SELECT path FROM photos WHERE id = ?1", [id], |r| r.get(0)).map_err(err)?
+  };
+  let edits = crate::folderini::undo_save(std::path::Path::new(&path))?;
+  {
+    let conn = state.db.lock().map_err(err)?;
+    conn.execute("UPDATE photos SET edits = ?1, meta_done = 0 WHERE id = ?2", params![if edits == "[]" { "" } else { edits.as_str() }, id]).map_err(err)?;
+  }
+  scanner::spawn_rescan(app);
+  Ok(edits)
+}
+
+/// Whether these pictures have a saved original (for File › Undo Save).
+#[tauri::command(async)]
+pub fn saved_originals(state: State<'_, AppState>, ids: Vec<i64>) -> CmdResult<Vec<i64>> {
+  let paths: Vec<(i64, String)> = {
+    let conn = state.db.lock().map_err(err)?;
+    let mut stmt = conn.prepare_cached("SELECT path FROM photos WHERE id = ?1").map_err(err)?;
+    ids.iter().filter_map(|id| stmt.query_row([id], |r| r.get::<_, String>(0)).ok().map(|p| (*id, p))).collect()
+  };
+  Ok(paths.into_iter().filter(|(_, p)| crate::folderini::original_of(std::path::Path::new(p)).is_some()).map(|(id, _)| id).collect())
 }
 
 #[derive(Serialize)]

@@ -2,12 +2,13 @@ import { useRef } from "react";
 import { thumbUrl } from "../api";
 import { askText, notify } from "../dialogs";
 import { aspectCache } from "../aspect";
-import { CropRect, cropViewBox, type Edit } from "../effects";
+import { CropRect, type Edit } from "../effects";
 import type { PixelTool } from "./PixelTools";
 
 export type Tool =
   /** `aspect`: the crop's width ÷ height as it will look (portrait < 1), or null for Manual. */
-  | { kind: "crop"; rect: CropRect; aspect: number | null; preview?: boolean }
+  /** `rect` is null until a box is drawn (Picasa starts with none). */
+  | { kind: "crop"; rect: CropRect | null; aspect: number | null; preview?: boolean }
   | { kind: "straighten"; angle: number }
   | PixelTool
   /** An effect's settings panel (Sharpen amount, Tint colour...), previewed live until Apply. */
@@ -47,12 +48,15 @@ function fitRect(r: number, imgAspect: number, scale = 1): CropRect {
 
 export function CropPanel({
   id,
+  dims,
   tool,
   setTool,
   onApply,
   onCancel,
 }: {
   id: number;
+  /** The picture's size in pixels, upright (for "Manual: 1811 x 1407"). */
+  dims: [number, number] | null;
   tool: CropTool;
   setTool: (t: Tool) => void;
   onApply: () => void;
@@ -64,8 +68,7 @@ export function CropPanel({
   const same = (a: number, b: number) => Math.abs(a - b) < 1e-6;
   const preset = tool.aspect == null ? "Manual" : PRESETS.find((p) => p.ratio && (same(p.ratio, tool.aspect!) || same(1 / p.ratio, tool.aspect!)))?.label ?? "Custom";
   // A preset follows the photo's orientation: portrait photos get portrait crops.
-  const choose = (ratio: number | null) =>
-    setTool({ ...tool, aspect: ratio, rect: ratio ? fitRect(ratio, aspect, 0.9) : tool.rect });
+  const choose = (ratio: number | null) => setTool({ ...tool, aspect: ratio, rect: ratio ? fitRect(ratio, aspect, 0.9) : tool.rect, preview: false });
   const custom = async () => {
     const text = await askText("Width × height of the crop (for example 3 x 2 or 1.91 x 1):", "3 x 2", "OK");
     const m = text?.match(/([\d.]+)\s*[x×:*\/]\s*([\d.]+)/i);
@@ -73,6 +76,10 @@ export function CropPanel({
     if (!m || !(Number(m[1]) > 0) || !(Number(m[2]) > 0)) return void notify("Type two numbers, like 3 x 2.");
     choose(Number(m[1]) / Number(m[2]));
   };
+  const has = tool.rect != null;
+  // Picasa shows the size of the selection in the dropdown: "Manual: 1811 x 1407".
+  const size = has && dims ? `${Math.round(tool.rect![2] * dims[0])} x ${Math.round(tool.rect![3] * dims[1])}` : "";
+  const labelOf = (label: string, hint?: string) => (label === preset && size ? `${label}: ${size}` : hint ? `${label}: ${hint}` : label);
   return (
     <div className="edit-left tool-panel">
       <div className="tool-title">
@@ -91,40 +98,42 @@ export function CropPanel({
       >
         {PRESETS.map((p) => (
           <option key={p.label} value={p.label}>
-            {p.label}
-            {p.hint ? `: ${p.hint}` : ""}
+            {labelOf(p.label, p.hint)}
           </option>
         ))}
-        <option value="Custom">Custom...</option>
+        <option value="Custom">{preset === "Custom" && size ? `Custom: ${size}` : "Custom..."}</option>
       </select>
-      <button
-        className="tbtn crop-rotate"
-        disabled={tool.aspect == null || same(tool.aspect, 1)}
-        title="Switch the crop between landscape and portrait"
-        onClick={() => tool.aspect && choose(1 / tool.aspect)}
-      >
-        Rotate {tool.aspect != null && tool.aspect < 1 ? "to landscape" : "to portrait"}
-      </button>
       <div className="crop-suggest">
         {suggestions.map((r, i) => (
-          <button key={i} className="fx-tile" onClick={() => setTool({ ...tool, rect: r })} title="Use this crop">
-            <span className="preview">
-              <img src={thumbUrl(id)} style={{ objectViewBox: cropViewBox(r), objectFit: "contain" } as React.CSSProperties} alt="" />
-            </span>
+          <button key={i} className="fx-tile" onClick={() => setTool({ ...tool, rect: r, preview: false })} title="Use this crop">
+            <CropThumb id={id} rect={r} aspect={aspect} />
           </button>
         ))}
       </div>
       <div className="tool-buttons">
-        <span className="row">
-          <button className="tbtn" onClick={() => setTool({ ...tool, rect: [0, 0, 1, 1], aspect: null, preview: false })}>
-            Reset
+        <div className="row">
+          <button
+            className="tbtn"
+            disabled={!has || tool.aspect == null || same(tool.aspect, 1)}
+            title="Switch the crop between landscape and portrait"
+            onClick={() => tool.aspect && choose(1 / tool.aspect)}
+          >
+            Rotate
           </button>
-          <button className={`tbtn${tool.preview ? " pressed" : ""}`} title="See the picture cropped (click again to keep adjusting)" onClick={() => setTool({ ...tool, preview: !tool.preview })}>
+          <button
+            className={`tbtn${tool.preview ? " pressed" : ""}`}
+            disabled={!has}
+            title="See the picture cropped (click again to keep adjusting)"
+            onClick={() => setTool({ ...tool, preview: !tool.preview })}
+          >
             Preview
           </button>
-        </span>
+        </div>
+        <button className="tbtn" disabled={!has} onClick={() => setTool({ ...tool, rect: null, preview: false })}>
+          Reset
+        </button>
         <div className="row">
-          <button className="tbtn apply" onClick={onApply}>
+          <button className="tbtn apply" disabled={!has} onClick={onApply}>
             Apply <span className="dot ok">✓</span>
           </button>
           <button className="tbtn" onClick={onCancel}>
@@ -133,6 +142,16 @@ export function CropPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A suggested crop drawn as a thumbnail (works everywhere, unlike CSS object-view-box). */
+function CropThumb({ id, rect, aspect }: { id: number; rect: CropRect; aspect: number }) {
+  const [x, y, w, h] = rect;
+  return (
+    <span className="crop-thumb" style={{ aspectRatio: `${(w * aspect) / h}` }}>
+      <img src={thumbUrl(id)} alt="" draggable={false} style={{ width: `${100 / w}%`, height: `${100 / h}%`, left: `${(-x / w) * 100}%`, top: `${(-y / h) * 100}%` }} />
+    </span>
   );
 }
 
@@ -145,12 +164,12 @@ function imgAspectOf(id: number): number {
   return stage ? stage.clientWidth / Math.max(1, stage.clientHeight) : 1.5;
 }
 
-type Handle = "move" | "nw" | "ne" | "sw" | "se" | "new";
+type Handle = "move" | "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w" | "new";
 
 /** Drag to draw a crop box, drag inside to move it, drag corners to resize. */
 export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool: (t: Tool) => void; aspect: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [x, y, w, h] = tool.rect;
+  const [x, y, w, h] = tool.rect ?? [0, 0, 0, 0];
 
   const onDown = (handle: Handle) => (e: React.PointerEvent) => {
     e.preventDefault();
@@ -160,7 +179,7 @@ export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool
     const py = (ev: PointerEvent | React.PointerEvent) => Math.max(0, Math.min(1, (ev.clientY - box.top) / box.height));
     const sx = px(e);
     const sy = py(e);
-    const start = tool.rect;
+    const start: CropRect = tool.rect ?? [sx, sy, 0, 0];
     // Display ratio → fraction ratio: w_frac / h_frac = ratio / imageAspect.
     const fr = tool.aspect ? tool.aspect / aspect : null;
 
@@ -174,16 +193,19 @@ export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool
         r = [nx, ny, start[2], start[3]];
       } else {
         // Anchor is the corner opposite the one being dragged (or the press point for a new box).
+        // Edges move one side only (Picasa lets you drag any edge of the box).
         const ax = handle === "new" ? sx : handle.includes("w") ? start[0] + start[2] : start[0];
         const ay = handle === "new" ? sy : handle.includes("n") ? start[1] + start[3] : start[1];
-        let nw = Math.abs(cx - ax);
-        let nh = Math.abs(cy - ay);
+        const edgeX = handle === "n" || handle === "s";
+        const edgeY = handle === "e" || handle === "w";
+        let nw = edgeX ? start[2] : Math.abs(cx - ax);
+        let nh = edgeY ? start[3] : Math.abs(cy - ay);
         if (fr) {
           if (nw / nh > fr) nw = nh * fr;
           else nh = nw / fr;
         }
-        const nx = cx < ax ? ax - nw : ax;
-        const ny = cy < ay ? ay - nh : ay;
+        const nx = edgeX ? start[0] : cx < ax ? ax - nw : ax;
+        const ny = edgeY ? start[1] : cy < ay ? ay - nh : ay;
         r = [Math.max(0, nx), Math.max(0, ny), Math.min(nw, 1 - Math.max(0, nx)), Math.min(nh, 1 - Math.max(0, ny))];
       }
       if (r[2] > 0.01 && r[3] > 0.01) setTool({ ...tool, rect: r });
@@ -197,16 +219,20 @@ export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool
   };
 
   const pct = (n: number) => `${n * 100}%`;
-  // Nothing chosen yet (the box is the whole picture): dragging anywhere draws a new box, as in
-  // Picasa. Once there is a box, drag inside it to move it and outside it to start again.
-  const whole = w > 0.995 && h > 0.995;
+  // As in Picasa: no box until you drag one; then drag inside it to move it, drag its edges or
+  // corners to resize it, or drag outside it to start again. Outside the box is dimmed.
   return (
     <div className="crop-layer" ref={ref} onPointerDown={onDown("new")}>
-      <div className={`crop-box${whole ? " whole" : ""}`} style={{ left: pct(x), top: pct(y), width: pct(w), height: pct(h) }} onPointerDown={onDown(whole ? "new" : "move")}>
-        {(["nw", "ne", "sw", "se"] as const).map((c) => (
-          <span key={c} className={`crop-handle ${c}`} onPointerDown={onDown(c)} />
-        ))}
-      </div>
+      {tool.rect && (
+        <div className="crop-box" style={{ left: pct(x), top: pct(y), width: pct(w), height: pct(h) }} onPointerDown={onDown("move")}>
+          {(["n", "s", "e", "w"] as const).map((c) => (
+            <span key={c} className={`crop-edge ${c}`} onPointerDown={onDown(c)} />
+          ))}
+          {(["nw", "ne", "sw", "se"] as const).map((c) => (
+            <span key={c} className={`crop-handle ${c}`} onPointerDown={onDown(c)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -224,6 +224,7 @@ fn run_scan(app: &AppHandle) {
   let state = app.state::<AppState>();
   let db = state.db.clone();
   let started = Instant::now();
+  migrate_edits_to_folders(&db);
   let (roots, excluded) = load_roots(&db);
   let once = scan_once_roots(&db);
   crate::watch::refresh(app, &roots.iter().filter(|r| !once.contains(r)).cloned().collect::<Vec<_>>());
@@ -254,6 +255,28 @@ fn run_scan(app: &AppHandle) {
   backfill_places(app);
   // Then look for faces in new pictures (it waits for the thumbnails to finish).
   crate::people::kick(app);
+}
+
+/// Once per library: edits made before they were kept in the folders are written to each
+/// folder's .picaluma.ini, so the folder becomes the record (and wins over older Picasa edits).
+fn migrate_edits_to_folders(db: &Arc<Mutex<Connection>>) {
+  let todo: Vec<(String, String)> = {
+    let conn = db.lock().unwrap();
+    if conn.query_row("SELECT 1 FROM meta WHERE key = 'edits_in_folders'", [], |_| Ok(())).is_ok() {
+      return;
+    }
+    let mut stmt = conn.prepare("SELECT path, edits FROM photos WHERE edits != ''").unwrap();
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    rows.filter_map(Result::ok).collect()
+  };
+  let mut failed = 0;
+  for (path, edits) in &todo {
+    if crate::folderini::save_edits(Path::new(path), edits).is_err() {
+      failed += 1;
+    }
+  }
+  log::info!("edits moved into folder files: {} pictures ({failed} failed)", todo.len());
+  let _ = db.lock().unwrap().execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('edits_in_folders', '1')", []);
 }
 
 pub(crate) fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
@@ -329,6 +352,8 @@ fn list_root(
 fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlite::Result<Option<(usize, bool)>> {
   let files = list_images(dir, streaming);
   let dir_str = dir.to_string_lossy().into_owned();
+  // Edits recorded in the folder (.picaluma.ini, or Picasa's .picasa.ini), read before locking.
+  let ini_edits = if !streaming && crate::folderini::has_edit_files(dir) { crate::folderini::folder_edits(dir) } else { Default::default() };
   let mut conn = db.lock().unwrap();
 
   if files.is_empty() {
@@ -344,6 +369,26 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
     let rows = stmt.query_map([&dir_str], |r| Ok((r.get::<_, String>(0)?, (r.get(1)?, r.get(2)?, r.get(3)?, r.get::<_, i64>(4)? != 0))))?;
     rows.filter_map(Result::ok).collect()
   };
+  // Pictures already in the library take the edits recorded in the folder (edited in Picasa, or
+  // on another computer sharing the folder).
+  if !ini_edits.is_empty() {
+    let mut get = conn.prepare_cached("SELECT edits FROM photos WHERE id = ?1")?;
+    let mut updates = Vec::new();
+    for (path, (id, ..)) in &known {
+      let name = Path::new(path).file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+      if let Some(e) = ini_edits.get(&name) {
+        let want = if e == "[]" { "" } else { e.as_str() };
+        let have: String = get.query_row([id], |r| r.get(0)).unwrap_or_default();
+        if have != want {
+          updates.push((*id, want.to_string()));
+        }
+      }
+    }
+    drop(get);
+    for (id, e) in updates {
+      conn.execute("UPDATE photos SET edits = ?1 WHERE id = ?2", params![e, id])?;
+    }
+  }
   // A cloud file that has since been downloaded ("Always keep on this device") gets indexed now.
   let changed: Vec<&FileInfo> = files
     .iter()
@@ -379,6 +424,9 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
         params![folder_id, f.path.to_string_lossy(), f.name, f.size, f.mtime, f.cloud as i64, f.cloud as i64],
         |r| r.get(0),
       )?;
+      if let Some(e) = ini_edits.get(&f.name.to_lowercase()).filter(|e| e.as_str() != "[]") {
+        tx.execute("UPDATE photos SET edits = ?1 WHERE id = ?2 AND edits = ''", params![e, id])?;
+      }
       db::reindex_photo(&tx, id)?;
     }
   }

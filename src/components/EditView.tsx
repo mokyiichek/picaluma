@@ -260,7 +260,7 @@ export default function EditView({ active }: { active: boolean }) {
   };
   const startTool = (t: ToolName) => {
     const r = render(stack.edits);
-    if (t === "crop") setTool({ kind: "crop", rect: r.crop ?? [0, 0, 1, 1], aspect: null });
+    if (t === "crop") setTool({ kind: "crop", rect: r.crop ?? null, aspect: null });
     else if (t === "straighten") setTool({ kind: "straighten", angle: r.straighten });
     else setTool(newPixelTool(t));
   };
@@ -269,8 +269,7 @@ export default function EditView({ active }: { active: boolean }) {
       const e = toolEdit(tool as PixelTool);
       if (e) stack.applyEdit(e);
     } else if (tool?.kind === "crop") {
-      const [, , w, h] = tool.rect;
-      if (w < 0.999 || h < 0.999) stack.apply("crop", undefined, tool.rect);
+      if (tool.rect && (tool.rect[2] < 0.999 || tool.rect[3] < 0.999)) stack.apply("crop", undefined, tool.rect);
     } else if (tool?.kind === "straighten") stack.apply("straighten", tool.angle);
     else if (tool?.kind === "effect") stack.applyEdit(tool.edit);
     setTool(null);
@@ -279,7 +278,7 @@ export default function EditView({ active }: { active: boolean }) {
   return (
     <>
       {tool?.kind === "crop" ? (
-        <CropPanel id={id} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
+        <CropPanel id={id} dims={uprightDims(photo, id)} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
       ) : tool && PIXEL_TOOLS.has(tool.kind) ? (
         <PixelToolPanel tool={tool as PixelTool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
       ) : tool?.kind === "effect" ? (
@@ -384,13 +383,21 @@ function VideoStage({ id, photo, active }: { id: number; photo: Photo | null; ac
   );
 }
 
+/** The picture's pixel size as shown (width and height swapped for sideways camera pictures). */
+function uprightDims(photo: Photo | null, id: number): [number, number] | null {
+  if (!photo?.width || !photo.height) return null;
+  const a = aspectCache.get(id);
+  const sideways = a != null && (a < 1) !== (photo.width < photo.height);
+  return sideways ? [photo.height, photo.width] : [photo.width, photo.height];
+}
+
 /** While a tool is open the stage previews the photo without the edit being changed. */
 function previewEdits(edits: Edit[], tool: Tool): Edit[] {
   if (!tool) return edits;
   if (tool.kind === "effect") return [...edits, tool.edit];
   if (tool.kind === "neutral") return edits;
   // Crop › Preview: the picture as it will be cropped.
-  if (tool.kind === "crop" && tool.preview) return [...edits.filter((e) => e.op !== "crop"), { op: "crop", r: tool.rect }];
+  if (tool.kind === "crop" && tool.preview && tool.rect) return [...edits.filter((e) => e.op !== "crop"), { op: "crop", r: tool.rect }];
   const original = tool.kind === "crop" || (PIXEL_TOOLS.has(tool.kind) && worksOnOriginal(tool as PixelTool));
   if (original) return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
   if (tool.kind !== "straighten") return edits;

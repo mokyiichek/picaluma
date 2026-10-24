@@ -3317,3 +3317,78 @@ button.link:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Crop, as in Picasa: thin white frame, edges and corners resize, suggested crops as thumbnails */
+.crop-box {
+  outline: 1px solid rgba(255, 255, 255, 0.95);
+}
+.crop-edge {
+  position: absolute;
+}
+.crop-edge.n,
+.crop-edge.s {
+  left: 8px;
+  right: 8px;
+  height: 10px;
+  cursor: ns-resize;
+}
+.crop-edge.n {
+  top: -5px;
+}
+.crop-edge.s {
+  bottom: -5px;
+}
+.crop-edge.e,
+.crop-edge.w {
+  top: 8px;
+  bottom: 8px;
+  width: 10px;
+  cursor: ew-resize;
+}
+.crop-edge.e {
+  right: -5px;
+}
+.crop-edge.w {
+  left: -5px;
+}
+.crop-handle {
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border: 1px solid #666;
+}
+.crop-handle.nw,
+.crop-handle.ne {
+  top: -4px;
+}
+.crop-handle.sw,
+.crop-handle.se {
+  bottom: -4px;
+}
+.crop-handle.nw,
+.crop-handle.sw {
+  left: -4px;
+}
+.crop-handle.ne,
+.crop-handle.se {
+  right: -4px;
+}
+.crop-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-height: 60px;
+  overflow: hidden;
+  background: #ddd;
+}
+.crop-thumb img {
+  position: absolute;
+  max-width: none;
+  max-height: none;
+}
+.tool-panel .tool-buttons .row {
+  justify-content: center;
+}
+.tool-panel .tool-buttons .tbtn {
+  min-width: 90px;
+}

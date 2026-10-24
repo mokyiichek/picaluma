@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod fileops;
 mod faces;
+mod folderini;
 mod importer;
 mod formats;
 mod people;
@@ -152,6 +153,9 @@ pub fn run() {
       commands::add_project,
       commands::update_project,
       commands::photo_labels,
+      commands::save_picture,
+      commands::undo_save_picture,
+      commands::saved_originals,
       commands::photos_since,
       commands::set_hidden,
       commands::places,

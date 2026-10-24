@@ -4,7 +4,7 @@ import { api, FaceModels, FaceProgress, ScanProgress } from "./api";
 import { offerFaceModels, reportModelError } from "./faceModels";
 import { menuOwnsShortcut } from "./nativeMenu";
 import { selectEditorSequence, useStore } from "./store";
-import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, saveCopies } from "./actions";
+import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, savePictures } from "./actions";
 import { copyPicture, folderIds, trayIds } from "./share";
 import { isDeleteKey, isMac, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
@@ -155,7 +155,7 @@ export default function App() {
       } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
         const ids = trayIds().filter((id) => st.edits.has(id));
-        if (ids.length) saveCopies(ids);
+        if (ids.length) savePictures(ids);
       } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "c" && !window.getSelection()?.toString() && trayIds().length === 1) {
         e.preventDefault();
         copyPicture(trayIds()[0]);

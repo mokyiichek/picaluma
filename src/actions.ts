@@ -1,6 +1,8 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { api } from "./api";
+import { api, bumpPhoto } from "./api";
+import { aspectCache } from "./aspect";
+import { parseEdits } from "./effects";
 import { hasEdits, joinPath, renderJpegBase64 } from "./share";
 import { selectVisible, useStore } from "./store";
 import { binName } from "./platform";
@@ -150,6 +152,62 @@ export async function renamePhoto(id: number) {
   } catch (e) {
     notify(String(e), "error");
   }
+}
+
+/**
+ * File › Save (Ctrl+S), as in Picasa: until now the edits only live in the folder's
+ * .picaluma.ini; Save writes them into the picture. The original is kept in the folder's
+ * .picalumaoriginals subfolder, and File › Undo Save brings it back.
+ */
+export async function savePictures(ids: number[]) {
+  const edited = ids.filter(hasEdits);
+  if (!edited.length) return void notify("There are no edits to save. Make changes in Edit view first.");
+  const what = edited.length === 1 ? "this picture" : `these ${edited.length} pictures`;
+  const ok = await confirmAsk(
+    `Save the changes to ${what}?\n\nThe edited picture replaces the file on disk. The original is kept in a hidden ".picalumaoriginals" folder beside it, so you can always use File › Undo Save.`,
+    { title: "Save", ok: "Save" },
+  );
+  if (!ok) return;
+  const s = useStore.getState();
+  const failed: string[] = [];
+  for (const id of edited) {
+    try {
+      await api.savePicture(id, await renderJpegBase64(id, { maxEdge: 0, quality: 0.95 }));
+      bumpPhoto(id);
+      aspectCache.delete(id); // a saved crop changes the picture's shape
+      const edits = new Map(useStore.getState().edits);
+      edits.delete(id);
+      useStore.setState({ edits });
+    } catch (e) {
+      failed.push(String(e));
+    }
+  }
+  await s.loadSnapshot();
+  reportFailures(failed);
+}
+
+/** File › Undo Save: the saved original comes back, with its edits. */
+export async function undoSave(ids: number[]) {
+  const saved = await api.savedOriginals(ids);
+  if (!saved.length) return void notify("These pictures haven't been saved, so there is no original to go back to.");
+  const what = saved.length === 1 ? "this picture" : `these ${saved.length} pictures`;
+  if (!(await confirmAsk(`Go back to the original of ${what}?\n\nThe saved version is replaced by the original, and its edits come back so you can change them.`, { title: "Undo Save", ok: "Undo Save" }))) return;
+  const failed: string[] = [];
+  for (const id of saved) {
+    try {
+      const json = await api.undoSave(id);
+      bumpPhoto(id);
+      aspectCache.delete(id);
+      const edits = new Map(useStore.getState().edits);
+      const list = parseEdits(json);
+      list.length ? edits.set(id, list) : edits.delete(id);
+      useStore.setState({ edits });
+    } catch (e) {
+      failed.push(String(e));
+    }
+  }
+  await useStore.getState().loadSnapshot();
+  reportFailures(failed);
 }
 
 /** File › Save a Copy: the edited picture as a new JPEG beside the original (which is never changed). */

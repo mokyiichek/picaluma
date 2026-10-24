@@ -33,7 +33,7 @@ const GROUPS: [string, [string, string][]][] = [
     [
       ["View and edit", "Enter / Ctrl+3"],
       ["Rename", isMac ? "F2 / F3" : "F2"],
-      ["Save a copy with edits", "Ctrl+S"],
+      ["Save edits into the picture (original kept)", "Ctrl+S"],
       ["Export to folder", "Ctrl+Shift+S"],
       ["Print", "Ctrl+P"],
       ["Print contact sheet", "Ctrl+Shift+P"],

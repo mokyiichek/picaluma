@@ -162,8 +162,26 @@ const FACE = schemeBase("face");
 // Library id in the URL keeps the webview's HTTP cache from mixing up ids across libraries.
 let libraryTag = "";
 export const setLibraryTag = (id: string) => (libraryTag = id);
-export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}`;
-export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}`;
+// Pictures rewritten by Save / Undo Save get a new version, so the cached image isn't reused.
+const VERSIONS_KEY = "picaluma.photoVersions";
+const versions: Record<number, number> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(VERSIONS_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+})();
+export function bumpPhoto(id: number) {
+  versions[id] = Date.now();
+  try {
+    localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions));
+  } catch {
+    /* ignore */
+  }
+}
+const ver = (id: number) => (versions[id] ? `&v=${versions[id]}` : "");
+export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}${ver(id)}`;
+export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}${ver(id)}`;
 export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;
 /** A folder's slideshow music (Folder Properties). */
 export const musicUrl = (folderId: number) => `${PHOTO}music/${folderId}?l=${libraryTag}&t=${Date.now()}`;
@@ -202,6 +220,10 @@ export const api = {
   setFolderDescription: (id: number, description: string) =>
     invoke<void>("set_folder_description", { id, description }),
   setEdits: (id: number, edits: string) => invoke<void>("set_edits", { id, edits }),
+  /** File › Save: the edited picture replaces the original (kept in .picalumaoriginals). */
+  savePicture: (id: number, dataBase64: string) => invoke<void>("save_picture", { id, dataBase64 }),
+  undoSave: (id: number) => invoke<string>("undo_save_picture", { id }),
+  savedOriginals: (ids: number[]) => invoke<number[]>("saved_originals", { ids }),
   /** Writes a JPEG (never overwriting) and returns the path actually used. */
   exportPicture: (path: string, dataBase64: string) => invoke<string>("export_picture", { path, dataBase64 }),
   makeExportDir: (location: string, name: string) => invoke<string>("make_export_dir", { location, name }),

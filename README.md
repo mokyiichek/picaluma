@@ -71,7 +71,9 @@ import your old Picasa folder list in one click.
   watch your whole home folder or disk. (The Photos app library itself isn't scanned — point
   Picaluma at the folders where you keep your pictures.)
 
-**Editing** — non-destructive; originals are never modified
+**Editing** — non-destructive, as in Picasa: edits are recorded in a hidden `.picaluma.ini` in
+each folder (Picasa's `.picasa.ini` edits are read too); File › Save (Ctrl+S) writes them into
+the picture after keeping the original in `.picalumaoriginals`, and Undo Save restores it
 - Zoom with ↑/↓, Page Up/Down, +/− or the mouse wheel; 1 for actual size, 0 to fit; drag to pan.
 - Crop (print and screen presets, custom ratio, portrait/landscape) and Straighten.
 - I'm Feeling Lucky, Auto Contrast and Auto Color measure each photo; Fill Light, Highlights,

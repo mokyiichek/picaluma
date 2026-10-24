@@ -53,7 +53,9 @@ picaluma/
 
 ## Data Rules
 
-- Originals on disk are never modified. Edits live in `photos.edits` as a JSON stack.
+- Originals are only changed by File › Save, which first keeps them in the folder's
+  `.picalumaoriginals` (Undo Save restores them). Edits are a JSON stack recorded in each
+  folder's `.picaluma.ini` (`src-tauri/src/folderini.rs`) and mirrored in `photos.edits`.
 - Timestamps are stored as naive-local epoch seconds; the UI formats them as UTC.
 - Schema changes must stay backward compatible (`CREATE … IF NOT EXISTS`, additive
   `ALTER TABLE`), because users keep their library database across upgrades.

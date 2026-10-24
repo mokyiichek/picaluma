@@ -21,6 +21,8 @@ import {
   renameFolder,
   renamePhoto,
   saveCopies,
+  savePictures,
+  undoSave,
   setAsDesktop,
 } from "../actions";
 import { copyPicture, folderIds, trayIds } from "../share";
@@ -76,7 +78,9 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Open File in an Editor", shortcut: "Ctrl+Shift+O", action: one != null ? () => api.getPhoto(one).then((p) => api.openInDefaultApp(p.path)) : undefined },
         sep,
         { label: "Rename...", shortcut: "F2", action: one != null ? () => renamePhoto(one) : undefined },
-        { label: "Save a Copy", shortcut: "Ctrl+S", action: edited.length ? () => saveCopies(edited) : undefined },
+        { label: "Save", shortcut: "Ctrl+S", action: edited.length ? () => savePictures(edited) : undefined },
+        { label: "Undo Save", action: targets.length ? () => undoSave(targets) : undefined },
+        { label: "Save a Copy", action: edited.length ? () => saveCopies(edited) : undefined },
         { label: "Revert", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
         sep,
         { label: "Export Picture to Folder...", shortcut: "Ctrl+Shift+S", action: targets.length ? () => exportPhotos(targets) : undefined },
