@@ -3017,102 +3017,151 @@ button.link:hover {
   transition: width 200ms linear;
 }
 
-/* ---------- Folder Manager (Picasa layout) ---------- */
-.folder-manager {
-  width: 900px;
+/* ---------- Folder Manager (as in Picasa) ---------- */
+.modal.folder-manager {
+  width: 560px;
+  height: 500px;
+  min-width: 480px;
+  min-height: 400px;
   max-width: calc(100vw - 40px);
-}
-.fm-intro {
-  margin: 10px 16px 6px;
-}
-.fm-quick {
-  display: flex;
-  gap: 8px;
-  margin: 0 16px 6px;
+  max-height: calc(100vh - 40px);
+  resize: both;
 }
 .fm-body {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
-  padding: 6px 16px 10px;
-  height: 380px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px 4px;
 }
-.fm-body > div {
+.fm-left,
+.fm-right {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 1px solid #b8c0c8;
-  background: #fff;
 }
-.fm-cap {
-  padding: 4px 8px;
-  background: linear-gradient(#f6f7f8, #e3e6e9);
-  border-bottom: 1px solid #c8ced4;
-  font-weight: 600;
-  font-size: 11px;
-  flex: none;
+.fm-label {
+  margin: 0 0 4px;
 }
-.fm-scroll {
+.fm-tree,
+.fm-watched {
   flex: 1;
+  min-height: 0;
   overflow: auto;
+  border: 1px solid #a9a9a9;
+  background: #fff;
 }
 .fm-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 21px;
+  gap: 3px;
+  height: 22px;
   padding-right: 6px;
   white-space: nowrap;
   cursor: default;
 }
-.fm-row:hover {
-  background: #e3edf7;
-}
 .fm-row.sel {
-  background: #3875d7;
+  background: #6b6f8f;
   color: #fff;
 }
 .fm-row .name {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.fm-mark {
-  display: inline-block;
-  width: 14px;
+.fm-twisty {
+  width: 12px;
+  flex: none;
+  font-size: 8px;
+  color: #555;
   text-align: center;
-  font-size: 12px;
-  font-weight: 700;
+}
+.fm-row.sel .fm-twisty {
+  color: #fff;
+}
+.fm-mark {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
   flex: none;
 }
-.fm-row.sel .fm-mark {
-  color: #fff !important;
+.fm-intro {
+  margin: 0 0 10px;
+  font-size: 11.5px;
 }
-.fm-opts {
-  padding-bottom: 8px;
-  overflow: auto;
+.fm-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
 }
-.fm-watched .fm-row .name {
-  direction: rtl;
-  text-align: left;
+.fm-group {
+  margin: 0 0 12px;
+  padding: 6px 10px 8px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  background: #f7f7f7;
 }
-.fm-opts > :not(.fm-cap) {
-  margin-left: 10px;
-  margin-right: 10px;
-}
-.fm-path {
-  font-size: 11px;
-  color: var(--muted);
-  word-break: break-all;
+.fm-group legend {
+  padding: 0 4px;
 }
 .fm-radio {
   display: flex;
+  align-items: center;
   gap: 6px;
-  align-items: flex-start;
-  margin: 6px 10px;
+  height: 30px;
+}
+.fm-sep {
+  border-top: 1px solid #d8d8d8;
+  margin: 6px 0;
+}
+.fm-faces {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  color: #999;
+  cursor: pointer;
+}
+.fm-faces.on {
+  color: #333;
+}
+.fm-faces-ico {
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #c0392b;
+  position: relative;
+}
+.fm-faces-ico::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  background: #c0392b;
+  transform: rotate(45deg);
+}
+.fm-faces.on .fm-faces-ico {
+  border-color: #2f9a2f;
+}
+.fm-faces.on .fm-faces-ico::after {
+  display: none;
+}
+.folder-manager .foot .tbtn {
+  min-width: 95px;
 }
 .fm-pending {
   margin-right: auto;
 }
+
 
 /* ---------- Dialog standard (Picasa style, same on every platform) ----------
    Caption with the app icon, light grey body, standard 75 × 23 px push buttons right-aligned
@@ -3205,4 +3254,66 @@ button.link:hover {
   top: 22px;
   bottom: auto;
   left: 22px;
+}
+
+/* Crop: before a box is drawn the whole picture is selectable with a crosshair. */
+.crop-box.whole {
+  cursor: crosshair;
+}
+
+/* ---------- Fit labels on every platform (macOS fonts are wider) ----------
+   Buttons never wrap or let text spill outside; long labels in tiles shrink to fit and are cut
+   with an ellipsis, with the full name in the tooltip. */
+.tbtn,
+.tray-action,
+.opt-tab,
+.album-banner button,
+.search-banner button {
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: max-content;
+  box-sizing: border-box;
+}
+.tbtn {
+  height: auto;
+  min-height: 24px;
+  line-height: 1.2;
+}
+.fx-tile,
+.fix-btn {
+  min-width: 0;
+  overflow: hidden;
+}
+.fx-tile,
+.fix-btn {
+  text-align: center;
+}
+.fx-tile > :last-child:not(.count),
+.fix-btn {
+  max-width: 100%;
+}
+.fx-tile,
+.fix-btn {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fixes-grid .fix-btn,
+.fx-grid .fx-tile {
+  letter-spacing: -0.1px;
+}
+.tool-buttons .row {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tl-buttons .tbtn,
+.compare-modes .tbtn {
+  min-width: max-content;
+}
+
+.lbl {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

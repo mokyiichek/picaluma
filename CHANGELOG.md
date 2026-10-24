@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.17 — 2026-10-24
+
+- **Crop works again** — dragging on the picture draws the crop box (before, the first drag
+  tried to move a box covering the whole picture, so nothing happened). Crops now also show
+  correctly on Mac, where the previous method wasn't supported.
+- **Slideshows show your edits** — crops, Straighten and all the effects, not just colour.
+- **Folder Manager looks like Picasa's** — Folder List tree on the left; on the right the
+  explanation, *For the current folder* with Scan Once ✔, Remove from Picaluma ✖ and Scan
+  Always ⟳ (Picasa's marks), the Face Detection switch, and the Watched Folders list; OK,
+  Cancel and Help. Resizable.
+- **Button and label text no longer spills outside buttons**, on Windows or Mac — buttons grow
+  to fit, and long effect names are shortened with the full name in the tooltip.
+
 ## 0.7.16 — 2026-10-24
 
 - **AA compare** in Edit view, Picasa's third mode: the picture you're on is pinned on the left

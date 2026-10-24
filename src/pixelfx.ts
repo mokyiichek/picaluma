@@ -26,7 +26,8 @@ export const COLOR_OPS = new Set([
 /** Auto fixes measure the picture when applied and store the levels found (`lv`). */
 export const LEVEL_OPS = new Set(["autoContrast", "autoColor", "lucky"]);
 export const isPixelEdit = (e: Edit) => SOURCE_OPS.has(e.op) || FINAL_OPS.has(e.op) || COLOR_OPS.has(e.op) || (LEVEL_OPS.has(e.op) && !!e.lv);
-export const hasPixelOps = (edits: Edit[]) => edits.some(isPixelEdit);
+/** Crops are drawn on the canvas too: CSS object-view-box isn't supported by Safari (macOS). */
+export const hasPixelOps = (edits: Edit[]) => edits.some((e) => isPixelEdit(e) || e.op === "crop");
 
 export function hexRgb(hex: string | undefined, fallback: [number, number, number]): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? "");

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, musicUrl, photoUrl } from "../api";
 import { loadSlideshowOpts } from "../slideshowOpts";
-import { render } from "../effects";
+import { render, renderToCanvas } from "../effects";
+import { hasPixelOps } from "../pixelfx";
 import { useStore } from "../store";
 
 /** Fullscreen slideshow with Picasa-style crossfades. Space pauses, arrows step, Esc exits. */
@@ -15,6 +16,36 @@ export default function Slideshow() {
   const [ui, setUi] = useState(false);
   const [layers, setLayers] = useState<{ a: number | null; b: number | null; front: "a" | "b" }>({ a: null, b: null, front: "a" });
   const uiTimer = useRef<number>();
+  const [rendered, setRendered] = useState<Record<number, string>>({});
+  // Render the current and next pictures that need it, and free the others.
+  useEffect(() => {
+    if (!show) {
+      setRendered((r) => {
+        Object.values(r).forEach((u) => URL.revokeObjectURL(u));
+        return {};
+      });
+      return;
+    }
+    const want = [show.photos[show.index], show.photos[show.index + 1], show.photos[show.index - 1]].filter((x): x is number => x != null);
+    const all = useStore.getState().edits;
+    let live = true;
+    for (const id of want) {
+      const e = all.get(id);
+      if (!e || !hasPixelOps(e) || rendered[id]) continue;
+      renderToCanvas(photoUrl(id), e, 2400)
+        .then((c) => new Promise<Blob | null>((ok) => c.toBlob((b) => ((c.width = 0), ok(b)), "image/jpeg", 0.92)))
+        .then((b) => b && live && setRendered((r) => ({ ...r, [id]: URL.createObjectURL(b) })))
+        .catch(() => {});
+    }
+    setRendered((r) => {
+      const keep: Record<number, string> = {};
+      for (const [k, u] of Object.entries(r)) (want.includes(+k) ? (keep[+k] = u) : URL.revokeObjectURL(u));
+      return keep;
+    });
+    return () => {
+      live = false;
+    };
+  }, [show?.index, show?.photos]); // eslint-disable-line react-hooks/exhaustive-deps
   // Options are read when the slideshow starts.
   const opts = useMemo(() => loadSlideshowOpts(), [show != null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [caption, setCaption] = useState("");
@@ -87,7 +118,10 @@ export default function Slideshow() {
   }, [show, stop, setIndex]);
 
   if (!show) return null;
+  // Pictures with crops or pixel effects are shown as rendered (like exports); others as CSS.
+  const baked = (id: number | null) => (id != null ? rendered[id] : undefined);
   const style = (id: number | null) => {
+    if (id != null && baked(id)) return {};
     if (id == null) return {};
     const r = render(edits.get(id) ?? []);
     return { filter: r.filter || undefined, transform: r.rotate ? `rotate(${r.rotate}deg)` : undefined };
@@ -105,10 +139,10 @@ export default function Slideshow() {
       onClick={() => setPlaying((p) => !p)}
     >
       {layers.a != null && (
-        <img key={`a${layers.a}`} className={`${layers.front === "a" ? "front" : ""}${style(layers.a).transform ? " rot" : ""}`} src={photoUrl(layers.a)} style={{ ...style(layers.a), opacity: layers.front === "a" ? 1 : 0 }} alt="" />
+        <img key={`a${layers.a}`} className={`${layers.front === "a" ? "front" : ""}${style(layers.a).transform ? " rot" : ""}`} src={baked(layers.a) ?? photoUrl(layers.a)} style={{ ...style(layers.a), opacity: layers.front === "a" ? 1 : 0 }} alt="" />
       )}
       {layers.b != null && (
-        <img key={`b${layers.b}`} className={`${layers.front === "b" ? "front" : ""}${style(layers.b).transform ? " rot" : ""}`} src={photoUrl(layers.b)} style={{ ...style(layers.b), opacity: layers.front === "b" ? 1 : 0 }} alt="" />
+        <img key={`b${layers.b}`} className={`${layers.front === "b" ? "front" : ""}${style(layers.b).transform ? " rot" : ""}`} src={baked(layers.b) ?? photoUrl(layers.b)} style={{ ...style(layers.b), opacity: layers.front === "b" ? 1 : 0 }} alt="" />
       )}
       {caption && <div className="slide-caption">{caption}</div>}
       {music && <audio ref={audio} src={music} autoPlay loop />}

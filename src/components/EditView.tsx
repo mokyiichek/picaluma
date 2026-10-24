@@ -824,7 +824,7 @@ function EditPanel({
                   <span className="ico">
                     <img src={thumbUrl(id)} style={{ filter: def.filter?.(1, { op: e }) }} alt="" />
                   </span>
-                  {def.label}
+                  <span className="lbl">{def.label}</span>
                 </button>
               );
             })}
@@ -857,7 +857,7 @@ function EditPanel({
                   <img src={thumbUrl(id)} style={{ filter: r.filter || undefined }} alt="" />
                   <Overlays r={r} />
                 </div>
-                {def.label}
+                <span className="lbl">{def.label}</span>
                 {count > 0 && <span className="count">{count}</span>}
               </div>
             );

@@ -197,9 +197,12 @@ export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool
   };
 
   const pct = (n: number) => `${n * 100}%`;
+  // Nothing chosen yet (the box is the whole picture): dragging anywhere draws a new box, as in
+  // Picasa. Once there is a box, drag inside it to move it and outside it to start again.
+  const whole = w > 0.995 && h > 0.995;
   return (
     <div className="crop-layer" ref={ref} onPointerDown={onDown("new")}>
-      <div className="crop-box" style={{ left: pct(x), top: pct(y), width: pct(w), height: pct(h) }} onPointerDown={onDown("move")}>
+      <div className={`crop-box${whole ? " whole" : ""}`} style={{ left: pct(x), top: pct(y), width: pct(w), height: pct(h) }} onPointerDown={onDown(whole ? "new" : "move")}>
         {(["nw", "ne", "sw", "se"] as const).map((c) => (
           <span key={c} className={`crop-handle ${c}`} onPointerDown={onDown(c)} />
         ))}
