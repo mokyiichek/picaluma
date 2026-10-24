@@ -212,7 +212,7 @@ fn rect64(hex: &str) -> Option<[f64; 4]> {
   let v = u64::from_str_radix(hex.trim(), 16).ok()?;
   let part = |shift: u32| ((v >> shift) & 0xffff) as f64 / 65535.0;
   let (l, t, r, b) = (part(48), part(32), part(16), part(0));
-  (r > l && b > t).then(|| [l, t, r - l, b - t])
+  (r > l && b > t).then_some([l, t, r - l, b - t])
 }
 
 /// The edits Picasa recorded for a picture (`filters=`, `rotate=`), as a Picaluma edit stack.
