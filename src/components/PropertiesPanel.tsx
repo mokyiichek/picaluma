@@ -6,6 +6,8 @@ import { CloseIcon } from "./Icons";
 
 export function usePhoto(id: number | null): Photo | null {
   const [photo, setPhoto] = useState<Photo | null>(null);
+  // Fetched again when the library changes (an adjusted date, a rename, a Save).
+  const snapshot = useStore((s) => s.snapshot);
   useEffect(() => {
     if (id == null) {
       setPhoto(null);
@@ -16,7 +18,7 @@ export function usePhoto(id: number | null): Photo | null {
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id, snapshot]);
   return photo;
 }
 
@@ -40,6 +42,7 @@ export default function PropertiesPanel() {
             <Prop k="Location" v={photo.path} />
             <Prop k="File Size" v={fmtBytes(photo.size)} />
             {photo.width > 0 && <Prop k="Dimensions" v={`${photo.width} x ${photo.height} pixels`} />}
+            {photo.dateAdjusted && photo.taken != null && <Prop k="Adjusted Date" v={fmtDateTime(photo.taken)} />}
             {photo.exif.map(([k, v]) => (
               <Prop key={k} k={k} v={v} />
             ))}

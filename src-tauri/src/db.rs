@@ -205,6 +205,10 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
        ALTER TABLE albums ADD COLUMN sort_rev INTEGER NOT NULL DEFAULT 0;",
     )?;
   }
+  // v0.7.19: Tools › Adjust Date and Time (the date set by hand wins over the camera's).
+  if !has("taken_set")? {
+    conn.execute_batch("ALTER TABLE photos ADD COLUMN taken_set INTEGER")?;
+  }
   // v0.7.11: Places (EXIF GPS positions, in degrees).
   if !has("lat")? {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN lat REAL; ALTER TABLE photos ADD COLUMN lon REAL;")?;

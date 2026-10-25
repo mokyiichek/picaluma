@@ -2,7 +2,7 @@ import { mod } from "../platform";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo } from "../api";
-import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS } from "../effects";
+import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS, turnRect } from "../effects";
 import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
@@ -260,7 +260,8 @@ export default function EditView({ active }: { active: boolean }) {
   };
   const startTool = (t: ToolName) => {
     const r = render(stack.edits);
-    if (t === "crop") setTool({ kind: "crop", rect: r.crop ?? null, aspect: null });
+    // The box is drawn on the picture as you see it (turned), and stored on the unturned picture.
+    if (t === "crop") setTool({ kind: "crop", rect: r.crop ? turnRect(r.crop, r.rotate) : null, aspect: null });
     else if (t === "straighten") setTool({ kind: "straighten", angle: r.straighten });
     else setTool(newPixelTool(t));
   };
@@ -269,7 +270,10 @@ export default function EditView({ active }: { active: boolean }) {
       const e = toolEdit(tool as PixelTool);
       if (e) stack.applyEdit(e);
     } else if (tool?.kind === "crop") {
-      if (tool.rect && (tool.rect[2] < 0.999 || tool.rect[3] < 0.999)) stack.apply("crop", undefined, tool.rect);
+      const turn = render(stack.edits).rotate;
+      if (tool.rect && (tool.rect[2] < 0.999 || tool.rect[3] < 0.999)) stack.apply("crop", undefined, turnRect(tool.rect, 360 - turn));
+      // A box over the whole picture means "no crop".
+      else if (render(stack.edits).crop) stack.apply("crop", undefined, undefined);
     } else if (tool?.kind === "straighten") stack.apply("straighten", tool.angle);
     else if (tool?.kind === "effect") stack.applyEdit(tool.edit);
     setTool(null);
@@ -278,7 +282,7 @@ export default function EditView({ active }: { active: boolean }) {
   return (
     <>
       {tool?.kind === "crop" ? (
-        <CropPanel id={id} dims={uprightDims(photo, id)} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
+        <CropPanel id={id} dims={turnedDims(uprightDims(photo, id), render(stack.edits).rotate)} turn={render(stack.edits).rotate} tool={tool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
       ) : tool && PIXEL_TOOLS.has(tool.kind) ? (
         <PixelToolPanel tool={tool as PixelTool} setTool={setTool} onApply={applyTool} onCancel={() => setTool(null)} />
       ) : tool?.kind === "effect" ? (
@@ -391,14 +395,23 @@ function uprightDims(photo: Photo | null, id: number): [number, number] | null {
   return sideways ? [photo.height, photo.width] : [photo.width, photo.height];
 }
 
+/** Width and height swapped when the picture is turned sideways. */
+function turnedDims(d: [number, number] | null, turn: number): [number, number] | null {
+  return d && (turn === 90 || turn === 270) ? [d[1], d[0]] : d;
+}
+
 /** While a tool is open the stage previews the photo without the edit being changed. */
 function previewEdits(edits: Edit[], tool: Tool): Edit[] {
   if (!tool) return edits;
   if (tool.kind === "effect") return [...edits, tool.edit];
   if (tool.kind === "neutral") return edits;
-  // Crop › Preview: the picture as it will be cropped.
-  if (tool.kind === "crop" && tool.preview && tool.rect) return [...edits.filter((e) => e.op !== "crop"), { op: "crop", r: tool.rect }];
-  const original = tool.kind === "crop" || (PIXEL_TOOLS.has(tool.kind) && worksOnOriginal(tool as PixelTool));
+  if (tool.kind === "crop") {
+    // Crop › Preview: the picture as it will be cropped. Otherwise the whole picture, turned as you
+    // see it, to draw the box on.
+    const rest = edits.filter((e) => e.op !== "crop" && e.op !== "straighten");
+    return tool.preview && tool.rect ? [...rest, { op: "crop", r: turnRect(tool.rect, 360 - render(edits).rotate) }] : rest;
+  }
+  const original = PIXEL_TOOLS.has(tool.kind) && worksOnOriginal(tool as PixelTool);
   if (original) return edits.filter((e) => e.op !== "crop" && e.op !== "rotate" && e.op !== "straighten");
   if (tool.kind !== "straighten") return edits;
   return [...edits.filter((e) => e.op !== "straighten"), { op: "straighten", v: tool.angle }];
@@ -645,7 +658,7 @@ function Stage({
           )}
           {tool && PIXEL_TOOLS.has(tool.kind) && <PixelToolOverlay tool={tool as PixelTool} setTool={setTool} />}
           {tool?.kind === "straighten" && <div className="straighten-grid" />}
-          {tool?.kind === "crop" && !tool.preview && <CropOverlay tool={tool} setTool={setTool} aspect={aspectNow ?? 1} />}
+          {tool?.kind === "crop" && !tool.preview && box && <CropOverlay tool={tool} setTool={setTool} aspect={box.w / box.h} />}
         </div>
       )}
       </div>

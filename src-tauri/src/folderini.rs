@@ -124,6 +124,95 @@ pub fn folder_edits(dir: &Path) -> BTreeMap<String, String> {
   out
 }
 
+/// A yes/no fact about a picture ("star", "hidden"), recorded in its folder's .picaluma.ini.
+/// "no" is written only when Picasa said "yes", so Picasa's mark doesn't come back.
+pub fn save_flag(photo: &Path, key: &str, on: bool) -> std::io::Result<()> {
+  let Some((dir, name)) = split(photo) else { return Ok(()) };
+  let file = dir.join(INI);
+  let mut s = read(&file);
+  let picasa_yes = read(&dir.join(PICASA_INI)).get(&name).and_then(|k| k.get(key)).is_some_and(|v| v == "yes");
+  let entry = s.entry(name).or_default();
+  if on {
+    entry.insert(key.into(), "yes".into());
+  } else if picasa_yes {
+    entry.insert(key.into(), "no".into());
+  } else {
+    entry.remove(key);
+  }
+  write(&file, &s)
+}
+
+/// Sets (or with `None` removes) one value of a picture in its folder's .picaluma.ini.
+pub fn save_value(photo: &Path, key: &str, value: Option<&str>) -> std::io::Result<()> {
+  let Some((dir, name)) = split(photo) else { return Ok(()) };
+  let file = dir.join(INI);
+  let mut s = read(&file);
+  let entry = s.entry(name.clone()).or_default();
+  match value {
+    Some(v) => {
+      entry.insert(key.into(), v.into());
+    }
+    None => {
+      entry.remove(key);
+    }
+  }
+  if s.get(&name).is_some_and(|e| e.is_empty()) {
+    s.remove(&name);
+  }
+  write(&file, &s)
+}
+
+/// What a folder's files say about its pictures, keyed by lower-case file name: edits, stars
+/// and hidden marks (Picaluma's own first, then Picasa's), and the folder's own date,
+/// description and place.
+#[derive(Default)]
+pub struct FolderRecord {
+  pub edits: BTreeMap<String, String>,
+  pub star: BTreeMap<String, bool>,
+  pub hidden: BTreeMap<String, bool>,
+  /// Dates set with Tools › Adjust Date and Time (local seconds).
+  pub dates: BTreeMap<String, i64>,
+  /// From Picasa's [Picasa] section: date (local seconds), description, place.
+  pub folder_date: Option<i64>,
+  pub folder_description: Option<String>,
+  pub folder_place: Option<String>,
+}
+
+pub fn folder_record(dir: &Path) -> FolderRecord {
+  let mut r = FolderRecord { edits: folder_edits(dir), ..Default::default() };
+  let yes = |v: &String| v == "yes";
+  for file in [PICASA_INI, INI] {
+    for (name, keys) in read(&dir.join(file)) {
+      if name == "Picasa" {
+        // Picasa's folder date is a day count from 30 Dec 1899 (OLE date).
+        if let Some(d) = keys.get("date").and_then(|d| d.parse::<f64>().ok()).filter(|d| *d > 1.0) {
+          r.folder_date = Some(((d - 25569.0) * 86400.0).round() as i64);
+        }
+        if let Some(t) = keys.get("description").filter(|t| !t.is_empty()) {
+          r.folder_description = Some(t.clone());
+        }
+        if let Some(t) = keys.get("location").filter(|t| !t.is_empty()) {
+          r.folder_place = Some(t.clone());
+        }
+        continue;
+      }
+      let n = name.to_lowercase();
+      if let Some(v) = keys.get("star") {
+        r.star.insert(n.clone(), yes(v));
+      }
+      if let Some(v) = keys.get("hidden") {
+        r.hidden.insert(n.clone(), yes(v));
+      }
+      if file == INI {
+        if let Some(d) = keys.get("date").and_then(|d| d.parse::<i64>().ok()) {
+          r.dates.insert(n, d);
+        }
+      }
+    }
+  }
+  r
+}
+
 /// The saved original of a picture, if it was saved (by Picaluma, or by Picasa).
 pub fn original_of(photo: &Path) -> Option<PathBuf> {
   let (dir, name) = split(photo)?;
@@ -291,6 +380,20 @@ mod tests {
   }
 
   #[test]
+  fn reads_picasa_stars_and_folder_date() {
+    let dir = std::env::temp_dir().join(format!("picaluma-folderrec-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(PICASA_INI), "[Picasa]\r\nname=Trip\r\ndate=40868.5\r\n[A.JPG]\r\nstar=yes\r\n").unwrap();
+    let r = folder_record(&dir);
+    assert_eq!(r.star.get("a.jpg"), Some(&true));
+    assert_eq!(r.folder_date, Some(1_321_876_800)); // 2011-11-21 12:00
+    // Unstarring in Picaluma sticks even though Picasa says yes.
+    save_flag(&dir.join("A.JPG"), "star", false).unwrap();
+    assert_eq!(folder_record(&dir).star.get("a.jpg"), Some(&false));
+    std::fs::remove_dir_all(&dir).ok();
+  }
+
+  #[test]
   fn edits_live_in_the_folder_and_save_keeps_the_original() {
     let dir = std::env::temp_dir().join(format!("picaluma-folderini-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -303,7 +406,7 @@ mod tests {
     save_over(&pic, b"edited", r#"[{"op":"sepia"}]"#).unwrap();
     assert_eq!(std::fs::read(&pic).unwrap(), b"edited");
     assert_eq!(std::fs::read(dir.join(ORIGINALS).join("IMG_1.jpg")).unwrap(), b"original");
-    assert!(folder_edits(&dir).get("img_1.jpg").is_none(), "after Save the edits are in the picture");
+    assert!(!folder_edits(&dir).contains_key("img_1.jpg"), "after Save the edits are in the picture");
 
     let back = undo_save(&pic).unwrap();
     assert_eq!(std::fs::read(&pic).unwrap(), b"original");

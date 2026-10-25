@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.19 — 2026-10-26
+
+- **Crop on turned pictures** — after Rotate, the Crop tool shows the picture the way you see it
+  (it used to show it sideways), the presets pick the right orientation, and the box size shown
+  is right. A box over the whole picture removes the crop.
+- **Crop presets keep their shape at the edges** of the picture, and dragging a side of a
+  fixed-ratio box changes the other side to match. New **Current ratio** preset, as in Picasa.
+- **Stars and hidden pictures are kept in each folder's `.picaluma.ini`**, like edits, and
+  Picasa's stars (`star=yes`) come across.
+- **Folder dates, descriptions and places from Picasa** are picked up from `.picasa.ini`.
+- **Tools › Experimental › Show Duplicate Files** — finds exact copies anywhere in the library
+  and shows them in their folders; select one to see which folders hold its copies.
+- **Tools › Adjust Date and Time** — set the right date for one picture and every selected
+  picture moves by the same amount (a camera clock that was wrong). *Camera Dates* goes back.
+  The new dates are kept in the folder file; the pictures aren't changed.
+- **Tools › Back Up Pictures** — tick folders, choose a drive; only pictures that aren't backed
+  up yet (or changed) are copied, with their folder files, so edits and stars travel too.
+- **Picture Collage styles**: Picture Pile, Mosaic, Picture Grid, Contact Sheet (with file
+  names) and Multiple Exposure.
+
 ## 0.7.18 — 2026-10-24
 
 - **Edits are kept with your pictures, the way Picasa did it** — every edit is recorded in a

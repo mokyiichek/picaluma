@@ -3377,18 +3377,140 @@ button.link:hover {
   position: relative;
   display: block;
   width: 100%;
-  max-height: 60px;
+  height: 60px;
   overflow: hidden;
-  background: #ddd;
 }
-.crop-thumb img {
-  position: absolute;
-  max-width: none;
-  max-height: none;
+.crop-thumb canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .tool-panel .tool-buttons .row {
   justify-content: center;
 }
 .tool-panel .tool-buttons .tbtn {
   min-width: 90px;
+}
+
+/* Tools › Back Up Pictures, Adjust Date and Time, duplicate search */
+.tool-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.tool-progress-bar {
+  flex: 1;
+  height: 14px;
+  border: 1px solid #a9b4c0;
+  border-radius: 2px;
+  background: #fff;
+  overflow: hidden;
+}
+.tool-progress-bar > div {
+  height: 100%;
+  background: linear-gradient(#8fc06a, #5f9a3c);
+  transition: width 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.modal.adjust-date {
+  width: 540px;
+}
+.adjust-body {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 14px 16px;
+}
+.adjust-body .fp-grid {
+  flex: 1;
+  padding: 0;
+}
+.adjust-thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  background: #eef1f4;
+  border: 1px solid #c8d0d8;
+}
+.foot .foot-left {
+  margin-right: auto;
+}
+.modal.backup {
+  width: 680px;
+}
+.backup-body {
+  display: flex;
+  gap: 14px;
+  padding: 12px 16px;
+}
+.backup-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 330px;
+}
+.backup-filter {
+  flex: 1;
+  min-width: 0;
+  height: 23px;
+  padding: 0 6px;
+  border: 1px solid #b8c0c8;
+  border-radius: 3px;
+  font: inherit;
+}
+.backup-list {
+  height: 300px;
+  overflow: auto;
+  border: 1px solid #b8c0c8;
+  background: #fff;
+}
+.backup-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.backup-row:hover {
+  background: #eaf2fb;
+}
+.backup-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backup-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.backup-right p {
+  margin: 0;
+}
+.backup-dest {
+  flex: 1;
+  min-width: 0;
+  height: 23px;
+  padding: 0 6px;
+  border: 1px solid #b8c0c8;
+  border-radius: 3px;
+  font: inherit;
+  color: var(--muted);
+}
+.backup-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #d4dae0;
+  border-radius: 3px;
+  background: #f6f8fa;
 }

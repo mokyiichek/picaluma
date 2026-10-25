@@ -256,6 +256,25 @@ export function cropViewBox(c: CropRect | null): string | undefined {
   return `inset(${pct(y)} ${pct(1 - x - w)} ${pct(1 - y - h)} ${pct(x)})`;
 }
 
+/**
+ * A crop rectangle seen after turning the picture `deg` clockwise (0, 90, 180, 270). Crops are
+ * stored on the unturned picture; the Crop tool works on the picture as you see it.
+ * The way back is `turnRect(r, 360 - deg)`.
+ */
+export function turnRect(r: CropRect, deg: number): CropRect {
+  const [x, y, w, h] = r;
+  switch (((deg % 360) + 360) % 360) {
+    case 90:
+      return [1 - y - h, x, h, w];
+    case 180:
+      return [1 - x - w, 1 - y - h, w, h];
+    case 270:
+      return [y, 1 - x - w, h, w];
+    default:
+      return r;
+  }
+}
+
 /** Scale needed so a w×h image rotated by `deg` still covers its original frame. */
 export function straightenScale(deg: number, aspect: number): number {
   const t = (Math.abs(deg) * Math.PI) / 180;

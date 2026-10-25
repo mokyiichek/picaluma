@@ -120,6 +120,16 @@ export interface Photo {
   caption: string;
   starred: boolean;
   edits: string;
+  /** Tools › Adjust Date and Time moved its date. */
+  dateAdjusted: boolean;
+}
+
+export interface BackupPlan {
+  files: number;
+  bytes: number;
+  newFiles: number;
+  newBytes: number;
+  cloud: number;
 }
 
 export interface Root {
@@ -215,6 +225,12 @@ export const api = {
   importPicasa: () => invoke<number>("import_picasa_scanlist"),
   search: (query: string) => invoke<{ ids: number[]; seconds: number }>("search", { query }),
   getPhoto: (id: number) => invoke<Photo>("get_photo", { id }),
+  /** Tools menu jobs (tools.rs); progress arrives as "tool-progress" events. */
+  cancelTool: () => invoke<void>("cancel_tool"),
+  findDuplicates: () => invoke<number[][]>("find_duplicates"),
+  adjustDates: (ids: number[], delta: number, reset: boolean) => invoke<void>("adjust_dates", { ids, delta, reset }),
+  backupPlan: (folders: number[], dest: string) => invoke<BackupPlan>("backup_plan", { folders, dest }),
+  backupRun: (folders: number[], dest: string) => invoke<{ copied: number; bytes: number; failed: string[] }>("backup_run", { folders, dest }),
   setStar: (ids: number[], starred: boolean) => invoke<void>("set_star", { ids, starred }),
   setCaption: (id: number, caption: string) => invoke<void>("set_caption", { id, caption }),
   setFolderDescription: (id: number, description: string) =>

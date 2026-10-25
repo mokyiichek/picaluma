@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { faceUrl, thumbUrl, Folder } from "../api";
 import { cropViewBox, render } from "../effects";
-import { fmtDate } from "../format";
+import { fmtDate, plural } from "../format";
 import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, selectProject, selectVisible, useStore } from "../store";
 import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
@@ -334,6 +334,7 @@ export default function LibraryGrid() {
           </span>
         </div>
       )}
+      <DupBanner count={ordered.length} />
       {search && (
         <div className="search-banner">
           <button onClick={clearSearch}>Back to View All</button>
@@ -515,3 +516,27 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
     </div>
   );
 });
+
+/** Tools › Experimental › Show Duplicate Files: what is shown, and where the selected picture's copies are. */
+function DupBanner({ count }: { count: number }) {
+  const sets = useStore((s) => s.dupGroups);
+  const selected = useStore((s) => s.selected);
+  if (!sets) return null;
+  const one = selected.size === 1 ? [...selected][0] : null;
+  const set = one != null ? sets.find((g) => g.includes(one)) : undefined;
+  const s = useStore.getState();
+  const where = (id: number) => s.folderById.get(s.folderOfPhoto.get(id) ?? -1)?.name ?? "?";
+  return (
+    <div className="search-banner">
+      <button onClick={() => useStore.getState().setDupGroups(null)}>Back to View All</button>
+      <span>
+        {set
+          ? `${set.length} copies — also in: ${set
+              .filter((id) => id !== one)
+              .map(where)
+              .join(", ")}`
+          : `Duplicate files: ${plural(count, "picture")} in ${plural(sets.length, "set")}. Select a picture to see where its copies are.`}
+      </span>
+    </div>
+  );
+}

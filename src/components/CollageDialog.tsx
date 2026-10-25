@@ -17,7 +17,10 @@ const FORMATS = {
 } as const;
 type Format = keyof typeof FORMATS;
 const BACKGROUNDS = { White: "#ffffff", Black: "#000000", Grey: "#808080" } as const;
-type Style = "grid" | "mosaic";
+/** Picasa's collage styles (Frame Mosaic aside). */
+const STYLES = { pile: "Picture Pile", mosaic: "Mosaic", grid: "Picture Grid", contact: "Contact Sheet", exposure: "Multiple Exposure" } as const;
+type Style = keyof typeof STYLES;
+type Img = CanvasImageSource & { width: number; height: number };
 
 interface Tile {
   i: number;
@@ -80,7 +83,71 @@ function grid(n: number, w: number, h: number, gap: number): Tile[] {
   return Array.from({ length: n }, (_, i) => ({ i, x: gap + (i % cols) * (cw + gap), y: gap + Math.floor(i / cols) * (ch + gap), w: cw, h: ch }));
 }
 
-function drawCover(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, t: Tile) {
+/** The same "random" layout every time (preview and final match). */
+function seeded(seed: number) {
+  let s = seed * 9301 + 49297;
+  return () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+}
+
+/** Picture Pile: prints with white borders and shadows, tossed onto the page. */
+function drawPile(ctx: CanvasRenderingContext2D, imgs: Img[], w: number, h: number) {
+  const n = imgs.length;
+  const cols = Math.max(1, Math.round(Math.sqrt((n * w) / h)));
+  const rows = Math.ceil(n / cols);
+  const cell = Math.min(w / cols, h / rows);
+  const rnd = seeded(n);
+  imgs.forEach((img, i) => {
+    const edge = cell * 1.25;
+    const k = edge / Math.max(img.width, img.height);
+    const pw = img.width * k;
+    const ph = img.height * k;
+    const border = edge * 0.04;
+    const cx = ((i % cols) + 0.5) * (w / cols) + (rnd() - 0.5) * (w / cols) * 0.35;
+    const cy = (Math.floor(i / cols) + 0.5) * (h / rows) + (rnd() - 0.5) * (h / rows) * 0.35;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(((rnd() - 0.5) * 24 * Math.PI) / 180);
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = edge * 0.04;
+    ctx.shadowOffsetX = ctx.shadowOffsetY = edge * 0.012;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(-pw / 2 - border, -ph / 2 - border, pw + border * 2, ph + border * 2);
+    ctx.shadowColor = "transparent";
+    ctx.drawImage(img, -pw / 2, -ph / 2, pw, ph);
+    ctx.restore();
+  });
+}
+
+/** Contact Sheet: every picture whole, in a grid, with its file name underneath. */
+function drawContact(ctx: CanvasRenderingContext2D, imgs: Img[], names: string[], w: number, h: number, gap: number, ink: string) {
+  for (const t of grid(imgs.length, w, h, Math.max(gap, w * 0.01))) {
+    const img = imgs[t.i];
+    const label = t.h * 0.14;
+    const k = Math.min(t.w / img.width, (t.h - label) / img.height);
+    const iw = img.width * k;
+    const ih = img.height * k;
+    ctx.drawImage(img, t.x + (t.w - iw) / 2, t.y + (t.h - label - ih) / 2, iw, ih);
+    ctx.fillStyle = ink;
+    ctx.font = `${Math.max(8, label * 0.55)}px Tahoma, Segoe UI, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    let text = names[t.i] ?? "";
+    while (text.length > 4 && ctx.measureText(text).width > t.w) text = text.slice(0, -2);
+    if (text !== (names[t.i] ?? "")) text = text.slice(0, -1) + "…";
+    ctx.fillText(text, t.x + t.w / 2, t.y + t.h - label / 2);
+  }
+}
+
+/** Multiple Exposure: every picture blended into one frame. */
+function drawExposure(ctx: CanvasRenderingContext2D, imgs: Img[], w: number, h: number) {
+  imgs.forEach((img, i) => {
+    ctx.globalAlpha = 1 / (i + 1);
+    drawCover(ctx, img, { i, x: 0, y: 0, w, h });
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, img: Img, t: Tile) {
   const k = Math.max(t.w / img.width, t.h / img.height);
   const sw = t.w / k;
   const sh = t.h / k;
@@ -96,7 +163,7 @@ const loadThumb = (id: number) =>
     img.src = thumbUrl(id);
   });
 
-/** Create › Picture Collage: a grid or mosaic of the selected pictures saved as one JPEG. */
+/** Create › Picture Collage: the selected pictures as one JPEG (pile, mosaic, grid, contact sheet or multiple exposure). */
 export default function CollageDialog() {
   const ids = useStore((s) => s.collage);
   const [style, setStyle] = useState<Style>("mosaic");
@@ -104,6 +171,7 @@ export default function CollageDialog() {
   const [bg, setBg] = useState<keyof typeof BACKGROUNDS>("White");
   const [spacing, setSpacing] = useState(12);
   const [thumbs, setThumbs] = useState<HTMLImageElement[]>([]);
+  const [names, setNames] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const preview = useRef<HTMLCanvasElement>(null);
 
@@ -119,11 +187,25 @@ export default function CollageDialog() {
       if (r.spacing != null) setSpacing(r.spacing);
     }
     Promise.all(ids.map((id) => loadThumb(id).catch(() => null))).then((list) => setThumbs(list.filter((x): x is HTMLImageElement => !!x)));
+    api
+      .photoLabels(ids, "filename")
+      .then((rows) => {
+        const byId = new Map(rows);
+        setNames(ids.map((id) => byId.get(id) ?? ""));
+      })
+      .catch(() => setNames([]));
   }, [ids]);
 
-  const layout = (w: number, h: number, aspects: number[]) => {
+  /** Paints the collage at any size: the preview and the final picture use the same layout. */
+  const paint = (ctx: CanvasRenderingContext2D, imgs: Img[], w: number, h: number) => {
     const gap = (spacing / 1000) * Math.max(w, h);
-    return style === "grid" ? grid(aspects.length, w, h, gap) : mosaic(aspects, w, h, gap);
+    ctx.fillStyle = BACKGROUNDS[bg];
+    ctx.fillRect(0, 0, w, h);
+    if (style === "pile") return drawPile(ctx, imgs, w, h);
+    if (style === "exposure") return drawExposure(ctx, imgs, w, h);
+    if (style === "contact") return drawContact(ctx, imgs, names, w, h, gap, bg === "White" ? "#222" : "#eee");
+    const tiles = style === "grid" ? grid(imgs.length, w, h, gap) : mosaic(imgs.map((p) => p.width / p.height), w, h, gap);
+    for (const t of tiles) drawCover(ctx, imgs[t.i], t);
   };
 
   useEffect(() => {
@@ -132,11 +214,8 @@ export default function CollageDialog() {
     const ratio = FORMATS[format];
     c.width = ratio >= 1 ? 460 : Math.round(330 * ratio);
     c.height = Math.round(c.width / ratio);
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = BACKGROUNDS[bg];
-    ctx.fillRect(0, 0, c.width, c.height);
-    for (const t of layout(c.width, c.height, thumbs.map((t) => t.width / t.height))) drawCover(ctx, thumbs[t.i], t);
-  }, [thumbs, style, format, bg, spacing]); // eslint-disable-line react-hooks/exhaustive-deps
+    paint(c.getContext("2d")!, thumbs, c.width, c.height);
+  }, [thumbs, names, style, format, bg, spacing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ids) return null;
   const close = () => !busy && useStore.getState().setCollage(null);
@@ -154,9 +233,7 @@ export default function CollageDialog() {
       c.height = H;
       const ctx = c.getContext("2d")!;
       ctx.imageSmoothingQuality = "high";
-      ctx.fillStyle = BACKGROUNDS[bg];
-      ctx.fillRect(0, 0, W, H);
-      for (const t of layout(W, H, pics.map((p) => p.width / p.height))) drawCover(ctx, pics[t.i], t);
+      paint(ctx, pics, W, H);
       const url = c.toDataURL("image/jpeg", 0.9);
       const data = url.slice(url.indexOf(",") + 1);
       if (desktop) await api.setWallpaper(data);
@@ -181,12 +258,11 @@ ${out}`, { title: "Picture Collage", ok: "Show in Folder", cancel: "OK" }))) rev
           <div className="collage-opts">
             <fieldset disabled={busy}>
               <legend>Style</legend>
-              <label className="opt-radio">
-                <input type="radio" checked={style === "mosaic"} onChange={() => setStyle("mosaic")} /> Mosaic
-              </label>
-              <label className="opt-radio">
-                <input type="radio" checked={style === "grid"} onChange={() => setStyle("grid")} /> Picture grid
-              </label>
+              {(Object.keys(STYLES) as Style[]).map((k) => (
+                <label key={k} className="opt-radio">
+                  <input type="radio" checked={style === k} onChange={() => setStyle(k)} /> {STYLES[k]}
+                </label>
+              ))}
             </fieldset>
             <label className="field">
               <span>Page format</span>
@@ -206,7 +282,7 @@ ${out}`, { title: "Picture Collage", ok: "Show in Folder", cancel: "OK" }))) rev
             </label>
             <label className="field">
               <span>Spacing</span>
-              <input type="range" className="slider" min={0} max={40} value={spacing} onChange={(e) => setSpacing(Number(e.target.value))} disabled={busy} />
+              <input type="range" className="slider" min={0} max={40} value={spacing} onChange={(e) => setSpacing(Number(e.target.value))} disabled={busy || style === "pile" || style === "exposure"} />
             </label>
           </div>
           <div className="collage-preview">{thumbs.length ? <canvas ref={preview} /> : <span className="muted">Loading pictures…</span>}</div>

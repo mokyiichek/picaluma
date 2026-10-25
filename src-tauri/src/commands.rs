@@ -104,6 +104,8 @@ pub struct PhotoDto {
   caption: String,
   starred: bool,
   edits: String,
+  /// Tools › Adjust Date and Time moved `taken`.
+  date_adjusted: bool,
 }
 
 #[derive(Serialize)]
@@ -452,7 +454,7 @@ pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
   conn
     .query_row(
       "SELECT p.id, p.folder_id, f.name, p.path, p.name, p.size, p.mtime, p.taken, p.width, p.height,
-              p.exif, p.caption, p.starred, p.edits
+              p.exif, p.caption, p.starred, p.edits, p.taken_set IS NOT NULL
        FROM photos p JOIN folders f ON f.id = p.folder_id WHERE p.id = ?1",
       [id],
       |r| {
@@ -472,6 +474,7 @@ pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
           caption: r.get(11)?,
           starred: r.get::<_, i64>(12)? != 0,
           edits: r.get(13)?,
+          date_adjusted: r.get(14)?,
         })
       },
     )
@@ -480,12 +483,26 @@ pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
 
 #[tauri::command(async)]
 pub fn set_star(state: State<'_, AppState>, ids: Vec<i64>, starred: bool) -> CmdResult<()> {
+  let paths = set_mark(&state, &ids, "starred", starred)?;
+  for p in paths {
+    let _ = crate::folderini::save_flag(std::path::Path::new(&p), "star", starred);
+  }
+  Ok(())
+}
+
+/// Sets a yes/no column and returns the pictures' paths (to record it in their folders).
+fn set_mark(state: &State<'_, AppState>, ids: &[i64], column: &str, on: bool) -> CmdResult<Vec<String>> {
   let mut conn = state.db.lock().map_err(err)?;
   let tx = conn.transaction().map_err(err)?;
+  let mut paths = Vec::with_capacity(ids.len());
   for id in ids {
-    tx.execute("UPDATE photos SET starred = ?1 WHERE id = ?2", params![starred as i64, id]).map_err(err)?;
+    tx.execute(&format!("UPDATE photos SET {column} = ?1 WHERE id = ?2"), params![on as i64, id]).map_err(err)?;
+    if let Ok(p) = tx.query_row("SELECT path FROM photos WHERE id = ?1", [id], |r| r.get::<_, String>(0)) {
+      paths.push(p);
+    }
   }
-  tx.commit().map_err(err)
+  tx.commit().map_err(err)?;
+  Ok(paths)
 }
 
 #[tauri::command(async)]
@@ -798,12 +815,11 @@ pub fn photos_since(state: State<'_, AppState>, since: i64) -> CmdResult<DateFil
 /// Picture › Hide / Unhide.
 #[tauri::command(async)]
 pub fn set_hidden(state: State<'_, AppState>, ids: Vec<i64>, hidden: bool) -> CmdResult<()> {
-  let mut conn = state.db.lock().map_err(err)?;
-  let tx = conn.transaction().map_err(err)?;
-  for id in ids {
-    tx.execute("UPDATE photos SET hidden = ?1 WHERE id = ?2", params![hidden as i64, id]).map_err(err)?;
+  let paths = set_mark(&state, &ids, "hidden", hidden)?;
+  for p in paths {
+    let _ = crate::folderini::save_flag(std::path::Path::new(&p), "hidden", hidden);
   }
-  tx.commit().map_err(err)
+  Ok(())
 }
 
 /// Places: [id, latitude, longitude] of geotagged pictures — the given ones, or all.

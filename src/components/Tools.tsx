@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { thumbUrl } from "../api";
 import { askText, notify } from "../dialogs";
 import { aspectCache } from "../aspect";
@@ -22,6 +22,8 @@ type StraightenTool = Extract<Tool, { kind: "straighten" }>;
 /** Picasa's crop presets (width:height, landscape orientation). */
 const PRESETS: { label: string; hint?: string; ratio: number | null }[] = [
   { label: "Manual", ratio: null },
+  // The picture's own shape (filled in from the picture).
+  { label: "Current ratio", ratio: 0 },
   { label: "4 x 6", hint: "Small print", ratio: 6 / 4 },
   { label: "5 x 7", hint: "Large print", ratio: 7 / 5 },
   { label: "8.5 x 11", hint: "Letter paper", ratio: 11 / 8.5 },
@@ -49,24 +51,33 @@ function fitRect(r: number, imgAspect: number, scale = 1): CropRect {
 export function CropPanel({
   id,
   dims,
+  turn,
   tool,
   setTool,
   onApply,
   onCancel,
 }: {
   id: number;
-  /** The picture's size in pixels, upright (for "Manual: 1811 x 1407"). */
+  /** The picture's size in pixels as you see it (for "Manual: 1811 x 1407"). */
   dims: [number, number] | null;
+  /** How far the picture is turned (Rotate), so the suggestions look like the stage. */
+  turn: number;
   tool: CropTool;
   setTool: (t: Tool) => void;
   onApply: () => void;
   onCancel: () => void;
 }) {
-  const aspect = imgAspectOf(id);
+  const base = imgAspectOf(id);
+  const aspect = turn === 90 || turn === 270 ? 1 / base : base;
   // Three suggested crops at different tightness, like Picasa's preview strip.
   const suggestions: CropRect[] = [0.92, 0.75, 0.58].map((s) => fitRect(tool.aspect ?? aspect, aspect, s));
   const same = (a: number, b: number) => Math.abs(a - b) < 1e-6;
-  const preset = tool.aspect == null ? "Manual" : PRESETS.find((p) => p.ratio && (same(p.ratio, tool.aspect!) || same(1 / p.ratio, tool.aspect!)))?.label ?? "Custom";
+  const preset =
+    tool.aspect == null
+      ? "Manual"
+      : same(tool.aspect, aspect)
+        ? "Current ratio"
+        : PRESETS.find((p) => p.ratio && (same(p.ratio, tool.aspect!) || same(1 / p.ratio, tool.aspect!)))?.label ?? "Custom";
   // A preset follows the photo's orientation: portrait photos get portrait crops.
   const choose = (ratio: number | null) => setTool({ ...tool, aspect: ratio, rect: ratio ? fitRect(ratio, aspect, 0.9) : tool.rect, preview: false });
   const custom = async () => {
@@ -93,6 +104,7 @@ export function CropPanel({
         onChange={(e) => {
           if (e.target.value === "Custom") return void custom();
           const p = PRESETS.find((x) => x.label === e.target.value)!;
+          if (p.ratio === 0) return choose(aspect);
           choose(p.ratio ? (aspect < 1 ? 1 / p.ratio : p.ratio) : null);
         }}
       >
@@ -106,7 +118,7 @@ export function CropPanel({
       <div className="crop-suggest">
         {suggestions.map((r, i) => (
           <button key={i} className="fx-tile" onClick={() => setTool({ ...tool, rect: r, preview: false })} title="Use this crop">
-            <CropThumb id={id} rect={r} aspect={aspect} />
+            <CropThumb id={id} rect={r} turn={turn} />
           </button>
         ))}
       </div>
@@ -145,12 +157,33 @@ export function CropPanel({
   );
 }
 
-/** A suggested crop drawn as a thumbnail (works everywhere, unlike CSS object-view-box). */
-function CropThumb({ id, rect, aspect }: { id: number; rect: CropRect; aspect: number }) {
+/** A suggested crop drawn as a thumbnail, turned like the picture on the stage. */
+function CropThumb({ id, rect, turn }: { id: number; rect: CropRect; turn: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
   const [x, y, w, h] = rect;
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const c = ref.current;
+      if (!c) return;
+      const side = turn === 90 || turn === 270;
+      // The whole picture turned, then the suggested part of it.
+      const tw = side ? img.naturalHeight : img.naturalWidth;
+      const th = side ? img.naturalWidth : img.naturalHeight;
+      c.width = Math.max(1, Math.round(w * tw));
+      c.height = Math.max(1, Math.round(h * th));
+      const ctx = c.getContext("2d")!;
+      ctx.translate(-x * tw, -y * th);
+      ctx.translate(tw / 2, th / 2);
+      ctx.rotate((turn * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    };
+    img.src = thumbUrl(id);
+  }, [id, x, y, w, h, turn]);
   return (
-    <span className="crop-thumb" style={{ aspectRatio: `${(w * aspect) / h}` }}>
-      <img src={thumbUrl(id)} alt="" draggable={false} style={{ width: `${100 / w}%`, height: `${100 / h}%`, left: `${(-x / w) * 100}%`, top: `${(-y / h) * 100}%` }} />
+    <span className="crop-thumb">
+      <canvas ref={ref} />
     </span>
   );
 }
@@ -200,13 +233,27 @@ export function CropOverlay({ tool, setTool, aspect }: { tool: CropTool; setTool
         const edgeY = handle === "e" || handle === "w";
         let nw = edgeX ? start[2] : Math.abs(cx - ax);
         let nh = edgeY ? start[3] : Math.abs(cy - ay);
+        // Room from the anchor to the picture's edge, in the direction being dragged.
+        const left = edgeX ? false : cx < ax;
+        const up = edgeY ? false : cy < ay;
+        const roomW = edgeX ? 1 - start[0] : left ? ax : 1 - ax;
+        const roomH = edgeY ? 1 - start[1] : up ? ay : 1 - ay;
         if (fr) {
-          if (nw / nh > fr) nw = nh * fr;
+          // Dragging a side changes the other side too, keeping the shape.
+          if (edgeX) nw = nh * fr;
+          else if (edgeY) nh = nw / fr;
+          else if (nw / nh > fr) nw = nh * fr;
           else nh = nw / fr;
+          const k = Math.min(1, roomW / nw, roomH / nh);
+          nw *= k;
+          nh *= k;
+        } else {
+          nw = Math.min(nw, roomW);
+          nh = Math.min(nh, roomH);
         }
-        const nx = edgeX ? start[0] : cx < ax ? ax - nw : ax;
-        const ny = edgeY ? start[1] : cy < ay ? ay - nh : ay;
-        r = [Math.max(0, nx), Math.max(0, ny), Math.min(nw, 1 - Math.max(0, nx)), Math.min(nh, 1 - Math.max(0, ny))];
+        const nx = edgeX ? start[0] : left ? ax - nw : ax;
+        const ny = edgeY ? start[1] : up ? ay - nh : ay;
+        r = [nx, ny, nw, nh];
       }
       if (r[2] > 0.01 && r[3] > 0.01) setTool({ ...tool, rect: r });
     };

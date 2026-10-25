@@ -134,6 +134,13 @@ interface State {
   thumbCaption: "none" | "filename" | "caption" | "tags" | "resolution";
   /** Folder Properties dialog (double-click a folder). */
   folderProps: number | null;
+  /** Tools › Experimental › Show Duplicate Files: sets of identical pictures, shown in their folders. */
+  dupGroups: number[][] | null;
+  dupIds: Set<number> | null;
+  /** A Tools job's dialog: the duplicate search, or Back Up Pictures. */
+  toolDialog: "dups" | "backup" | null;
+  /** Tools › Adjust Date and Time: the pictures to move. */
+  adjustDate: number[] | null;
   /** The ▾ menu's Sort People by: "name", "amount" or "top" (the ten with most pictures). */
   peopleSort: "name" | "amount" | "top";
   /** A folder to open as soon as the scan finds it (after an import). */
@@ -186,6 +193,9 @@ interface State {
   setImportOpen: (on: boolean) => void;
   setTimelineOpen: (on: boolean) => void;
   setFolderProps: (id: number | null) => void;
+  setDupGroups: (sets: number[][] | null) => void;
+  setToolDialog: (d: State["toolDialog"]) => void;
+  setAdjustDate: (ids: number[] | null) => void;
   setThumbCaption: (k: State["thumbCaption"]) => void;
   setMovie: (ids: number[] | null) => void;
   setPeopleSort: (s: "name" | "amount" | "top") => void;
@@ -293,6 +303,10 @@ export const useStore = create<State>((set, get) => ({
   importOpen: false,
   timelineOpen: false,
   folderProps: null,
+  dupGroups: null,
+  dupIds: null,
+  toolDialog: null,
+  adjustDate: null,
   thumbCaption: (["filename", "caption", "tags", "resolution"].includes(localStorageGet("thumbCaption") ?? "") ? localStorageGet("thumbCaption") : "none") as State["thumbCaption"],
   movie: null,
   peopleSort: (localStorageGet("peopleSort") as "name" | "amount" | "top") || "name",
@@ -351,6 +365,12 @@ export const useStore = create<State>((set, get) => ({
             ? cur
             : snapshot.folders[0]?.id ?? null,
     });
+    // Show Duplicate Files: a set whose copies were deleted down to one isn't a duplicate any more.
+    const dups = get().dupGroups;
+    if (dups) {
+      const left = dups.map((g) => g.filter((id) => folderOfPhoto.has(id))).filter((g) => g.length > 1);
+      if (left.length !== dups.length || left.some((g, i) => g.length !== dups[i].length)) get().setDupGroups(left.length ? left : null);
+    }
     // An imported folder opens once the scan has found it.
     const pending = get().pendingFolderPath;
     if (pending) get().selectFolderByPath(pending);
@@ -494,6 +514,18 @@ export const useStore = create<State>((set, get) => ({
   setCompare: (compare) => set({ compare, comparePin: compare === "aa" ? get().editId : null }),
   setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
   // Albums and people have no folder properties.
+  setDupGroups: (sets) =>
+    set({
+      dupGroups: sets,
+      dupIds: sets ? new Set(sets.flat()) : null,
+      albumView: sets ? null : get().albumView,
+      personView: sets ? null : get().personView,
+      projectView: sets ? null : get().projectView,
+      selected: new Set(),
+      anchor: null,
+    }),
+  setToolDialog: (toolDialog) => set({ toolDialog }),
+  setAdjustDate: (ids) => set({ adjustDate: ids && ids.length ? ids : null }),
   setFolderProps: (folderProps) => set({ folderProps: folderProps != null && folderProps > 0 ? folderProps : null }),
   setThumbCaption: (thumbCaption) => {
     localStorageSet("thumbCaption", thumbCaption);
@@ -720,22 +752,24 @@ export function selectAlbum(s: State): Album | undefined {
 // Memoised: folders + photos after applying search and the starred filter.
 let visCache: { key: unknown[]; value: VisibleFolder[] } | null = null;
 export function selectVisible(s: State): VisibleFolder[] {
-  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.projectView, s.geoOnly, s.videoOnly, s.facesOnly, s.recentOnly, s.showHidden, s.hidden, s.dateFilter, s.folderView, s.folderSort, s.sortReverse];
+  const key = [s.snapshot, s.search, s.starredOnly, s.starredOnly ? s.starred : null, s.albumView, s.personView, s.projectView, s.geoOnly, s.videoOnly, s.facesOnly, s.recentOnly, s.showHidden, s.hidden, s.dateFilter, s.folderView, s.folderSort, s.sortReverse, s.dupIds];
   if (visCache && visCache.key.every((k, i) => k === key[i])) return visCache.value;
   const album = selectAlbum(s);
   const person = selectPerson(s);
   const project = selectProject(s);
   const folders = project ? [projectAsFolder(project)] : person ? [personAsFolder(person)] : album ? [albumAsFolder(album)] : sortFolders(s.snapshot?.folders ?? [], s.folderView, s.folderSort, s.sortReverse);
   const ids = s.search?.ids;
+  const dups = s.dupIds;
   const value: VisibleFolder[] = [];
   for (const folder of folders) {
     let photos = folder.photos;
     const df = s.dateFilter;
     const hide = !s.showHidden && s.hidden.size > 0;
-    if (ids || s.starredOnly || s.geoOnly || s.videoOnly || s.facesOnly || s.recentOnly || hide || df) {
+    if (ids || dups || s.starredOnly || s.geoOnly || s.videoOnly || s.facesOnly || s.recentOnly || hide || df) {
       photos = photos.filter(
         (p) =>
           (!ids || ids.has(p)) &&
+          (!dups || dups.has(p)) &&
           (!s.starredOnly || s.starred.has(p)) &&
           (!s.geoOnly || s.geotagged.has(p)) &&
           (!s.videoOnly || s.videos.has(p)) &&

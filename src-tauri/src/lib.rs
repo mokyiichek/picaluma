@@ -12,6 +12,7 @@ mod settings;
 mod share;
 mod sysimg;
 mod thumbs;
+mod tools;
 mod watch;
 
 use std::path::PathBuf;
@@ -154,6 +155,11 @@ pub fn run() {
       commands::update_project,
       commands::photo_labels,
       commands::save_picture,
+      tools::cancel_tool,
+      tools::find_duplicates,
+      tools::adjust_dates,
+      tools::backup_plan,
+      tools::backup_run,
       commands::undo_save_picture,
       commands::saved_originals,
       commands::photos_since,

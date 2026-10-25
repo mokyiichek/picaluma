@@ -5,6 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
+import { showDuplicates } from "./ToolsDialogs";
 import { selectVisible, useStore } from "../store";
 import {
   addFiles,
@@ -219,6 +220,10 @@ function useMenus(): [string, MenuEntry[]][] {
       [
         { label: "Folder Manager...", action: () => s.setFolderManager(true) },
         { label: "People Manager...", shortcut: "Ctrl+Shift+M", action: () => s.setPeopleManager({ tab: "unnamed" }) },
+        sep,
+        { label: "Back Up Pictures...", action: () => s.setToolDialog("backup") },
+        { label: "Adjust Date and Time...", action: targets.length ? () => s.setAdjustDate(targets) : undefined },
+        { label: "Experimental", submenu: [{ label: "Show Duplicate Files", action: () => showDuplicates() }] },
         sep,
         { label: "Rescan Library", action: () => api.rescan() },
         sep,

@@ -262,7 +262,7 @@ fn run_scan(app: &AppHandle) {
 fn migrate_edits_to_folders(db: &Arc<Mutex<Connection>>) {
   let todo: Vec<(String, String)> = {
     let conn = db.lock().unwrap();
-    if conn.query_row("SELECT 1 FROM meta WHERE key = 'edits_in_folders'", [], |_| Ok(())).is_ok() {
+    if conn.query_row("SELECT 1 FROM meta WHERE key = 'marks_in_folders'", [], |_| Ok(())).is_ok() {
       return;
     }
     let mut stmt = conn.prepare("SELECT path, edits FROM photos WHERE edits != ''").unwrap();
@@ -275,8 +275,22 @@ fn migrate_edits_to_folders(db: &Arc<Mutex<Connection>>) {
       failed += 1;
     }
   }
-  log::info!("edits moved into folder files: {} pictures ({failed} failed)", todo.len());
-  let _ = db.lock().unwrap().execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('edits_in_folders', '1')", []);
+  let flagged: Vec<(String, bool, bool)> = {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn.prepare("SELECT path, starred, hidden FROM photos WHERE starred = 1 OR hidden = 1").unwrap();
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0, r.get::<_, i64>(2)? != 0))).unwrap();
+    rows.filter_map(Result::ok).collect()
+  };
+  for (path, star, hidden) in &flagged {
+    if *star && crate::folderini::save_flag(Path::new(path), "star", true).is_err() {
+      failed += 1;
+    }
+    if *hidden && crate::folderini::save_flag(Path::new(path), "hidden", true).is_err() {
+      failed += 1;
+    }
+  }
+  log::info!("edits and marks moved into folder files: {} edited, {} starred/hidden ({failed} failed)", todo.len(), flagged.len());
+  let _ = db.lock().unwrap().execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('marks_in_folders', '1')", []);
 }
 
 pub(crate) fn load_roots(db: &Arc<Mutex<Connection>>) -> (Vec<String>, Vec<String>) {
@@ -353,7 +367,8 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
   let files = list_images(dir, streaming);
   let dir_str = dir.to_string_lossy().into_owned();
   // Edits recorded in the folder (.picaluma.ini, or Picasa's .picasa.ini), read before locking.
-  let ini_edits = if !streaming && crate::folderini::has_edit_files(dir) { crate::folderini::folder_edits(dir) } else { Default::default() };
+  let record = if !streaming && crate::folderini::has_edit_files(dir) { crate::folderini::folder_record(dir) } else { Default::default() };
+  let ini_edits = &record.edits;
   let mut conn = db.lock().unwrap();
 
   if files.is_empty() {
@@ -388,6 +403,32 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
     for (id, e) in updates {
       conn.execute("UPDATE photos SET edits = ?1 WHERE id = ?2", params![e, id])?;
     }
+  }
+  // Stars and hidden marks recorded in the folder (Picaluma's, or Picasa's star=yes).
+  if !record.star.is_empty() || !record.hidden.is_empty() || !record.dates.is_empty() {
+    for (path, (id, ..)) in &known {
+      let name = Path::new(path).file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+      if let Some(on) = record.star.get(&name) {
+        conn.execute("UPDATE photos SET starred = ?1 WHERE id = ?2 AND starred != ?1", params![*on as i64, id])?;
+      }
+      if let Some(on) = record.hidden.get(&name) {
+        conn.execute("UPDATE photos SET hidden = ?1 WHERE id = ?2 AND hidden != ?1", params![*on as i64, id])?;
+      }
+      if let Some(d) = record.dates.get(&name) {
+        conn.execute("UPDATE photos SET taken = ?1, taken_set = ?1 WHERE id = ?2 AND taken_set IS NOT ?1", params![d, id])?;
+      }
+    }
+  }
+  // The folder's date, description and place from Picasa, unless set in Picaluma.
+  if record.folder_date.is_some() || record.folder_description.is_some() || record.folder_place.is_some() {
+    conn.execute(
+      "UPDATE folders SET
+         date_set = CASE WHEN date_set = 0 THEN COALESCE(?2, 0) ELSE date_set END,
+         description = CASE WHEN description = '' THEN COALESCE(?3, '') ELSE description END,
+         place = CASE WHEN place = '' THEN COALESCE(?4, '') ELSE place END
+       WHERE path = ?1",
+      params![dir_str, record.folder_date, record.folder_description, record.folder_place],
+    )?;
   }
   // A cloud file that has since been downloaded ("Always keep on this device") gets indexed now.
   let changed: Vec<&FileInfo> = files
@@ -426,6 +467,15 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
       )?;
       if let Some(e) = ini_edits.get(&f.name.to_lowercase()).filter(|e| e.as_str() != "[]") {
         tx.execute("UPDATE photos SET edits = ?1 WHERE id = ?2 AND edits = ''", params![e, id])?;
+      }
+      if let Some(on) = record.star.get(&f.name.to_lowercase()) {
+        tx.execute("UPDATE photos SET starred = ?1 WHERE id = ?2", params![*on as i64, id])?;
+      }
+      if let Some(on) = record.hidden.get(&f.name.to_lowercase()) {
+        tx.execute("UPDATE photos SET hidden = ?1 WHERE id = ?2", params![*on as i64, id])?;
+      }
+      if let Some(d) = record.dates.get(&f.name.to_lowercase()) {
+        tx.execute("UPDATE photos SET taken = ?1, taken_set = ?1 WHERE id = ?2", params![d, id])?;
       }
       db::reindex_photo(&tx, id)?;
     }
@@ -558,7 +608,7 @@ fn save_metas(db: &Arc<Mutex<Connection>>, metas: &[(&Pending, Meta)]) {
   let mut folders = HashSet::new();
   for (p, m) in metas {
     let _ = tx.execute(
-      "UPDATE photos SET taken = ?1, width = ?2, height = ?3, orientation = ?4, make = ?5, model = ?6,
+      "UPDATE photos SET taken = COALESCE(taken_set, ?1), width = ?2, height = ?3, orientation = ?4, make = ?5, model = ?6,
          has_gps = ?7, exif = ?8, lat = ?10, lon = ?11, meta_done = 1 WHERE id = ?9",
       params![m.taken, m.width, m.height, m.orientation, m.make, m.model, m.has_gps as i64, m.exif, p.id, m.lat, m.lon],
     );
