@@ -19,7 +19,7 @@ import {
   printPhotos,
   removeFromAlbum,
   renameFolder,
-  renamePhoto,
+  renamePictures,
   setAsDesktop,
   transferPhotos,
 } from "../actions";
@@ -127,7 +127,7 @@ function photoEntries(): MenuEntry[] {
     { label: "Copy to Folder...", action: ids.length ? () => transferPhotos(ids, true) : undefined },
     { label: "Move to New Folder...", action: ids.length ? () => moveToNewFolder(ids) : undefined },
     sep,
-    { label: "Rename...", shortcut: "F2", action: one != null ? () => renamePhoto(one) : undefined },
+    { label: "Rename...", shortcut: "F2", action: ids.length ? () => renamePictures(ids) : undefined },
     { label: "Open File", shortcut: "Ctrl+Shift+O", action: withPath((p) => api.openInDefaultApp(p)) },
     { label: "Copy Picture", shortcut: "Ctrl+C", action: one != null ? () => copyPicture(one) : undefined },
     { label: "Set as Desktop", action: one != null ? () => setAsDesktop(one) : undefined },

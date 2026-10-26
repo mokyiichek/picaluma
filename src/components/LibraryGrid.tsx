@@ -520,6 +520,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
 /** Tools › Experimental › Show Duplicate Files: what is shown, and where the selected picture's copies are. */
 function DupBanner({ count }: { count: number }) {
   const sets = useStore((s) => s.dupGroups);
+  const kind = useStore((s) => s.dupKind);
   const selected = useStore((s) => s.selected);
   if (!sets) return null;
   const one = selected.size === 1 ? [...selected][0] : null;
@@ -531,11 +532,11 @@ function DupBanner({ count }: { count: number }) {
       <button onClick={() => useStore.getState().setDupGroups(null)}>Back to View All</button>
       <span>
         {set
-          ? `${set.length} copies — also in: ${set
+          ? `${set.length} ${kind === "similar" ? "look-alikes" : "copies"} — also in: ${set
               .filter((id) => id !== one)
               .map(where)
               .join(", ")}`
-          : `Duplicate files: ${plural(count, "picture")} in ${plural(sets.length, "set")}. Select a picture to see where its copies are.`}
+          : `${kind === "similar" ? "Similar pictures" : "Duplicate files"}: ${plural(count, "picture")} in ${plural(sets.length, "set")}. Select a picture to see where the others are.`}
       </span>
     </div>
   );

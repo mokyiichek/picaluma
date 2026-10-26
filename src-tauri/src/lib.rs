@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod fileops;
+mod exifcopy;
 mod faces;
 mod folderini;
 mod importer;
@@ -71,6 +72,7 @@ pub fn run() {
       init_logging(&data_dir);
       // File Types must be known before the first scan, or it would drop those files.
       formats::configure(&settings::load(&data_dir).file_types);
+      scanner::set_min_bytes(settings::load(&data_dir).min_file_kb);
       let thumb_dir = data_dir.join("thumbs");
       std::fs::create_dir_all(&thumb_dir)?;
       let conn = db::open(&data_dir.join("library.db"))?;
@@ -156,6 +158,12 @@ pub fn run() {
       commands::photo_labels,
       commands::save_picture,
       tools::cancel_tool,
+      tools::library_stats,
+      tools::library_info,
+      tools::clear_thumbnail_cache,
+      tools::compact_library,
+      tools::find_similar,
+      settings::set_min_file_kb,
       tools::find_duplicates,
       tools::adjust_dates,
       tools::backup_plan,

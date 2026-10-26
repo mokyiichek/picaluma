@@ -243,9 +243,14 @@ pub fn save_over(photo: &Path, jpeg: &[u8], edits: &str) -> Result<(), String> {
   let all = merge(prev.as_deref(), edits);
   s.entry(name.clone()).or_default().insert("edits".into(), all);
   write(&ini, &s).map_err(|e| e.to_string())?;
-  // Write the new picture beside, then swap it in.
+  // Write the new picture beside, then swap it in. It keeps the camera details (date taken,
+  // camera, exposure) of the picture it replaces.
+  let jpeg = match std::fs::read(photo) {
+    Ok(old) => crate::exifcopy::transplant(&old, jpeg, false),
+    Err(_) => jpeg.to_vec(),
+  };
   let tmp = dir.join(format!(".{name}.saving"));
-  std::fs::write(&tmp, jpeg).map_err(|e| e.to_string())?;
+  std::fs::write(&tmp, &jpeg).map_err(|e| e.to_string())?;
   std::fs::rename(&tmp, photo).map_err(|e| {
     let _ = std::fs::remove_file(&tmp);
     e.to_string()

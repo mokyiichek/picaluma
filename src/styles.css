@@ -3514,3 +3514,116 @@ button.link:hover {
   border-radius: 3px;
   background: #f6f8fa;
 }
+
+/* Options: Library tab, number fields */
+.opt-num {
+  width: 72px;
+  height: 22px;
+  margin: 0 6px;
+  padding: 0 4px;
+  border: 1px solid #b8c0c8;
+  border-radius: 3px;
+  font: inherit;
+}
+.opt-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 6px;
+  border: 1px solid #d4dae0;
+  border-radius: 3px;
+  background: #f6f8fa;
+}
+.opt-lib {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+.rename-input {
+  width: 100%;
+  height: 24px;
+  margin-bottom: 8px;
+  padding: 0 6px;
+  border: 1px solid #b8c0c8;
+  border-radius: 3px;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+/* Tools › Library Statistics */
+.modal.stats {
+  width: 640px;
+}
+.stats-body {
+  padding: 12px 16px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.stats-sum {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px 12px;
+  padding: 10px;
+  border: 1px solid #d4dae0;
+  border-radius: 3px;
+  background: #f6f8fa;
+}
+.stats-sum b {
+  font-size: 14px;
+}
+.stats-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.stats-cols h4 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+}
+.stats-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stats-bar {
+  display: grid;
+  grid-template-columns: 40px 1fr 56px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.stats-bar.wide {
+  grid-template-columns: 110px 1fr 56px;
+}
+.stats-bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stats-bar i {
+  display: block;
+  height: 10px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(#7fb0e6, #4b7dbe);
+}
+.stats-bar em {
+  font-style: normal;
+  text-align: right;
+  color: var(--muted);
+}
+.stats-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+}
+
+/* Options has eight tabs, as many as Picasa: the wide dialog size. */
+.modal.options {
+  width: 680px;
+}

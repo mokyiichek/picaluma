@@ -114,6 +114,31 @@ fn ensure_thumb(cache: &Path, photo: &PhotoRef) -> Result<Vec<u8>, String> {
   }
 }
 
+/// A library picture's thumbnail (from the cache, or made and cached now).
+pub(crate) fn thumb_bytes(dir: &Path, path: &str, mtime: i64, orientation: i64) -> Result<Vec<u8>, String> {
+  ensure_thumb(&cache_path(dir, path, mtime), &PhotoRef { path: path.into(), mtime, orientation })
+}
+
+/// Size and file count of the thumbnail cache.
+pub(crate) fn cache_size(dir: &Path) -> (u64, u64) {
+  fn walk(d: &Path, acc: &mut (u64, u64)) {
+    let Ok(rd) = std::fs::read_dir(d) else { return };
+    for e in rd.flatten() {
+      match e.file_type() {
+        Ok(t) if t.is_dir() => walk(&e.path(), acc),
+        Ok(_) => {
+          acc.0 += e.metadata().map(|m| m.len()).unwrap_or(0);
+          acc.1 += 1;
+        }
+        Err(_) => {}
+      }
+    }
+  }
+  let mut acc = (0, 0);
+  walk(dir, &mut acc);
+  acc
+}
+
 /// A thumbnail for any supported file: pictures decoded here, RAW from its embedded preview,
 /// HEIC/AVIF/PSD and video frames from the operating system.
 fn make_thumb(path: &str, orientation_hint: i64) -> Result<Vec<u8>, String> {

@@ -24,11 +24,19 @@ pub fn make_export_dir(location: String, name: String) -> CmdResult<String> {
 
 /// Copies an original file into `dir` unchanged (keeps EXIF), never overwriting. Returns the new path.
 #[tauri::command(async)]
-pub fn copy_into(src: String, dir: String) -> CmdResult<String> {
+pub fn copy_into(src: String, dir: String, strip_gps: Option<bool>) -> CmdResult<String> {
   let src = PathBuf::from(src);
   let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or("bad file name")?;
   std::fs::create_dir_all(&dir).map_err(err)?;
   let target = crate::fileops::unique_target(Path::new(&dir), name);
+  let jpeg = src.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg"));
+  if strip_gps.unwrap_or(false) && jpeg {
+    // Options › Privacy: the copy leaves out where the picture was taken.
+    let mut bytes = std::fs::read(&src).map_err(err)?;
+    crate::exifcopy::strip_gps(&mut bytes);
+    std::fs::write(&target, bytes).map_err(err)?;
+    return Ok(target.to_string_lossy().into_owned());
+  }
   std::fs::copy(&src, &target).map_err(err)?;
   Ok(target.to_string_lossy().into_owned())
 }

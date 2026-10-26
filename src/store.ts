@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { Album, api, Face, FaceModels, FaceProgress, Folder, Person, Project, ScanProgress, setLibraryTag, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
+import { getPref, reopenLastFolder, setPref } from "./prefs";
+import { loadSlideshowOpts } from "./slideshowOpts";
+
+/** Options › General › Open the last folder: tried once, on the first library load. */
+let reopenTried = false;
 
 export interface Rect {
   x: number;
@@ -137,8 +142,12 @@ interface State {
   /** Tools › Experimental › Show Duplicate Files: sets of identical pictures, shown in their folders. */
   dupGroups: number[][] | null;
   dupIds: Set<number> | null;
+  /** What dupGroups holds: exact copies, or pictures that look alike. */
+  dupKind: "duplicate" | "similar";
   /** A Tools job's dialog: the duplicate search, or Back Up Pictures. */
-  toolDialog: "dups" | "backup" | null;
+  toolDialog: "dups" | "similar" | "backup" | "stats" | null;
+  /** Rename… with several pictures selected (Picasa's batch rename). */
+  renameIds: number[] | null;
   /** Tools › Adjust Date and Time: the pictures to move. */
   adjustDate: number[] | null;
   /** The ▾ menu's Sort People by: "name", "amount" or "top" (the ten with most pictures). */
@@ -193,9 +202,10 @@ interface State {
   setImportOpen: (on: boolean) => void;
   setTimelineOpen: (on: boolean) => void;
   setFolderProps: (id: number | null) => void;
-  setDupGroups: (sets: number[][] | null) => void;
+  setDupGroups: (sets: number[][] | null, kind?: "duplicate" | "similar") => void;
   setToolDialog: (d: State["toolDialog"]) => void;
   setAdjustDate: (ids: number[] | null) => void;
+  setRenameIds: (ids: number[] | null) => void;
   setThumbCaption: (k: State["thumbCaption"]) => void;
   setMovie: (ids: number[] | null) => void;
   setPeopleSort: (s: "name" | "amount" | "top") => void;
@@ -305,8 +315,10 @@ export const useStore = create<State>((set, get) => ({
   folderProps: null,
   dupGroups: null,
   dupIds: null,
+  dupKind: "duplicate",
   toolDialog: null,
   adjustDate: null,
+  renameIds: null,
   thumbCaption: (["filename", "caption", "tags", "resolution"].includes(localStorageGet("thumbCaption") ?? "") ? localStorageGet("thumbCaption") : "none") as State["thumbCaption"],
   movie: null,
   peopleSort: (localStorageGet("peopleSort") as "name" | "amount" | "top") || "name",
@@ -365,6 +377,13 @@ export const useStore = create<State>((set, get) => ({
             ? cur
             : snapshot.folders[0]?.id ?? null,
     });
+    // Options › General: back to the folder you were looking at last time.
+    if (!reopenTried) {
+      reopenTried = true;
+      const last = reopenLastFolder() ? getPref("lastFolderPath") : null;
+      const f = last ? snapshot.folders.find((x) => x.path === last) : undefined;
+      if (f && cur == null) get().selectFolder(f.id);
+    }
     // Show Duplicate Files: a set whose copies were deleted down to one isn't a duplicate any more.
     const dups = get().dupGroups;
     if (dups) {
@@ -385,6 +404,8 @@ export const useStore = create<State>((set, get) => ({
   setScan: (scan) => set({ scan }),
 
   selectFolder: (id, scroll = true) => {
+    const path = id > 0 ? get().folderById.get(id)?.path : undefined;
+    if (path) setPref("lastFolderPath", path);
     // Mid-scan, the folder the user opens jumps the queue (Picasa's scanning priority).
     if (get().scan.scanning && id > 0) api.prioritizeFolder(id).catch(() => {});
     set({
@@ -514,9 +535,10 @@ export const useStore = create<State>((set, get) => ({
   setCompare: (compare) => set({ compare, comparePin: compare === "aa" ? get().editId : null }),
   setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
   // Albums and people have no folder properties.
-  setDupGroups: (sets) =>
+  setDupGroups: (sets, kind) =>
     set({
       dupGroups: sets,
+      dupKind: kind ?? get().dupKind,
       dupIds: sets ? new Set(sets.flat()) : null,
       albumView: sets ? null : get().albumView,
       personView: sets ? null : get().personView,
@@ -526,6 +548,7 @@ export const useStore = create<State>((set, get) => ({
     }),
   setToolDialog: (toolDialog) => set({ toolDialog }),
   setAdjustDate: (ids) => set({ adjustDate: ids && ids.length ? ids : null }),
+  setRenameIds: (ids) => set({ renameIds: ids && ids.length ? ids : null }),
   setFolderProps: (folderProps) => set({ folderProps: folderProps != null && folderProps > 0 ? folderProps : null }),
   setThumbCaption: (thumbCaption) => {
     localStorageSet("thumbCaption", thumbCaption);
@@ -638,7 +661,16 @@ export const useStore = create<State>((set, get) => ({
     // Slideshows show pictures only; movies are skipped.
     const videos = get().videos;
     const start = photos[index];
-    const pics = videos.size ? photos.filter((p) => !videos.has(p)) : photos;
+    let pics = videos.size ? photos.filter((p) => !videos.has(p)) : photos;
+    // Options › Slideshow › Shuffle: random order, starting with the picture you chose.
+    if (loadSlideshowOpts().shuffle && pics.length > 2) {
+      const rest = pics.filter((p) => p !== start);
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+      }
+      pics = pics.includes(start) ? [start, ...rest] : rest;
+    }
     if (pics.length) set({ slideshow: { photos: pics, index: Math.max(0, pics.indexOf(start)) } });
   },
   setSlideshowIndex: (index) => {

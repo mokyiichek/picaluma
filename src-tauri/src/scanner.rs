@@ -456,7 +456,7 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
     let mut upsert = tx.prepare_cached(
       "INSERT INTO photos(folder_id, path, name, size, mtime, meta_done, cloud) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
        ON CONFLICT(path) DO UPDATE SET folder_id = excluded.folder_id, size = excluded.size,
-         mtime = excluded.mtime, meta_done = excluded.meta_done, cloud = excluded.cloud, faces_done = 0
+         mtime = excluded.mtime, meta_done = excluded.meta_done, cloud = excluded.cloud, faces_done = 0, dhash = NULL
        RETURNING id",
     )?;
     for f in &changed {
@@ -485,7 +485,15 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
   Ok(Some((files.len(), true)))
 }
 
+/// Options › File Types › skip pictures smaller than this (bytes; 0 = keep all).
+static MIN_BYTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn set_min_bytes(kb: u32) {
+  MIN_BYTES.store(kb as u64 * 1024, std::sync::atomic::Ordering::Relaxed);
+}
+
 fn list_images(dir: &Path, streaming: bool) -> Vec<FileInfo> {
+  let min = MIN_BYTES.load(std::sync::atomic::Ordering::Relaxed).max(1);
   let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
   rd.filter_map(Result::ok)
     .filter_map(|e| {
@@ -494,7 +502,7 @@ fn list_images(dir: &Path, streaming: bool) -> Vec<FileInfo> {
         return None;
       }
       let md = e.metadata().ok()?;
-      if !md.is_file() || md.len() == 0 {
+      if !md.is_file() || md.len() < min {
         return None;
       }
       Some(FileInfo {

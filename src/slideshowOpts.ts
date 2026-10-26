@@ -7,10 +7,12 @@ export interface SlideshowOpts {
   captions: boolean;
   /** Start again after the last picture. */
   loop: boolean;
+  /** Play the pictures in random order. */
+  shuffle: boolean;
 }
 
 const KEY = "picaluma.slideshow";
-export const SLIDESHOW_DEFAULTS: SlideshowOpts = { seconds: 3.5, transition: "fade", captions: true, loop: false };
+export const SLIDESHOW_DEFAULTS: SlideshowOpts = { seconds: 3.5, transition: "fade", captions: true, loop: false, shuffle: false };
 
 export function loadSlideshowOpts(): SlideshowOpts {
   try {

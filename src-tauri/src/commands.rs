@@ -688,8 +688,12 @@ pub fn ui_log(message: String) {
 
 /// Writes a rendered (edited) copy produced by the frontend canvas and returns the path used.
 #[tauri::command(async)]
-pub fn export_picture(path: String, data_base64: String) -> CmdResult<String> {
-  let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(err)?;
+pub fn export_picture(path: String, data_base64: String, source: Option<String>, strip_gps: Option<bool>) -> CmdResult<String> {
+  let mut bytes = base64::engine::general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(err)?;
+  // Keep the camera details of the picture it was made from (Options › Privacy can drop the place).
+  if let Some(old) = source.and_then(|s| std::fs::read(s).ok()) {
+    bytes = crate::exifcopy::transplant(&old, &bytes, strip_gps.unwrap_or(false));
+  }
   // Never overwrite: "beach.jpg" becomes "beach (2).jpg" if the name is taken.
   let path = PathBuf::from(path);
   let dir = path.parent().map(PathBuf::from).unwrap_or_default();

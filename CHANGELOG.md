@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.20 — 2026-10-26
+
+- **Saved and exported pictures keep their camera details** — File › Save, Save a Copy, Export
+  and E-mail used to write pictures without their date taken, camera and exposure; now they keep
+  them (turned upright, without the old preview inside).
+- **Options, filled in** — new **E-mail** (how to send, picture size), **Export** (size and
+  quality), **Privacy** (leave out where pictures were taken when exporting or e-mailing) and
+  **Library** tabs (where the library is, its size, Compact, Clear thumbnails, Rescan).
+  General: *Open the last folder you looked at*, and reset "Don't ask again" questions. File
+  Types: skip tiny pictures (icons, web thumbnails). Slideshow: *Shuffle*.
+- **Rename several pictures at once**, as in Picasa — F2 with pictures selected: one name,
+  numbered, with the date and the picture size if you like.
+- **Tools › Library Statistics** — pictures and movies, size, starred, edited, places, people,
+  pictures by year, cameras and file types.
+- **Tools › Experimental › Find Similar Pictures** — pictures that look the same even when
+  resized, re-saved or lightly edited (not only exact copies).
+
 ## 0.7.19 — 2026-10-26
 
 - **Crop on turned pictures** — after Rotate, the Crop tool shows the picture the way you see it

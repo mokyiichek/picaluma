@@ -205,6 +205,10 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
        ALTER TABLE albums ADD COLUMN sort_rev INTEGER NOT NULL DEFAULT 0;",
     )?;
   }
+  // v0.7.20: Tools › Experimental › Find Similar Pictures (a 64-bit picture fingerprint).
+  if !has("dhash")? {
+    conn.execute_batch("ALTER TABLE photos ADD COLUMN dhash INTEGER")?;
+  }
   // v0.7.19: Tools › Adjust Date and Time (the date set by hand wins over the camera's).
   if !has("taken_set")? {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN taken_set INTEGER")?;

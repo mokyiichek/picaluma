@@ -328,3 +328,255 @@ mod tests {
     std::fs::remove_dir_all(&dir).ok();
   }
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryStats {
+  pictures: i64,
+  videos: i64,
+  bytes: i64,
+  folders: i64,
+  starred: i64,
+  edited: i64,
+  hidden: i64,
+  geotagged: i64,
+  people: i64,
+  named_faces: i64,
+  first: i64,
+  last: i64,
+  /// Pictures per year: (year, count), oldest first.
+  years: Vec<(i64, i64)>,
+  /// Most used cameras: (camera, count).
+  cameras: Vec<(String, i64)>,
+  /// File types: (extension, count, bytes).
+  types: Vec<(String, i64, i64)>,
+}
+
+/// Tools › Library Statistics: what the library holds, by year, camera and file type.
+#[tauri::command(async)]
+pub fn library_stats(state: State<'_, AppState>) -> CmdResult<LibraryStats> {
+  let conn = state.db.lock().map_err(err)?;
+  let one = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap_or(0);
+  let mut types: HashMap<String, (i64, i64, bool)> = HashMap::new();
+  {
+    let mut stmt = conn.prepare("SELECT path, size FROM photos").map_err(err)?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).map_err(err)?;
+    for (path, size) in rows.filter_map(Result::ok) {
+      let ext = path.rsplit_once('.').map(|(_, e)| e.to_uppercase()).unwrap_or_default();
+      let t = types.entry(ext).or_insert((0, 0, crate::formats::kind(&path) == crate::formats::Kind::Video));
+      t.0 += 1;
+      t.1 += size;
+    }
+  }
+  let video_count: i64 = types.values().filter(|t| t.2).map(|t| t.0).sum();
+  let mut types: Vec<(String, i64, i64)> = types.into_iter().map(|(e, (n, b, _))| (e, n, b)).collect();
+  types.sort_by(|a, b| b.1.cmp(&a.1));
+  let years = {
+    let mut stmt = conn
+      .prepare("SELECT CAST(strftime('%Y', COALESCE(taken, mtime), 'unixepoch') AS INTEGER) y, COUNT(*) FROM photos GROUP BY y ORDER BY y")
+      .map_err(err)?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, Option<i64>>(0)?.unwrap_or(0), r.get(1)?))).map_err(err)?;
+    rows.filter_map(Result::ok).filter(|(y, _)| *y > 1900).collect()
+  };
+  let cameras = {
+    let mut stmt = conn
+      .prepare(
+        "SELECT TRIM(CASE WHEN instr(model, make) = 1 THEN model ELSE make || ' ' || model END) c, COUNT(*) n
+         FROM photos WHERE model != '' GROUP BY c ORDER BY n DESC LIMIT 12",
+      )
+      .map_err(err)?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?;
+    rows.filter_map(Result::ok).collect()
+  };
+  let total = one("SELECT COUNT(*) FROM photos");
+  Ok(LibraryStats {
+    pictures: total - video_count,
+    videos: video_count,
+    bytes: one("SELECT COALESCE(SUM(size), 0) FROM photos"),
+    folders: one("SELECT COUNT(*) FROM folders WHERE photo_count > 0"),
+    starred: one("SELECT COUNT(*) FROM photos WHERE starred = 1"),
+    edited: one("SELECT COUNT(*) FROM photos WHERE edits != '' AND edits != '[]'"),
+    hidden: one("SELECT COUNT(*) FROM photos WHERE hidden = 1"),
+    geotagged: one("SELECT COUNT(*) FROM photos WHERE has_gps = 1"),
+    people: one("SELECT COUNT(*) FROM people"),
+    named_faces: one("SELECT COUNT(*) FROM faces WHERE person_id IS NOT NULL"),
+    first: one("SELECT COALESCE(MIN(COALESCE(taken, mtime)), 0) FROM photos WHERE COALESCE(taken, mtime) > 0"),
+    last: one("SELECT COALESCE(MAX(COALESCE(taken, mtime)), 0) FROM photos"),
+    years,
+    cameras,
+    types: types.into_iter().take(12).collect(),
+  })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryInfo {
+  /// Folder holding library.db, the thumbnails and settings.
+  folder: String,
+  database_bytes: u64,
+  thumb_bytes: u64,
+  thumb_files: u64,
+}
+
+/// Options › Library: where the library lives and how much room it takes.
+#[tauri::command(async)]
+pub fn library_info(state: State<'_, AppState>) -> LibraryInfo {
+  let database_bytes = ["library.db", "library.db-wal"].iter().filter_map(|f| std::fs::metadata(state.data_dir.join(f)).ok()).map(|m| m.len()).sum();
+  let (thumb_bytes, thumb_files) = crate::thumbs::cache_size(&state.thumb_dir);
+  LibraryInfo { folder: state.data_dir.to_string_lossy().into_owned(), database_bytes, thumb_bytes, thumb_files }
+}
+
+/// Options › Library › Clear: thumbnails are made again as pictures come into view.
+#[tauri::command(async)]
+pub fn clear_thumbnail_cache(state: State<'_, AppState>) -> CmdResult<u64> {
+  let (bytes, _) = crate::thumbs::cache_size(&state.thumb_dir);
+  let Ok(rd) = std::fs::read_dir(&state.thumb_dir) else { return Ok(0) };
+  for e in rd.flatten() {
+    let p = e.path();
+    let _ = if p.is_dir() { std::fs::remove_dir_all(&p) } else { std::fs::remove_file(&p) };
+  }
+  log::info!("thumbnail cache cleared ({} MB)", bytes / 1_048_576);
+  Ok(bytes)
+}
+
+/// Options › Library › Compact: merges the search index and rewrites the library file.
+#[tauri::command(async)]
+pub fn compact_library(state: State<'_, AppState>) -> CmdResult<()> {
+  let conn = state.db.lock().map_err(err)?;
+  conn.execute("INSERT INTO photos_fts(photos_fts) VALUES('optimize')", []).map_err(err)?;
+  conn.execute_batch("VACUUM").map_err(err)?;
+  conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).map_err(err)?;
+  Ok(())
+}
+
+/// A 64-bit "difference hash" of a picture: each bit says whether a cell of a 9×8 grey grid is
+/// brighter than its right neighbour. Resized, re-saved or lightly edited copies hash alike.
+fn dhash(jpeg: &[u8]) -> Option<u64> {
+  let img = image::load_from_memory(jpeg).ok()?;
+  let small = img.resize_exact(9, 8, image::imageops::FilterType::Triangle).to_luma8();
+  let mut h = 0u64;
+  for y in 0..8 {
+    for x in 0..8 {
+      h = (h << 1) | (small.get_pixel(x, y)[0] > small.get_pixel(x + 1, y)[0]) as u64;
+    }
+  }
+  Some(h)
+}
+
+/// Tools › Experimental › Find Similar Pictures: sets of pictures that look the same (resized,
+/// re-saved, lightly edited, or exact copies). Fingerprints are kept, so later searches are quick.
+#[tauri::command]
+pub async fn find_similar(app: AppHandle) -> CmdResult<Vec<Vec<i64>>> {
+  CANCEL.store(false, Ordering::Relaxed);
+  tauri::async_runtime::spawn_blocking(move || -> CmdResult<Vec<Vec<i64>>> {
+    let state = app.state::<AppState>();
+    let thumb_dir = state.thumb_dir.clone();
+    let todo: Vec<(i64, String, i64, i64)> = {
+      let conn = state.db.lock().map_err(err)?;
+      let mut stmt = conn.prepare("SELECT id, path, mtime, orientation FROM photos WHERE dhash IS NULL AND cloud = 0").map_err(err)?;
+      let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get::<_, Option<i64>>(3)?.unwrap_or(1)))).map_err(err)?;
+      rows.filter_map(Result::ok).filter(|(_, p, ..)| crate::formats::kind(p) != crate::formats::Kind::Video).collect()
+    };
+    let total = todo.len();
+    let mut last = Instant::now();
+    for (n, chunk) in todo.chunks(64).enumerate() {
+      if CANCEL.load(Ordering::Relaxed) {
+        return Err("cancelled".into());
+      }
+      let hashes: Vec<(i64, i64)> = chunk
+        .par_iter()
+        .map(|(id, path, mtime, o)| {
+          // 0 marks "couldn't be read", so it isn't tried again and again.
+          let h = crate::thumbs::thumb_bytes(&thumb_dir, path, *mtime, *o).ok().and_then(|b| dhash(&b)).map_or(0, |h| h as i64);
+          (*id, h)
+        })
+        .collect();
+      {
+        let mut conn = state.db.lock().map_err(err)?;
+        let tx = conn.transaction().map_err(err)?;
+        for (id, h) in &hashes {
+          tx.execute("UPDATE photos SET dhash = ?1 WHERE id = ?2", params![h, id]).map_err(err)?;
+        }
+        tx.commit().map_err(err)?;
+      }
+      if last.elapsed() > Duration::from_millis(200) {
+        last = Instant::now();
+        let _ = app.emit("tool-progress", Progress { done: ((n + 1) * 64).min(total), total });
+      }
+    }
+    let all: Vec<(i64, u64)> = {
+      let conn = state.db.lock().map_err(err)?;
+      let mut stmt = conn.prepare("SELECT id, dhash FROM photos WHERE dhash IS NOT NULL AND dhash != 0").map_err(err)?;
+      let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as u64))).map_err(err)?;
+      rows.filter_map(Result::ok).collect()
+    };
+    let sets = similar_sets(&all, 4);
+    log::info!("similar pictures: {} sets among {} pictures ({total} newly fingerprinted)", sets.len(), all.len());
+    Ok(sets)
+  })
+  .await
+  .map_err(err)?
+}
+
+/// Groups fingerprints within `max` differing bits. Splitting the 64 bits into five bands means
+/// two hashes that close share at least one band exactly, so only those pairs are compared.
+fn similar_sets(all: &[(i64, u64)], max: u32) -> Vec<Vec<i64>> {
+  fn find(p: &mut [usize], mut i: usize) -> usize {
+    while p[i] != i {
+      p[i] = p[p[i]];
+      i = p[i];
+    }
+    i
+  }
+  let mut parent: Vec<usize> = (0..all.len()).collect();
+  // Flat pictures (one colour, black frames) hash to almost all zeros or ones: leave them out.
+  let ok = |h: u64| (8..=56).contains(&h.count_ones());
+  for band in 0..5u32 {
+    let shift = band * 13;
+    let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
+    for (i, (_, h)) in all.iter().enumerate() {
+      if ok(*h) {
+        buckets.entry((h >> shift) & 0x1FFF).or_default().push(i);
+      }
+    }
+    for list in buckets.values() {
+      if list.len() > 400 {
+        continue; // a crowded band says little; the other bands still catch real look-alikes
+      }
+      for a in 0..list.len() {
+        for b in a + 1..list.len() {
+          let (i, j) = (list[a], list[b]);
+          if (all[i].1 ^ all[j].1).count_ones() <= max {
+            let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+            if ri != rj {
+              parent[ri] = rj;
+            }
+          }
+        }
+      }
+    }
+  }
+  let mut sets: HashMap<usize, Vec<i64>> = HashMap::new();
+  for (i, (id, _)) in all.iter().enumerate() {
+    let r = find(&mut parent, i);
+    sets.entry(r).or_default().push(*id);
+  }
+  let mut out: Vec<Vec<i64>> = sets.into_values().filter(|s| s.len() > 1).collect();
+  for s in &mut out {
+    s.sort_unstable();
+  }
+  out.sort_by_key(|s| s[0]);
+  out
+}
+
+#[cfg(test)]
+mod similar_tests {
+  use super::*;
+
+  #[test]
+  fn near_hashes_group() {
+    let a = 0x0F0F_F0F0_3C3C_A5A5u64;
+    let sets = similar_sets(&[(1, a), (2, a ^ 0b101), (3, !a), (4, a ^ 0xFFFF)], 4);
+    assert_eq!(sets, vec![vec![1, 2]]);
+  }
+}

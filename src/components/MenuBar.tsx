@@ -5,7 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
-import { showDuplicates } from "./ToolsDialogs";
+import { showDuplicates, showSimilar } from "./ToolsDialogs";
 import { selectVisible, useStore } from "../store";
 import {
   addFiles,
@@ -20,7 +20,7 @@ import {
   pasteEffects,
   printPhotos,
   renameFolder,
-  renamePhoto,
+  renamePictures,
   saveCopies,
   savePictures,
   undoSave,
@@ -78,7 +78,7 @@ function useMenus(): [string, MenuEntry[]][] {
         sep,
         { label: "Open File in an Editor", shortcut: "Ctrl+Shift+O", action: one != null ? () => api.getPhoto(one).then((p) => api.openInDefaultApp(p.path)) : undefined },
         sep,
-        { label: "Rename...", shortcut: "F2", action: one != null ? () => renamePhoto(one) : undefined },
+        { label: "Rename...", shortcut: "F2", action: selected.length ? () => renamePictures(selected) : undefined },
         { label: "Save", shortcut: "Ctrl+S", action: edited.length ? () => savePictures(edited) : undefined },
         { label: "Undo Save", action: targets.length ? () => undoSave(targets) : undefined },
         { label: "Save a Copy", action: edited.length ? () => saveCopies(edited) : undefined },
@@ -223,7 +223,14 @@ function useMenus(): [string, MenuEntry[]][] {
         sep,
         { label: "Back Up Pictures...", action: () => s.setToolDialog("backup") },
         { label: "Adjust Date and Time...", action: targets.length ? () => s.setAdjustDate(targets) : undefined },
-        { label: "Experimental", submenu: [{ label: "Show Duplicate Files", action: () => showDuplicates() }] },
+        { label: "Library Statistics...", action: () => s.setToolDialog("stats") },
+        {
+          label: "Experimental",
+          submenu: [
+            { label: "Show Duplicate Files", action: () => showDuplicates() },
+            { label: "Find Similar Pictures", action: () => showSimilar() },
+          ],
+        },
         sep,
         { label: "Rescan Library", action: () => api.rescan() },
         sep,

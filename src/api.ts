@@ -124,6 +124,31 @@ export interface Photo {
   dateAdjusted: boolean;
 }
 
+export interface LibraryStats {
+  pictures: number;
+  videos: number;
+  bytes: number;
+  folders: number;
+  starred: number;
+  edited: number;
+  hidden: number;
+  geotagged: number;
+  people: number;
+  namedFaces: number;
+  first: number;
+  last: number;
+  years: [number, number][];
+  cameras: [string, number][];
+  types: [string, number, number][];
+}
+
+export interface LibraryInfo {
+  folder: string;
+  databaseBytes: number;
+  thumbBytes: number;
+  thumbFiles: number;
+}
+
 export interface BackupPlan {
   files: number;
   bytes: number;
@@ -227,6 +252,12 @@ export const api = {
   getPhoto: (id: number) => invoke<Photo>("get_photo", { id }),
   /** Tools menu jobs (tools.rs); progress arrives as "tool-progress" events. */
   cancelTool: () => invoke<void>("cancel_tool"),
+  findSimilar: () => invoke<number[][]>("find_similar"),
+  libraryStats: () => invoke<LibraryStats>("library_stats"),
+  libraryInfo: () => invoke<LibraryInfo>("library_info"),
+  clearThumbnailCache: () => invoke<number>("clear_thumbnail_cache"),
+  compactLibrary: () => invoke<void>("compact_library"),
+  setMinFileKb: (kb: number) => invoke<void>("set_min_file_kb", { kb }),
   findDuplicates: () => invoke<number[][]>("find_duplicates"),
   adjustDates: (ids: number[], delta: number, reset: boolean) => invoke<void>("adjust_dates", { ids, delta, reset }),
   backupPlan: (folders: number[], dest: string) => invoke<BackupPlan>("backup_plan", { folders, dest }),
@@ -241,9 +272,10 @@ export const api = {
   undoSave: (id: number) => invoke<string>("undo_save_picture", { id }),
   savedOriginals: (ids: number[]) => invoke<number[]>("saved_originals", { ids }),
   /** Writes a JPEG (never overwriting) and returns the path actually used. */
-  exportPicture: (path: string, dataBase64: string) => invoke<string>("export_picture", { path, dataBase64 }),
+  /** `source`: the picture it was made from, whose camera details are kept (GPS left out with `stripGps`). */
+  exportPicture: (path: string, dataBase64: string, source?: string, stripGps?: boolean) => invoke<string>("export_picture", { path, dataBase64, source, stripGps }),
   makeExportDir: (location: string, name: string) => invoke<string>("make_export_dir", { location, name }),
-  copyInto: (src: string, dir: string) => invoke<string>("copy_into", { src, dir }),
+  copyInto: (src: string, dir: string, stripGps?: boolean) => invoke<string>("copy_into", { src, dir, stripGps }),
   emailDir: () => invoke<string>("email_dir"),
   emailFiles: (paths: string[], subject: string) => invoke<void>("email_files", { paths, subject }),
   printWindow: () => invoke<void>("print_window"),
@@ -253,7 +285,7 @@ export const api = {
   removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
   prioritizeFolder: (id: number) => invoke<void>("prioritize_folder", { id }),
   getSettings: () =>
-    invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes; faceRecognition: boolean; faceModelsDeclined: boolean }>("get_settings"),
+    invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes; faceRecognition: boolean; faceModelsDeclined: boolean; minFileKb: number }>("get_settings"),
   faceModelsStatus: () => invoke<FaceModels>("face_models_status"),
   downloadFaceModels: () => invoke<void>("download_face_models"),
   setFaceModelsDeclined: (declined: boolean) => invoke<void>("set_face_models_declined", { declined }),

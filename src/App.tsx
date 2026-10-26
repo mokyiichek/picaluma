@@ -4,7 +4,7 @@ import { api, FaceModels, FaceProgress, ScanProgress } from "./api";
 import { offerFaceModels, reportModelError } from "./faceModels";
 import { menuOwnsShortcut } from "./nativeMenu";
 import { selectEditorSequence, useStore } from "./store";
-import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePhoto, savePictures } from "./actions";
+import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePictures, savePictures } from "./actions";
 import { copyPicture, folderIds, trayIds } from "./share";
 import { isDeleteKey, isMac, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
@@ -82,7 +82,7 @@ export default function App() {
       // On a Mac the menu bar answers its own ⌘ shortcuts.
       if (menuOwnsShortcut(e)) return;
       const typing = (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "range";
-      if (typing || st.slideshow || st.timelineOpen || st.folderProps != null || st.toolDialog || st.adjustDate || st.movie != null || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
+      if (typing || st.slideshow || st.timelineOpen || st.folderProps != null || st.toolDialog || st.adjustDate || st.renameIds || st.movie != null || st.print || st.share || st.collage || st.shortcutsOpen || st.aboutOpen || st.confirmReq || st.textPrompt) return;
       const sel = [...st.selected];
       if (e.key === "F11") {
         e.preventDefault();
@@ -150,9 +150,9 @@ export default function App() {
         } else {
           deletePhotos(sel, permanent);
         }
-      } else if ((e.key === "F2" || (isMac && e.key === "F3")) && trayIds().length === 1) {
+      } else if ((e.key === "F2" || (isMac && e.key === "F3")) && trayIds().length) {
         e.preventDefault();
-        renamePhoto(trayIds()[0]);
+        renamePictures(trayIds());
       } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
         const ids = trayIds().filter((id) => st.edits.has(id));

@@ -21,11 +21,13 @@ pub struct Settings {
   pub face_recognition: bool,
   /// "Not now" on the offer to download the face models: don't ask again at startup.
   pub face_models_declined: bool,
+  /// Options › File Types: skip pictures smaller than this many KB (icons, web leftovers). 0 = all.
+  pub min_file_kb: u32,
 }
 
 impl Default for Settings {
   fn default() -> Self {
-    Settings { hardware_acceleration: false, file_types: FileTypes::default(), face_recognition: true, face_models_declined: false }
+    Settings { hardware_acceleration: false, file_types: FileTypes::default(), face_recognition: true, face_models_declined: false, min_file_kb: 0 }
   }
 }
 
@@ -55,6 +57,19 @@ pub fn set_file_types(app: tauri::AppHandle, state: State<'_, AppState>, types: 
     s.file_types = types;
     save(&state.data_dir, &s)?;
     crate::formats::configure(&types);
+    crate::scanner::spawn_rescan(app);
+  }
+  Ok(())
+}
+
+/// Options › File Types › Skip small files: saved, applied, and the library rescanned.
+#[tauri::command]
+pub fn set_min_file_kb(app: tauri::AppHandle, state: State<'_, AppState>, kb: u32) -> Result<(), String> {
+  let mut s = load(&state.data_dir);
+  if s.min_file_kb != kb {
+    s.min_file_kb = kb;
+    save(&state.data_dir, &s)?;
+    crate::scanner::set_min_bytes(kb);
     crate::scanner::spawn_rescan(app);
   }
   Ok(())

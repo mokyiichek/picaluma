@@ -1,6 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, bumpPhoto } from "./api";
+import { stripGps } from "./prefs";
 import { aspectCache } from "./aspect";
 import { parseEdits } from "./effects";
 import { hasEdits, joinPath, renderJpegBase64 } from "./share";
@@ -141,6 +142,12 @@ export async function deleteFolder(folderId: number) {
 }
 
 /** File › Rename (F2). */
+/** File › Rename (F2): one picture by name, several with Picasa's batch rename. */
+export function renamePictures(ids: number[]) {
+  if (ids.length > 1) useStore.getState().setRenameIds(ids);
+  else if (ids.length) renamePhoto(ids[0]);
+}
+
 export async function renamePhoto(id: number) {
   const photo = await api.getPhoto(id);
   const stem = photo.name.replace(/\.[^.]+$/, "");
@@ -220,7 +227,7 @@ export async function saveCopies(ids: number[]) {
     const dir = parentOf(photo.path);
     const base = photo.name.replace(/\.[^.]+$/, "");
     try {
-      await api.exportPicture(joinPath(dir, `${base} (edited).jpg`), await renderJpegBase64(id, { maxEdge: 0, quality: 0.92 }));
+      await api.exportPicture(joinPath(dir, `${base} (edited).jpg`), await renderJpegBase64(id, { maxEdge: 0, quality: 0.92 }), photo.path);
     } catch (e) {
       failed.push(`${photo.name}: ${e}`);
     }
@@ -284,7 +291,7 @@ export async function exportHtml(folderId: number) {
   for (const id of vis.photos) {
     const photo = await api.getPhoto(id);
     try {
-      const big = await api.exportPicture(joinPath(joinPath(dir, "images"), photo.name.replace(/\.[^.]+$/, ".jpg")), await renderJpegBase64(id, { maxEdge: 1600, quality: 0.85 }));
+      const big = await api.exportPicture(joinPath(joinPath(dir, "images"), photo.name.replace(/\.[^.]+$/, ".jpg")), await renderJpegBase64(id, { maxEdge: 1600, quality: 0.85 }), photo.path, stripGps());
       const small = await api.exportPicture(joinPath(joinPath(dir, "thumbnails"), photo.name.replace(/\.[^.]+$/, ".jpg")), await renderJpegBase64(id, { maxEdge: 360, quality: 0.8 }));
       const rel = (p: string) => p.slice(dir.length + 1).replace(/\\/g, "/");
       const cap = escapeHtml(photo.caption || photo.name);

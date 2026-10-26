@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDir } from "@tauri-apps/plugin-dialog";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api, BackupPlan, thumbUrl } from "../api";
-import { fmtBytes, fmtDateTime, plural } from "../format";
+import { api, BackupPlan, LibraryStats, thumbUrl } from "../api";
+import { fmtBytes, fmtDate, fmtDateTime, plural } from "../format";
 import { useStore } from "../store";
 import { notify } from "../dialogs";
 
@@ -37,7 +37,7 @@ export async function showDuplicates() {
     const sets = await api.findDuplicates();
     if (useStore.getState().toolDialog !== "dups") return; // cancelled
     if (!sets.length) notify("No duplicate files were found.");
-    else useStore.getState().setDupGroups(sets);
+    else useStore.getState().setDupGroups(sets, "duplicate");
   } catch (e) {
     if (String(e) !== "cancelled") notify(`The duplicate search stopped: ${e}`, "error");
   } finally {
@@ -45,8 +45,27 @@ export async function showDuplicates() {
   }
 }
 
+/**
+ * Tools › Experimental › Find Similar Pictures (not in Picasa): pictures that look the same even
+ * when resized, re-saved or lightly edited. The first search fingerprints every picture.
+ */
+export async function showSimilar() {
+  useStore.getState().setToolDialog("similar");
+  try {
+    const sets = await api.findSimilar();
+    if (useStore.getState().toolDialog !== "similar") return; // cancelled
+    if (!sets.length) notify("No similar pictures were found.");
+    else useStore.getState().setDupGroups(sets, "similar");
+  } catch (e) {
+    if (String(e) !== "cancelled") notify(`The search stopped: ${e}`, "error");
+  } finally {
+    useStore.getState().setToolDialog(null);
+  }
+}
+
 function DuplicateSearch() {
-  const on = useStore((s) => s.toolDialog === "dups");
+  const kind = useStore((s) => (s.toolDialog === "dups" || s.toolDialog === "similar" ? s.toolDialog : null));
+  const on = kind != null;
   const p = useProgress(on);
   if (!on) return null;
   const cancel = () => {
@@ -56,9 +75,13 @@ function DuplicateSearch() {
   return (
     <div className="modal-back">
       <div className="modal confirm" onKeyDown={(e) => e.key === "Escape" && cancel()}>
-        <h3>Show Duplicate Files</h3>
+        <h3>{kind === "dups" ? "Show Duplicate Files" : "Find Similar Pictures"}</h3>
         <div className="body">
-          <p>Looking for pictures that are exact copies of each other…</p>
+          <p>
+            {kind === "dups"
+              ? "Looking for pictures that are exact copies of each other…"
+              : "Looking for pictures that look the same. The first time, every picture is looked at, which takes a while for a large library; you can stop and carry on later."}
+          </p>
           <ProgressBar p={p} />
         </div>
         <div className="foot">
@@ -323,12 +346,185 @@ function Backup() {
   );
 }
 
+/** Tools › Library Statistics (not in Picasa): what the library holds, by year, camera and type. */
+function Stats() {
+  const on = useStore((s) => s.toolDialog === "stats");
+  const [st, setSt] = useState<LibraryStats | null>(null);
+  useEffect(() => {
+    if (!on) return;
+    setSt(null);
+    api.libraryStats().then(setSt).catch((e) => notify(String(e), "error"));
+  }, [on]);
+  if (!on) return null;
+  const close = () => useStore.getState().setToolDialog(null);
+  const maxYear = st ? Math.max(1, ...st.years.map(([, n]) => n)) : 1;
+  const maxCam = st ? Math.max(1, ...st.cameras.map(([, n]) => n)) : 1;
+  return (
+    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="modal stats" onKeyDown={(e) => e.key === "Escape" && close()}>
+        <h3>Library Statistics</h3>
+        <div className="body stats-body">
+          {!st ? (
+            <p className="muted">Counting…</p>
+          ) : (
+            <>
+              <div className="stats-sum">
+                <div>
+                  <b>{st.pictures.toLocaleString()}</b> pictures
+                </div>
+                <div>
+                  <b>{st.videos.toLocaleString()}</b> movies
+                </div>
+                <div>
+                  <b>{fmtBytes(st.bytes)}</b> on disk
+                </div>
+                <div>
+                  <b>{st.folders.toLocaleString()}</b> folders
+                </div>
+                <div>
+                  <b>{st.starred.toLocaleString()}</b> starred
+                </div>
+                <div>
+                  <b>{st.edited.toLocaleString()}</b> edited
+                </div>
+                <div>
+                  <b>{st.geotagged.toLocaleString()}</b> with places
+                </div>
+                <div>
+                  <b>{st.people.toLocaleString()}</b> people · {st.namedFaces.toLocaleString()} name tags
+                </div>
+              </div>
+              {st.first > 0 && (
+                <p className="muted">
+                  From {fmtDate(st.first)} to {fmtDate(st.last)}
+                  {st.hidden ? ` · ${st.hidden.toLocaleString()} hidden` : ""}
+                </p>
+              )}
+              <div className="stats-cols">
+                <div>
+                  <h4>Pictures by year</h4>
+                  <div className="stats-bars">
+                    {st.years.map(([y, n]) => (
+                      <div key={y} className="stats-bar">
+                        <span>{y}</span>
+                        <i style={{ width: `${(n / maxYear) * 100}%` }} />
+                        <em>{n.toLocaleString()}</em>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h4>Cameras</h4>
+                  <div className="stats-bars">
+                    {st.cameras.map(([c, n]) => (
+                      <div key={c} className="stats-bar wide">
+                        <span title={c}>{c}</span>
+                        <i style={{ width: `${(n / maxCam) * 100}%` }} />
+                        <em>{n.toLocaleString()}</em>
+                      </div>
+                    ))}
+                    {!st.cameras.length && <p className="muted">No camera details found yet.</p>}
+                  </div>
+                  <h4>File types</h4>
+                  <div className="stats-types">
+                    {st.types.map(([t, n, b]) => (
+                      <span key={t}>
+                        <b>{t || "?"}</b> {n.toLocaleString()} <span className="muted">({fmtBytes(b)})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="foot">
+          <button className="tbtn default" onClick={close} autoFocus>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * File › Rename with several pictures selected, as in Picasa: one name for all, numbered, with the
+ * date taken and the picture size if you like. Extensions stay.
+ */
+function BatchRename() {
+  const ids = useStore((s) => s.renameIds);
+  const [name, setName] = useState("");
+  const [withDate, setWithDate] = useState(false);
+  const [withSize, setWithSize] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [sample, setSample] = useState<{ taken: number; w: number; h: number; ext: string } | null>(null);
+  useEffect(() => {
+    if (!ids) return;
+    setName("");
+    api.getPhoto(ids[0]).then((p) => setSample({ taken: p.taken ?? p.mtime, w: p.width, h: p.height, ext: p.name.replace(/^.*(\.[^.]+)$/, "$1") }));
+  }, [ids]);
+  if (!ids) return null;
+  const close = () => !busy && useStore.getState().setRenameIds(null);
+  const pad = String(ids.length).length;
+  const dateOf = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
+  const stem = (i: number, taken: number, w: number, h: number) =>
+    [name.trim(), withDate ? dateOf(taken) : "", withSize && w ? `${w}x${h}` : "", String(i + 1).padStart(pad, "0")].filter(Boolean).join("-");
+  const run = async () => {
+    if (!name.trim()) return;
+    setBusy(true);
+    const failed: string[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const p = await api.getPhoto(ids[i]);
+      try {
+        await api.renamePhoto(ids[i], stem(i, p.taken ?? p.mtime, p.width, p.height));
+      } catch (e) {
+        failed.push(`${p.name}: ${e}`);
+      }
+    }
+    await useStore.getState().loadSnapshot();
+    setBusy(false);
+    useStore.getState().setRenameIds(null);
+    if (failed.length) notify(`${plural(failed.length, "picture")} couldn't be renamed:\n${failed.slice(0, 8).join("\n")}`, "error");
+  };
+  return (
+    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="modal confirm" onKeyDown={(e) => e.key === "Escape" && close()}>
+        <h3>Rename Files</h3>
+        <div className="body">
+          <p>Rename {plural(ids.length, "picture")} to:</p>
+          <input className="rename-input" value={name} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && run()} />
+          <label className="opt-check">
+            <input type="checkbox" checked={withDate} onChange={(e) => setWithDate(e.target.checked)} />
+            <span>Include date</span>
+          </label>
+          <label className="opt-check">
+            <input type="checkbox" checked={withSize} onChange={(e) => setWithSize(e.target.checked)} />
+            <span>Include picture size</span>
+          </label>
+          <p className="muted small">Example: {sample && name.trim() ? `${stem(0, sample.taken, sample.w, sample.h)}${sample.ext}` : "type a name"}</p>
+        </div>
+        <div className="foot">
+          <button className="tbtn default" disabled={busy || !name.trim()} onClick={run}>
+            {busy ? "Renaming…" : "Rename"}
+          </button>
+          <button className="tbtn" onClick={close}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ToolsDialogs() {
   return (
     <>
       <DuplicateSearch />
       <AdjustDate />
       <Backup />
+      <Stats />
+      <BatchRename />
     </>
   );
 }
