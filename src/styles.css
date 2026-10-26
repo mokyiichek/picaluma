@@ -3627,3 +3627,38 @@ button.link:hover {
 .modal.options {
   width: 680px;
 }
+
+/* The safety net instead of a blank window */
+.crash {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #f0f0f0);
+}
+.crash-box {
+  width: 480px;
+  padding: 16px 18px 12px;
+  border: 1px solid #b8c0c8;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+.crash-box h3 {
+  margin: 0 0 8px;
+}
+.crash-box pre {
+  max-height: 160px;
+  overflow: auto;
+  padding: 6px 8px;
+  background: #f6f8fa;
+  border: 1px solid #d4dae0;
+  white-space: pre-wrap;
+  font-size: 11px;
+}
+.crash-box .foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

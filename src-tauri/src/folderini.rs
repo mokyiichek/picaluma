@@ -251,6 +251,13 @@ pub fn save_over(photo: &Path, jpeg: &[u8], edits: &str) -> Result<(), String> {
   };
   let tmp = dir.join(format!(".{name}.saving"));
   std::fs::write(&tmp, &jpeg).map_err(|e| e.to_string())?;
+  // Keep the picture's place in date order (pictures without a camera date sort by file date):
+  // the saved file gets the original's date, one second later so its thumbnail is made again.
+  if let Ok(t) = std::fs::metadata(photo).and_then(|m| m.modified()) {
+    if let Ok(f) = std::fs::File::options().write(true).open(&tmp) {
+      let _ = f.set_modified(t + std::time::Duration::from_secs(1));
+    }
+  }
   std::fs::rename(&tmp, photo).map_err(|e| {
     let _ = std::fs::remove_file(&tmp);
     e.to_string()

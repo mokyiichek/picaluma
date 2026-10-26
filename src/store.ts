@@ -345,6 +345,14 @@ export const useStore = create<State>((set, get) => ({
     }
     const edits = new Map<number, Edit[]>();
     for (const [id, json] of snapshot.edits) edits.set(id, parseEdits(json));
+    // The picture open in Edit view was deleted: go on to the next one (or back to the library).
+    const editId = get().editId;
+    let nextEdit: number | null | undefined;
+    if (editId != null && !folderOfPhoto.has(editId)) {
+      const seq = selectEditorSequence(get());
+      const i = seq.indexOf(editId);
+      nextEdit = [...seq.slice(i + 1), ...seq.slice(0, Math.max(0, i)).reverse()].find((p) => folderOfPhoto.has(p)) ?? null;
+    }
     const cur = get().currentFolderId;
     const albumView = get().albumView;
     const albumAlive = albumView != null && snapshot.albums.some((a) => a.id === albumView);
@@ -363,6 +371,11 @@ export const useStore = create<State>((set, get) => ({
       hidden: new Set(snapshot.hidden ?? []),
       recent: new Set(snapshot.recent ?? []),
       held: get().held.filter((id) => folderOfPhoto.has(id)),
+      ...(nextEdit !== undefined
+        ? nextEdit != null
+          ? { editId: nextEdit, selected: new Set([nextEdit]), anchor: nextEdit }
+          : { editId: null, view: "library" as const, selected: new Set<number>(), anchor: null }
+        : {}),
       edits,
       albumView: albumAlive ? albumView : null,
       personView: personAlive ? personView : null,
@@ -849,12 +862,16 @@ function sortFolders(folders: Folder[], view: "flat" | "tree", sort: FolderSort,
 }
 
 /** Photos the editor's prev/next and filmstrip walk through: the current folder, filtered. */
+/** One shared empty list: a selector must not hand back a new [] each time, or the window
+ *  redraws forever (this blanked the window after deleting the picture open in Edit view). */
+const NO_PHOTOS: number[] = [];
+
 export function selectEditorSequence(s: State): number[] {
-  if (s.editId == null) return [];
-  if (s.albumView != null || s.personView != null || s.projectView != null) return selectVisible(s)[0]?.photos ?? [];
+  if (s.editId == null) return NO_PHOTOS;
+  if (s.albumView != null || s.personView != null || s.projectView != null) return selectVisible(s)[0]?.photos ?? NO_PHOTOS;
   const fid = s.folderOfPhoto.get(s.editId);
   const vis = selectVisible(s).find((v) => v.folder.id === fid);
-  return vis?.photos ?? (fid != null ? s.folderById.get(fid)?.photos ?? [] : []);
+  return vis?.photos ?? (fid != null ? s.folderById.get(fid)?.photos ?? NO_PHOTOS : NO_PHOTOS);
 }
 
 /** With special effects off, a root class disables every CSS transition and animation. */

@@ -215,6 +215,8 @@ export function bumpPhoto(id: number) {
   }
 }
 const ver = (id: number) => (versions[id] ? `&v=${versions[id]}` : "");
+/** Changes when Save / Undo Save rewrites the picture (its shape may have changed). */
+export const photoVersion = (id: number) => versions[id] ?? 0;
 export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}${ver(id)}`;
 export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}${ver(id)}`;
 export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;

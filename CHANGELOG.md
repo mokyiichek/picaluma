@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.21 — 2026-10-27
+
+- **Deleting the picture open in Edit view no longer blanks the window** (seen on Mac, and on
+  Windows from the File menu) — Picaluma moves on to the next picture, or back to the library
+  after the last one.
+- **A saved crop shows in the right shape straight away** — after File › Save, Edit view used
+  the picture's old proportions, so a cropped picture looked stretched until reopened.
+- **Saving keeps the picture's place in date order** — pictures without a camera date sort by
+  file date, which Save used to change to today.
+- **No more blank windows** — if a screen ever fails to draw, Picaluma shows what happened with
+  *Try Again* and *Reload*, and your pictures and edits stay safe.
+
 ## 0.7.20 — 2026-10-26
 
 - **Saved and exported pictures keep their camera details** — File › Save, Save a Copy, Export

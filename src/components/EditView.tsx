@@ -1,7 +1,7 @@
 import { mod } from "../platform";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, photoUrl, thumbUrl, Photo } from "../api";
+import { api, photoUrl, thumbUrl, Photo, photoVersion } from "../api";
 import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS, turnRect } from "../effects";
 import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
@@ -467,7 +467,8 @@ function Stage({
     };
     if (img.complete && img.naturalWidth) done();
     else img.onload = done;
-  }, [id]);
+    // A saved crop changes the picture's shape: measure it again after Save / Undo Save.
+  }, [id, photoVersion(id)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prefer the cache during render so the very first frame for a new photo has the right shape.
   const aspectNow = aspectCache.get(id) ?? baseAspect;
