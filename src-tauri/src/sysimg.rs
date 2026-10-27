@@ -42,6 +42,11 @@ mod imp {
   /// Explorer's thumbnail for the file. THUMBNAILONLY: fail rather than return the file-type icon
   /// when no codec is installed.
   fn shell(path: &str, edge: u32) -> Result<DynamicImage, String> {
+    // One at a time. Video and HEIC thumbnails are decoded on the graphics card (DXVA); several
+    // thumbnail workers doing it at once exhausted a 3 GB card and old drivers then crashed
+    // Windows (VIDEO_TDR_FAILURE, insufficient resources) instead of recovering.
+    static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let wide: Vec<u16> = path.encode_utf16().chain(Some(0)).collect();
     unsafe {
       // Thumbnail workers are plain threads; joining the multithreaded apartment is cheap and

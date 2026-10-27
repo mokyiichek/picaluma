@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.22 — 2026-10-28
+
+- **Fixed Windows crashing (blue screen) on PCs with a smaller graphics card** — thumbnails of
+  videos and HEIC pictures are made by Windows on the graphics card; Picaluma asked for several
+  at once and could run the card out of memory. They are now made one at a time.
+
 ## 0.7.21 — 2026-10-27
 
 - **Deleting the picture open in Edit view no longer blanks the window** (seen on Mac, and on
