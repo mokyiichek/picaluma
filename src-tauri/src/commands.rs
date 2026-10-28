@@ -554,10 +554,14 @@ pub fn save_picture(app: AppHandle, state: State<'_, AppState>, id: i64, data_ba
     conn.query_row("SELECT path, edits FROM photos WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?
   };
   crate::folderini::save_over(std::path::Path::new(&path), &bytes, &edits)?;
+  let (size, mtime) = file_stamp(&path);
   {
     let conn = state.db.lock().map_err(err)?;
-    // Re-read: new size, date, dimensions; orientation is now upright.
-    conn.execute("UPDATE photos SET edits = '', meta_done = 0, orientation = 1 WHERE id = ?1", [id]).map_err(err)?;
+    // The new file date straight away: thumbnails are cached by it, and the grid asks for the new
+    // one before the rescan gets here. Dimensions are re-read; orientation is now upright.
+    conn
+      .execute("UPDATE photos SET edits = '', meta_done = 0, faces_done = 0, dhash = NULL, orientation = 1, size = ?2, mtime = ?3 WHERE id = ?1", params![id, size, mtime])
+      .map_err(err)?;
   }
   scanner::spawn_rescan(app);
   Ok(())
@@ -572,12 +576,26 @@ pub fn undo_save_picture(app: AppHandle, state: State<'_, AppState>, id: i64) ->
     conn.query_row("SELECT path FROM photos WHERE id = ?1", [id], |r| r.get(0)).map_err(err)?
   };
   let edits = crate::folderini::undo_save(std::path::Path::new(&path))?;
+  let (size, mtime) = file_stamp(&path);
   {
     let conn = state.db.lock().map_err(err)?;
-    conn.execute("UPDATE photos SET edits = ?1, meta_done = 0 WHERE id = ?2", params![if edits == "[]" { "" } else { edits.as_str() }, id]).map_err(err)?;
+    conn
+      .execute(
+        "UPDATE photos SET edits = ?1, meta_done = 0, faces_done = 0, dhash = NULL, size = ?3, mtime = ?4 WHERE id = ?2",
+        params![if edits == "[]" { "" } else { edits.as_str() }, id, size, mtime],
+      )
+      .map_err(err)?;
   }
   scanner::spawn_rescan(app);
   Ok(edits)
+}
+
+/// A picture file's size and date as the scanner records them.
+fn file_stamp(path: &str) -> (i64, i64) {
+  match std::fs::metadata(path) {
+    Ok(m) => (m.len() as i64, m.modified().map(scanner::local_naive_secs).unwrap_or(0)),
+    Err(_) => (0, 0),
+  }
 }
 
 /// Whether these pictures have a saved original (for File › Undo Save).

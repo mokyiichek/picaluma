@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.23 — 2026-10-28
+
+- **The library thumbnail updates after Save** — after saving a crop, the grid kept showing the
+  old, uncropped thumbnail (Edit view and the tray were right). Undo Save updates it too.
+
 ## 0.7.22 — 2026-10-28
 
 - **Fixed Windows crashing (blue screen) on PCs with a smaller graphics card** — thumbnails of
