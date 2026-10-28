@@ -76,6 +76,17 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
   }
 }
 
+/// A read-only connection for lookups that must not wait for the scanner (thumbnails): with WAL,
+/// readers carry on while a scan writes.
+pub fn open_reader(path: &Path) -> rusqlite::Result<Connection> {
+  let conn = Connection::open_with_flags(
+    path,
+    rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+  )?;
+  conn.busy_timeout(std::time::Duration::from_secs(2))?;
+  Ok(conn)
+}
+
 fn open_checked(path: &Path) -> rusqlite::Result<Connection> {
   let conn = Connection::open(path)?;
   conn.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))?;

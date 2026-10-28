@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.24 — 2026-10-28
+
+- **Thumbnails show up straight away while Picaluma is scanning** — every thumbnail, even one already made, waited for the library database, which a big scan keeps busy. Thumbnails now read it on their own, so scrolling, sorting and reversing a folder stay quick during a scan.
+
 ## 0.7.23 — 2026-10-28
 
 - **The library thumbnail updates after Save** — after saving a crop, the grid kept showing the

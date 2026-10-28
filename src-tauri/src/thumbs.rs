@@ -375,13 +375,30 @@ fn parse_id(req: &Request<Vec<u8>>) -> Option<i64> {
 }
 
 fn lookup(app: &AppHandle, id: i64) -> Option<PhotoRef> {
+  // Each thumbnail thread keeps its own read-only connection, so thumbnails (even cached ones)
+  // never queue behind a scan holding the main connection.
+  thread_local! {
+    static READER: std::cell::RefCell<Option<rusqlite::Connection>> = const { std::cell::RefCell::new(None) };
+  }
   let state = app.state::<AppState>();
-  let conn = state.db.lock().ok()?;
-  conn
-    .query_row("SELECT path, mtime, orientation FROM photos WHERE id = ?1", [id], |r| {
-      Ok(PhotoRef { path: r.get(0)?, mtime: r.get(1)?, orientation: r.get(2)? })
-    })
-    .ok()
+  let query = |conn: &rusqlite::Connection| {
+    conn
+      .query_row("SELECT path, mtime, orientation FROM photos WHERE id = ?1", [id], |r| {
+        Ok(PhotoRef { path: r.get(0)?, mtime: r.get(1)?, orientation: r.get(2)? })
+      })
+      .ok()
+  };
+  let found = READER.with(|cell| {
+    let mut reader = cell.borrow_mut();
+    if reader.is_none() {
+      *reader = crate::db::open_reader(&state.data_dir.join("library.db")).ok();
+    }
+    reader.as_ref().map(|conn| query(conn))
+  });
+  match found {
+    Some(found) => found,
+    None => query(&*state.db.lock().ok()?),
+  }
 }
 
 /// Cache files are keyed by the photo's path (not its database id), so a rebuilt library can
