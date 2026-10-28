@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.25 — 2026-10-29
+
+- **New installs watch only your Pictures folder** — a new library starts with the system Pictures folder (Windows and Mac), not whole drives. Add more folders in Tools › Folder Manager.
+
 ## 0.7.24 — 2026-10-28
 
 - **Thumbnails show up straight away while Picaluma is scanning** — every thumbnail, even one already made, waited for the library database, which a big scan keeps busy. Thumbnails now read it on their own, so scrolling, sorting and reversing a folder stay quick during a scan.

@@ -75,8 +75,19 @@ pub fn run() {
       scanner::set_min_bytes(settings::load(&data_dir).min_file_kb);
       let thumb_dir = data_dir.join("thumbs");
       std::fs::create_dir_all(&thumb_dir)?;
+      let new_library = !data_dir.join("library.db").exists();
       let conn = db::open(&data_dir.join("library.db"))?;
       log::info!("library at {}", data_dir.display());
+      // A new library starts with the system Pictures folder only; more are added in Folder
+      // Manager. Whole drives are never watched unless the user picks them.
+      if new_library {
+        if let Some(pictures) = app.path().picture_dir().ok().filter(|p| p.is_dir()) {
+          let path = pictures.to_string_lossy().to_string();
+          if conn.execute("INSERT OR IGNORE INTO roots(path, excluded) VALUES (?1, 0)", [&path]).is_ok() {
+            log::info!("new library: watching {path}");
+          }
+        }
+      }
       // Leave a core free for the UI and the background warmer.
       let workers = std::thread::available_parallelism().map(|n| n.get().saturating_sub(2)).unwrap_or(2).max(2);
       app.manage(AppState {

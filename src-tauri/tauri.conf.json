@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Picaluma",
-  "version": "0.7.24",
+  "version": "0.7.25",
   "identifier": "com.mokyiichek.picaluma",
   "build": {
     "beforeDevCommand": "npm run dev",
