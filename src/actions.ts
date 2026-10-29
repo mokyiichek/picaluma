@@ -54,9 +54,15 @@ export async function deletePhotos(ids: number[], permanent = false): Promise<bo
       });
   if (!ok) return false;
   const s = useStore.getState();
-  const res = await api.deletePhotos(ids, permanent);
+  // Gone from the grid at once; a big library takes a moment to reload after the files are moved.
   s.clearSelection();
+  s.dropPhotos(ids);
+  const res = await api.deletePhotos(ids, permanent).catch((e) => {
+    notify(String(e), "error");
+    return null;
+  });
   await s.loadSnapshot();
+  if (!res) return false;
   reportFailures(res.failed);
   // Like Picasa: offer to tidy up a folder the delete left empty.
   for (const dir of res.emptyFolders ?? []) {

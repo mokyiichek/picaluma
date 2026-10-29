@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Photo } from "../api";
+import { api, Photo, thumbUrl } from "../api";
 import { fmtBytes, fmtDateTime } from "../format";
 import { useStore } from "../store";
 import { CloseIcon } from "./Icons";
@@ -37,6 +37,9 @@ export default function PropertiesPanel() {
       </div>
       {photo ? (
         <>
+          <div className="props-thumb">
+            <img src={thumbUrl(photo.id)} alt="" draggable={false} onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+          </div>
           <div className="props-title">Properties of {photo.name}:</div>
           <div className="props-list">
             <Prop k="Location" v={photo.path} />

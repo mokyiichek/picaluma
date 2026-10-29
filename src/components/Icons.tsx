@@ -284,3 +284,69 @@ export const ClearSelIcon = (p: P) =>
     </>,
     p,
   );
+
+/** Basic Fixes buttons in Edit view: one drawn icon per tool, as in Picasa (not the picture). */
+export const FixIcon = ({ op, size = 30 }: { op: string; size?: number }) => {
+  const frame = <rect x="4" y="6" width="24" height="20" rx="2" fill="#fff" stroke="#6b7a8a" strokeWidth="1.4" />;
+  const icons: Record<string, React.ReactNode> = {
+    crop: (
+      <>
+        <path d="M9 3v20h20" fill="none" stroke="#3b6ea5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3 9h20v20" fill="none" stroke="#5c5c5c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+    straighten: (
+      <>
+        {frame}
+        <path d="M7 21 25 11" stroke="#3b6ea5" strokeWidth="2" strokeLinecap="round" />
+        <path d="M6 16h20" stroke="#9aa6b2" strokeWidth="1" strokeDasharray="2 2" />
+      </>
+    ),
+    redeye: (
+      <>
+        <path d="M3 16c4-6 9-8 13-8s9 2 13 8c-4 6-9 8-13 8s-9-2-13-8z" fill="#fff" stroke="#6b7a8a" strokeWidth="1.4" />
+        <circle cx="16" cy="16" r="5" fill="#d8322a" />
+        <circle cx="16" cy="16" r="2" fill="#2a2a2a" />
+      </>
+    ),
+    lucky: (
+      <>
+        <circle cx="12" cy="12" r="5" fill="#52a447" />
+        <circle cx="20" cy="12" r="5" fill="#52a447" />
+        <circle cx="12" cy="20" r="5" fill="#52a447" />
+        <circle cx="20" cy="20" r="5" fill="#52a447" />
+        <path d="M16 16c2 4 3 8 6 11" fill="none" stroke="#3d7f35" strokeWidth="2" strokeLinecap="round" />
+      </>
+    ),
+    autoContrast: (
+      <>
+        <circle cx="16" cy="16" r="11" fill="#fff" stroke="#5c5c5c" strokeWidth="1.6" />
+        <path d="M16 5a11 11 0 0 1 0 22z" fill="#2f2f2f" />
+      </>
+    ),
+    autoColor: (
+      <>
+        <circle cx="12" cy="13" r="7" fill="#e5463b" fillOpacity="0.85" />
+        <circle cx="20" cy="13" r="7" fill="#46a64a" fillOpacity="0.85" />
+        <circle cx="16" cy="20" r="7" fill="#3a78d1" fillOpacity="0.85" />
+      </>
+    ),
+    retouch: (
+      <>
+        <path d="M6 26 20 12l4 4-14 14H6z" fill="#e9c46a" stroke="#8a6d2a" strokeWidth="1.3" strokeLinejoin="round" />
+        <path d="M20 12l3-3a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3l-3 3" fill="#c96a5a" stroke="#8a4a3e" strokeWidth="1.3" />
+        <path d="M24 22l1.2 2.4L28 25l-2.4 1.2L25 29l-1.2-2.4L21 26l2.4-1.2z" fill="#3b6ea5" />
+      </>
+    ),
+    text: (
+      <>
+        <path d="M7 7h18v4M16 7v19M12 26h8M7 7v4" fill="none" stroke="#3b6ea5" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      {icons[op] ?? frame}
+    </svg>
+  );
+};

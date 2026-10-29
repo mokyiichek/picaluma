@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.26 — 2026-10-30
+
+- **Thumbnails always match the file** — a picture changed on disk, or a new picture after a delete, could keep showing an old thumbnail (seen on Mac). Thumbnails now refresh whenever a folder's pictures change.
+- **Delete is quicker** — a selection goes to the Recycle Bin / Trash in one step and leaves the grid at once.
+- **Only one Picaluma at a time** — starting it again brings the open window to the front instead of running a second copy on the same library.
+- **Mouse wheel in Edit view goes to the next / previous picture**, as in Picasa; Ctrl+wheel (pinch on a Mac trackpad) zooms.
+- **Save button in Edit view**, beside Back to Library.
+- **Basic Fixes buttons use icons** instead of tiny copies of the picture, as in Picasa.
+- **Properties panel shows the picture's thumbnail.**
+- **Options keeps the same size on every tab**, with equal-width tabs.
+
 ## 0.7.25 — 2026-10-29
 
 - **New installs watch only your Pictures folder** — a new library starts with the system Pictures folder (Windows and Mac), not whole drives. Add more folders in Tools › Folder Manager.

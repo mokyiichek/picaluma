@@ -18,6 +18,8 @@ export interface Folder {
   place?: string;
   music?: string;
   photos: number[];
+  /** Changes when a picture in the folder is added, removed or changed on disk. */
+  stamp?: number;
 }
 
 export interface Album {
@@ -217,8 +219,18 @@ export function bumpPhoto(id: number) {
 const ver = (id: number) => (versions[id] ? `&v=${versions[id]}` : "");
 /** Changes when Save / Undo Save rewrites the picture (its shape may have changed). */
 export const photoVersion = (id: number) => versions[id] ?? 0;
-export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}${ver(id)}`;
-export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}${ver(id)}`;
+/** Each picture's folder stamp (see Folder.stamp), set from every snapshot. */
+const stamps = new Map<number, number>();
+export function setThumbStamps(folders: Folder[]) {
+  stamps.clear();
+  for (const f of folders) if (f.stamp) for (const p of f.photos) stamps.set(p, f.stamp);
+}
+const stamp = (id: number) => {
+  const s = stamps.get(id);
+  return s ? `&s=${s}` : "";
+};
+export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}${stamp(id)}${ver(id)}`;
+export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}${stamp(id)}${ver(id)}`;
 export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;
 /** A folder's slideshow music (Folder Properties). */
 export const musicUrl = (folderId: number) => `${PHOTO}music/${folderId}?l=${libraryTag}&t=${Date.now()}`;

@@ -37,8 +37,17 @@ pub fn delete_photos(state: State<'_, AppState>, ids: Vec<i64>, permanent: Optio
   let photos = photo_paths(&state, &ids)?;
   let mut res = OpResult::default();
   let mut gone = Vec::new();
+  // One Recycle Bin operation for the whole selection instead of one per picture. If it fails,
+  // each picture is tried on its own to report which ones failed.
+  let batch_ok = !permanent && photos.len() > 1 && move_all_to_trash(photos.iter().map(|(_, p)| Path::new(p))).is_ok();
   for (id, path) in photos {
-    let removed = if permanent { std::fs::remove_file(&path).is_ok() } else { move_to_trash(Path::new(&path)).is_ok() };
+    let removed = if batch_ok {
+      true
+    } else if permanent {
+      std::fs::remove_file(&path).is_ok()
+    } else {
+      move_to_trash(Path::new(&path)).is_ok()
+    };
     if !Path::new(&path).exists() || removed {
       gone.push(id);
       res.done += 1;
@@ -249,6 +258,20 @@ fn move_to_trash(path: &Path) -> Result<(), trash::Error> {
   #[cfg(not(target_os = "macos"))]
   {
     trash::delete(path)
+  }
+}
+
+fn move_all_to_trash<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Result<(), trash::Error> {
+  #[cfg(target_os = "macos")]
+  {
+    use trash::macos::{DeleteMethod, TrashContextExtMacos};
+    let mut ctx = trash::TrashContext::default();
+    ctx.set_delete_method(DeleteMethod::NsFileManager);
+    ctx.delete_all(paths)
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    trash::delete_all(paths)
   }
 }
 

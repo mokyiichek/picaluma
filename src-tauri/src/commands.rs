@@ -38,6 +38,9 @@ pub struct FolderDto {
   /// Slideshow music file ("" = none).
   music: String,
   photos: Vec<i64>,
+  /// Changes whenever a picture in the folder is added, removed or changed on disk; part of the
+  /// thumbnail address, so the web view never shows a cached thumbnail of an older file.
+  stamp: u32,
 }
 
 #[derive(Serialize)]
@@ -151,6 +154,7 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
           place: r.get(11)?,
           music: r.get(12)?,
           photos: Vec::new(),
+          stamp: 0,
         })
       })
       .map_err(err)?;
@@ -181,7 +185,10 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
     let id: i64 = r.get(0).map_err(err)?;
     let folder_id: i64 = r.get(1).map_err(err)?;
     if let Some(&i) = index.get(&folder_id) {
-      folders[i].photos.push(id);
+      let mtime: i64 = r.get(7).map_err(err)?;
+      let f = &mut folders[i];
+      f.photos.push(id);
+      f.stamp = f.stamp.wrapping_mul(31).wrapping_add((id as u32) ^ (mtime as u32).rotate_left(13));
       total += 1;
     }
     if r.get::<_, i64>(2).map_err(err)? != 0 {

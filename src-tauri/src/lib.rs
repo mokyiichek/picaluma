@@ -59,7 +59,20 @@ fn init_logging(data_dir: &std::path::Path) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let mut builder = tauri::Builder::default();
+  // One Picaluma at a time: two copies would scan and write the same library at once. Starting
+  // it again brings the open window to the front instead. A separate library (PICALUMA_DATA_DIR)
+  // may run alongside.
+  if std::env::var_os("PICALUMA_DATA_DIR").is_none() {
+    builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+      }
+    }));
+  }
+  builder
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
     .setup(|app| {

@@ -393,7 +393,7 @@ fn lookup(app: &AppHandle, id: i64) -> Option<PhotoRef> {
     if reader.is_none() {
       *reader = crate::db::open_reader(&state.data_dir.join("library.db")).ok();
     }
-    reader.as_ref().map(|conn| query(conn))
+    reader.as_ref().map(&query)
   });
   match found {
     Some(found) => found,

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Album, api, Face, FaceModels, FaceProgress, Folder, Person, Project, ScanProgress, setLibraryTag, Snapshot } from "./api";
+import { Album, api, Face, FaceModels, FaceProgress, Folder, Person, Project, ScanProgress, setLibraryTag, setThumbStamps, Snapshot } from "./api";
 import { Edit, parseEdits } from "./effects";
 import { getPref, reopenLastFolder, setPref } from "./prefs";
 import { loadSlideshowOpts } from "./slideshowOpts";
@@ -174,6 +174,9 @@ interface State {
   textPrompt: { label: string; value: string; ok: string; resolve: (value: string | null) => void } | null;
 
   loadSnapshot: () => Promise<void>;
+  applySnapshot: (snapshot: Snapshot) => void;
+  /** Takes pictures out of the grid straight away (deleted), ahead of the next snapshot. */
+  dropPhotos: (ids: number[]) => void;
   setScan: (p: ScanProgress) => void;
   selectFolder: (id: number, scroll?: boolean) => void;
   setCurrentFolder: (id: number) => void;
@@ -334,9 +337,22 @@ export const useStore = create<State>((set, get) => ({
   confirmReq: null,
   textPrompt: null,
 
-  loadSnapshot: async () => {
-    const snapshot = await api.snapshot();
+  loadSnapshot: async () => get().applySnapshot(await api.snapshot()),
+
+  dropPhotos: (ids) => {
+    const snapshot = get().snapshot;
+    if (!snapshot || !ids.length) return;
+    const gone = new Set(ids);
+    get().applySnapshot({
+      ...snapshot,
+      folders: snapshot.folders.map((f) => (f.photos.some((p) => gone.has(p)) ? { ...f, photos: f.photos.filter((p) => !gone.has(p)) } : f)),
+      albums: snapshot.albums.map((a) => (a.photos.some((p) => gone.has(p)) ? { ...a, photos: a.photos.filter((p) => !gone.has(p)) } : a)),
+    });
+  },
+
+  applySnapshot: (snapshot) => {
     setLibraryTag(snapshot.libraryId);
+    setThumbStamps(snapshot.folders);
     const folderById = new Map<number, Folder>();
     const folderOfPhoto = new Map<number, number>();
     for (const f of snapshot.folders) {

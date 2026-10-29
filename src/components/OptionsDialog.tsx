@@ -133,6 +133,10 @@ export default function OptionsDialog() {
     </label>
   );
 
+  // Every page is laid out in the same spot and only the current one shows, so the dialog keeps
+  // the size of the tallest page instead of jumping between tabs.
+  const page = (name: (typeof TABS)[number]) => `opt-page${tab === name ? "" : " off"}`;
+
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="modal options">
@@ -145,7 +149,7 @@ export default function OptionsDialog() {
           ))}
         </div>
         <div className="body">
-          {tab === "General" && (
+          <div className={page("General")}>
             <>
               <fieldset>
                 <legend>Display</legend>
@@ -182,8 +186,8 @@ export default function OptionsDialog() {
                 </p>
               </fieldset>
             </>
-          )}
-          {tab === "E-mail" && (
+          </div>
+          <div className={page("E-mail")}>
             <fieldset>
               <legend>E-mail</legend>
               <label className="opt-radio">
@@ -204,8 +208,8 @@ export default function OptionsDialog() {
               </label>
               <p className="muted">These are the starting choices in File › E-Mail; you can still change them each time.</p>
             </fieldset>
-          )}
-          {tab === "Export" && (
+          </div>
+          <div className={page("Export")}>
             <fieldset>
               <legend>Export Picture to Folder</legend>
               <label className="opt-radio">
@@ -226,8 +230,8 @@ export default function OptionsDialog() {
               </label>
               <p className="muted">Exported and saved pictures keep their camera details (date taken, camera, exposure).</p>
             </fieldset>
-          )}
-          {tab === "Slideshow" && (
+          </div>
+          <div className={page("Slideshow")}>
             <fieldset>
               <legend>Slideshow</legend>
               <label className="opt-row">
@@ -247,8 +251,8 @@ export default function OptionsDialog() {
               {check(show.loop, (v) => setShow({ ...show, loop: v }), "Repeat (start again after the last picture)")}
               {check(show.shuffle, (v) => setShow({ ...show, shuffle: v }), "Shuffle (play the pictures in random order)")}
             </fieldset>
-          )}
-          {tab === "File Types" && (
+          </div>
+          <div className={page("File Types")}>
             <fieldset>
               <legend>Look for these file types</legend>
               <label className="opt-check">
@@ -284,8 +288,8 @@ export default function OptionsDialog() {
                 Microsoft Store if their thumbnails stay blank.
               </p>
             </fieldset>
-          )}
-          {tab === "Name Tags" && (
+          </div>
+          <div className={page("Name Tags")}>
             <fieldset>
               <legend>People</legend>
               {check(
@@ -315,8 +319,8 @@ export default function OptionsDialog() {
               </p>
               <p className="muted">Reads the names you gave in Picasa (saved in each folder's .picasa.ini). This happens once automatically.</p>
             </fieldset>
-          )}
-          {tab === "Privacy" && (
+          </div>
+          <div className={page("Privacy")}>
             <fieldset>
               <legend>Privacy</legend>
               {check(
@@ -327,8 +331,10 @@ export default function OptionsDialog() {
               )}
               <p className="muted">Picaluma never uploads anything: pictures, faces and places stay on this computer.</p>
             </fieldset>
-          )}
-          {tab === "Library" && <LibraryTab />}
+          </div>
+          <div className={page("Library")}>
+            <LibraryTab />
+          </div>
         </div>
         <div className="foot">
           <button

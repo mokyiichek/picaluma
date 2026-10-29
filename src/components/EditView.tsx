@@ -1,4 +1,4 @@
-import { mod } from "../platform";
+import { isMac, mod } from "../platform";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo, photoVersion } from "../api";
@@ -7,11 +7,12 @@ import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
-import { ArrowIcon, BackIcon, BrushIcon, PlayIcon, SunIcon, WrenchIcon } from "./Icons";
+import { ArrowIcon, BackIcon, BrushIcon, FixIcon, PlayIcon, SaveIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
 import { askText, notify } from "../dialogs";
 import { menuOwnsShortcut } from "../nativeMenu";
+import { savePictures } from "../actions";
 
 const STAGE_PAD = 14;
 /** Edit view zoom steps, as multiples of the fitted size. */
@@ -111,6 +112,7 @@ export function EditToolbar() {
   const startSlideshow = useStore((s) => s.startSlideshow);
   const compare = useStore((s) => s.compare);
   const setCompare = useStore((s) => s.setCompare);
+  const edited = useStore((s) => id != null && (s.edits.get(id)?.length ?? 0) > 0);
   const idx = id != null ? seq.indexOf(id) : -1;
   const windowStart = Math.max(0, Math.min(idx - 4, seq.length - 9));
   const strip = seq.slice(windowStart, windowStart + 9);
@@ -119,6 +121,9 @@ export function EditToolbar() {
     <div className="toolbar">
       <button className="tbtn" onClick={backToLibrary} title="Back to Library (Esc)">
         <BackIcon /> Back to Library
+      </button>
+      <button className="tbtn" disabled={!edited} onClick={() => id != null && savePictures([id])} title={`Save the changes to the file (${isMac ? "⌘S" : "Ctrl+S"})`}>
+        <SaveIcon /> Save
       </button>
       <div className="filmstrip">
         <button className="tbtn" style={{ width: 92 }} onClick={() => startSlideshow(seq, Math.max(0, idx))} title="Play fullscreen slideshow">
@@ -565,12 +570,24 @@ function Stage({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [active, tool, zoomStep, zoomTo, actual]);
+  // As in Picasa: the wheel goes to the next (down) or previous (up) picture; Ctrl+wheel (a
+  // trackpad pinch on Mac) zooms. One notch moves one picture.
+  const wheelAt = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
     if (tool) return;
+    const zooming = e.ctrlKey || e.metaKey;
     wheelAcc.current += e.deltaY;
     if (Math.abs(wheelAcc.current) < 60) return;
-    zoomStep(wheelAcc.current < 0 ? 1 : -1);
+    const down = wheelAcc.current > 0;
     wheelAcc.current = 0;
+    if (zooming) return zoomStep(down ? -1 : 1);
+    const now = performance.now();
+    if (now - wheelAt.current < 250) return;
+    wheelAt.current = now;
+    const s = useStore.getState();
+    const seq = selectEditorSequence(s);
+    const next = seq[seq.indexOf(id) + (down ? 1 : -1)];
+    if (next != null) s.setEditId(next);
   };
   const onPanStart = (e: React.MouseEvent) => {
     if (tool || zoom.z <= 1 || e.button !== 0) return;
@@ -843,7 +860,7 @@ function EditPanel({
                   onClick={() => onEffect(e)}
                 >
                   <span className="ico">
-                    <img src={thumbUrl(id)} style={{ filter: def.filter?.(1, { op: e }) }} alt="" />
+                    <FixIcon op={e} />
                   </span>
                   <span className="lbl">{def.label}</span>
                 </button>
