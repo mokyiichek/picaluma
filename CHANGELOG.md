@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.28 — 2026-10-30
+
+- **Right-click menus stay open on a Mac** — a right-click or Control-click menu closed the moment it appeared. Control-click no longer also changes the selection (⌘-click adds to it).
+- **Right-click works in Edit view** — the picture's menu, as in the library.
+- **The map follows the picture** — with Places open, the map goes to where the open or selected picture was taken, if it has a location, and no longer jumps back while a scan runs.
+
 ## 0.7.27 — 2026-10-30
 
 - **Much faster with big libraries** — a library that once watched whole drives kept millions of pictures from outside the watched folders, and every refresh read them all. They are now removed when a scan starts, a refresh reads the library about ten times faster, and it no longer makes the rest of the app wait while a scan runs.

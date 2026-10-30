@@ -1,4 +1,4 @@
-import { mod } from "../platform";
+import { isMac, mod } from "../platform";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { faceUrl, thumbUrl, Folder } from "../api";
@@ -470,7 +470,9 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
       className={`cell${selected ? " sel" : ""}${hidden ? " hidden-pic" : ""}`}
       style={{ width: w, height: h, transform: `translate(${x}px, ${y}px)` }}
       onMouseDown={(e) => {
-        if (e.button !== 0) return;
+        // On a Mac, Control-click is a right-click (its menu opens from onContextMenu); ⌘ adds to
+        // the selection.
+        if (e.button !== 0 || (isMac && e.ctrlKey)) return;
         clickPhoto(id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }, ordered);
       }}
       onContextMenu={(e) => {

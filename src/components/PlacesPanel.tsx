@@ -20,6 +20,10 @@ export default function PlacesPanel() {
   const current = useStore((s) => s.currentFolderId);
   const visible = useStore(selectVisible);
   const snapshot = useStore((s) => s.snapshot);
+  // The picture open in Edit view, or the one selected: the map goes to where it was taken.
+  const focus = useStore((s) => (s.view === "edit" ? s.editId : s.selected.size === 1 ? s.anchor : null));
+  const fitted = useRef("");
+  const focusPin = useRef<L.CircleMarker | null>(null);
   const [mode, setMode] = useState<Mode>("folder");
   const [count, setCount] = useState(0);
   const [offline, setOffline] = useState(false);
@@ -71,21 +75,52 @@ export default function PlacesPanel() {
         group.addLayer(mk);
       }
       setCount(list.length);
-      if (list.length) m.fitBounds(L.latLngBounds(list.map(([, lat, lon]) => [lat, lon] as [number, number])), { padding: [24, 24], maxZoom: 15 });
+      // Fit the pins when the folder or mode changes, not on every library refresh (a scan
+      // refreshes often), and not over a picture the map is showing.
+      const key = `${mode}:${current}`;
+      const focused = useStore.getState().view === "edit" || useStore.getState().selected.size === 1;
+      if (list.length && fitted.current !== key && !focused) {
+        m.fitBounds(L.latLngBounds(list.map(([, lat, lon]) => [lat, lon] as [number, number])), { padding: [24, 24], maxZoom: 15 });
+      }
+      fitted.current = key;
     });
     return () => {
       live = false;
     };
   }, [mode, current, snapshot]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Go to the focused picture's location, if it has one.
+  useEffect(() => {
+    focusPin.current?.remove();
+    focusPin.current = null;
+    if (focus == null) return;
+    const pin = markers.current.get(focus);
+    if (pin && layer.current) {
+      // Zoom in until its cluster opens, then centre on it.
+      layer.current.zoomToShowLayer(pin, () => map.current?.panTo(pin.getLatLng()));
+      return;
+    }
+    let live = true;
+    api.places([focus]).then((list) => {
+      const m = map.current;
+      if (!live || !m || !list.length) return;
+      const [, lat, lon] = list[0];
+      focusPin.current = L.circleMarker([lat, lon], { radius: 9, color: "#fff", weight: 2, fillColor: "#1a8cff", fillOpacity: 1 }).addTo(m);
+      m.setView([lat, lon], Math.max(m.getZoom(), 15));
+    });
+    return () => {
+      live = false;
+    };
+  }, [focus, count]);
+
   // Selected pictures stand out.
   useEffect(() => {
     for (const [id, mk] of markers.current) {
-      const on = selected.has(id);
+      const on = selected.has(id) || id === focus;
       mk.setStyle({ fillColor: on ? "#1a8cff" : "#e2241b", radius: on ? 9 : 7 });
       if (on) mk.bringToFront();
     }
-  }, [selected, count]);
+  }, [selected, focus, count]);
 
   return (
     <div className="props places-panel">

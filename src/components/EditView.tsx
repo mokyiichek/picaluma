@@ -631,6 +631,14 @@ function Stage({
       onDoubleClick={tool ? undefined : backToLibrary}
       onWheel={onWheel}
       onMouseDown={onPanStart}
+      onContextMenu={(e) => {
+        // The picture's right-click menu, as in the library.
+        e.preventDefault();
+        if (tool) return;
+        const s = useStore.getState();
+        s.selectOnly([id]);
+        s.openContextMenu({ x: e.clientX, y: e.clientY, kind: "photo" });
+      }}
     >
       <div className="zoom-layer" style={zoom.z > 1 ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.z})` } : undefined}>
       {before && pair == null && (

@@ -66,15 +66,21 @@ export default function ContextMenu() {
 
   useEffect(() => {
     if (!menu) return;
-    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && close();
+    // The click that opened the menu must not close it. On a Mac a right-click or Control-click
+    // can deliver its mouse-down (and a focus change) after the menu event, which closed the menu
+    // the moment it appeared.
+    const opened = performance.now();
+    const settled = () => performance.now() - opened > 350;
+    const onDown = (e: MouseEvent) => settled() && !ref.current?.contains(e.target as Node) && close();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    const onBlur = () => settled() && close();
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
-    window.addEventListener("blur", close);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("blur", close);
+      window.removeEventListener("blur", onBlur);
     };
   }, [menu]);
 
