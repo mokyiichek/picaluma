@@ -127,95 +127,115 @@ pub struct PicasaScanlist {
 }
 
 /// Everything the library view needs in one round-trip: folders (newest first) with photo ids.
+/// Read on its own connection, so it never waits for a scan (or makes others wait for it).
 #[tauri::command(async)]
 pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
-  let conn = state.db.lock().map_err(err)?;
+  let started = Instant::now();
+  let snapshot = db::read(&state, build_snapshot).map_err(err)?;
+  if started.elapsed().as_millis() > 400 {
+    log::info!("library snapshot: {} pictures in {:?}", snapshot.total_photos, started.elapsed());
+  }
+  Ok(snapshot)
+}
+
+/// One picture's sort keys while a snapshot is built.
+struct Entry {
+  id: i64,
+  date: i64,
+  mtime: i64,
+  size: i64,
+  name: String,
+}
+
+fn build_snapshot(conn: &rusqlite::Connection) -> rusqlite::Result<Snapshot> {
   let mut folders: Vec<FolderDto> = {
-    let mut stmt = conn
-      .prepare(
-        "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort, sort_rev, date_set, place, music FROM folders
-         WHERE photo_count > 0 ORDER BY updated DESC, name",
-      )
-      .map_err(err)?;
-    let rows = stmt
-      .query_map([], |r| {
-        Ok(FolderDto {
-          id: r.get(0)?,
-          name: r.get(1)?,
-          path: r.get(2)?,
-          description: r.get(3)?,
-          date_min: r.get(4)?,
-          date_max: r.get(5)?,
-          updated: r.get(6)?,
-          bytes: r.get(7)?,
-          sort: r.get(8)?,
-          reverse: r.get::<_, i64>(9)? != 0,
-          date_set: r.get::<_, i64>(10)? != 0,
-          place: r.get(11)?,
-          music: r.get(12)?,
-          photos: Vec::new(),
-          stamp: 0,
-        })
+    let mut stmt = conn.prepare(
+      "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort, sort_rev, date_set, place, music FROM folders
+       WHERE photo_count > 0 ORDER BY updated DESC, name",
+    )?;
+    let rows = stmt.query_map([], |r| {
+      Ok(FolderDto {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        path: r.get(2)?,
+        description: r.get(3)?,
+        date_min: r.get(4)?,
+        date_max: r.get(5)?,
+        updated: r.get(6)?,
+        bytes: r.get(7)?,
+        sort: r.get(8)?,
+        reverse: r.get::<_, i64>(9)? != 0,
+        date_set: r.get::<_, i64>(10)? != 0,
+        place: r.get(11)?,
+        music: r.get(12)?,
+        photos: Vec::new(),
+        stamp: 0,
       })
-      .map_err(err)?;
+    })?;
     rows.filter_map(Result::ok).collect()
   };
   let index: HashMap<i64, usize> = folders.iter().enumerate().map(|(i, f)| (f.id, i)).collect();
+  let mut entries: Vec<Vec<Entry>> = folders.iter().map(|_| Vec::new()).collect();
 
   let mut starred = Vec::new();
   let mut geotagged = Vec::new();
   let mut edits = Vec::new();
-  let mut total = 0i64;
   let mut videos = Vec::new();
   let mut hidden = Vec::new();
   let mut recent = Vec::new();
   let recent_since = chrono::Local::now().naive_local().and_utc().timestamp() - 30 * 86_400;
-  let mut stmt = conn
-    .prepare(
-      "SELECT p.id, p.folder_id, p.starred, p.has_gps, p.edits, p.path, p.hidden, p.mtime FROM photos p JOIN folders f ON f.id = p.folder_id
-       ORDER BY p.folder_id,
-         CASE WHEN f.sort = 'name' THEN p.name END COLLATE NOCASE,
-         CASE WHEN f.sort = 'size' THEN p.size END DESC,
-         CASE WHEN f.sort = 'modified' THEN p.mtime END DESC,
-         COALESCE(p.taken, p.mtime), p.name",
-    )
-    .map_err(err)?;
-  let mut rows = stmt.query([]).map_err(err)?;
-  while let Some(r) = rows.next().map_err(err)? {
-    let id: i64 = r.get(0).map_err(err)?;
-    let folder_id: i64 = r.get(1).map_err(err)?;
-    if let Some(&i) = index.get(&folder_id) {
-      let mtime: i64 = r.get(7).map_err(err)?;
-      let f = &mut folders[i];
-      f.photos.push(id);
-      f.stamp = f.stamp.wrapping_mul(31).wrapping_add((id as u32) ^ (mtime as u32).rotate_left(13));
-      total += 1;
-    }
-    if r.get::<_, i64>(2).map_err(err)? != 0 {
+  // Unsorted (one pass over the table); each folder is sorted below. Sorting the whole library
+  // in SQL took seconds on a big library.
+  let mut stmt = conn.prepare("SELECT id, folder_id, starred, has_gps, edits, name, hidden, mtime, taken, size FROM photos")?;
+  let mut rows = stmt.query([])?;
+  while let Some(r) = rows.next()? {
+    let id: i64 = r.get(0)?;
+    let folder_id: i64 = r.get(1)?;
+    let name: String = r.get(5)?;
+    let mtime: i64 = r.get(7)?;
+    if r.get::<_, i64>(2)? != 0 {
       starred.push(id);
     }
-    if r.get::<_, i64>(3).map_err(err)? != 0 {
+    if r.get::<_, i64>(3)? != 0 {
       geotagged.push(id);
     }
-    let path: String = r.get(5).map_err(err)?;
-    if crate::formats::is_video(&path) {
+    if crate::formats::is_video(&name) {
       videos.push(id);
     }
-    if r.get::<_, i64>(6).map_err(err)? != 0 {
+    if r.get::<_, i64>(6)? != 0 {
       hidden.push(id);
     }
-    if r.get::<_, i64>(7).map_err(err)? >= recent_since {
+    if mtime >= recent_since {
       recent.push(id);
     }
-    let e: String = r.get(4).map_err(err)?;
-    if !e.is_empty() {
-      edits.push((id, e));
+    if let Ok(e) = r.get_ref(4)?.as_str() {
+      if !e.is_empty() {
+        edits.push((id, e.to_string()));
+      }
+    }
+    if let Some(&i) = index.get(&folder_id) {
+      let taken: Option<i64> = r.get(8)?;
+      entries[i].push(Entry { id, date: taken.unwrap_or(mtime), mtime, size: r.get(9)?, name });
     }
   }
   drop(rows);
   drop(stmt);
-  let library_id = db::library_id(&conn);
-  for f in folders.iter_mut() {
+
+  let mut total = 0i64;
+  for (f, mut list) in folders.iter_mut().zip(entries) {
+    // Sort Folder By: name (ignoring case), size or modified (largest/newest first), else date
+    // taken; ties go by date, then name.
+    match f.sort.as_str() {
+      "name" => list.sort_by_cached_key(|e| (e.name.to_ascii_lowercase(), e.date, e.name.clone())),
+      "size" => list.sort_by(|a, b| b.size.cmp(&a.size).then(a.date.cmp(&b.date)).then_with(|| a.name.cmp(&b.name))),
+      "modified" => list.sort_by(|a, b| b.mtime.cmp(&a.mtime).then(a.date.cmp(&b.date)).then_with(|| a.name.cmp(&b.name))),
+      _ => list.sort_by(|a, b| a.date.cmp(&b.date).then_with(|| a.name.cmp(&b.name))),
+    }
+    for e in &list {
+      f.stamp = f.stamp.wrapping_mul(31).wrapping_add((e.id as u32) ^ (e.mtime as u32).rotate_left(13));
+    }
+    f.photos = list.into_iter().map(|e| e.id).collect();
+    total += f.photos.len() as i64;
     if f.reverse {
       f.photos.reverse();
     }
@@ -226,12 +246,12 @@ pub fn library_snapshot(state: State<'_, AppState>) -> CmdResult<Snapshot> {
       f.date_max = set;
     }
   }
-  let albums = load_albums(&conn).map_err(err)?;
-  let (people, faced, unnamed) = crate::people::snapshot(&conn).map_err(err)?;
-  let projects = load_projects(&conn).map_err(err)?;
+  let library_id = db::library_id(conn);
+  let albums = load_albums(conn)?;
+  let (people, faced, unnamed) = crate::people::snapshot(conn)?;
+  let projects = load_projects(conn)?;
   Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, hidden, recent, projects, people, faced, unnamed })
 }
-
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
   let mut albums: Vec<AlbumDto> = {
     let mut stmt = conn.prepare("SELECT id, name, description, created, sort, sort_rev FROM albums ORDER BY created DESC, id DESC")?;
@@ -457,9 +477,8 @@ fn to_fts_query(q: &str) -> String {
 
 #[tauri::command(async)]
 pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
-  let conn = state.db.lock().map_err(err)?;
-  conn
-    .query_row(
+  db::read(&state, |conn| {
+    conn.query_row(
       "SELECT p.id, p.folder_id, f.name, p.path, p.name, p.size, p.mtime, p.taken, p.width, p.height,
               p.exif, p.caption, p.starred, p.edits, p.taken_set IS NOT NULL
        FROM photos p JOIN folders f ON f.id = p.folder_id WHERE p.id = ?1",
@@ -485,7 +504,17 @@ pub fn get_photo(state: State<'_, AppState>, id: i64) -> CmdResult<PhotoDto> {
         })
       },
     )
-    .map_err(err)
+  })
+  .map_err(err)
+}
+
+/// The Properties panel's full EXIF list, read from the file (off the database lock). For an
+/// online-only file it is what the scan stored.
+#[tauri::command(async)]
+pub fn photo_properties(state: State<'_, AppState>, id: i64) -> CmdResult<Vec<(String, String)>> {
+  let (path, stored): (String, String) =
+    db::read(&state, |conn| conn.query_row("SELECT path, exif FROM photos WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?)))).map_err(err)?;
+  Ok(scanner::exif_properties(&path).unwrap_or_else(|| serde_json::from_str(&stored).unwrap_or_default()))
 }
 
 #[tauri::command(async)]

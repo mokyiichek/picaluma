@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.27 — 2026-10-30
+
+- **Much faster with big libraries** — a library that once watched whole drives kept millions of pictures from outside the watched folders, and every refresh read them all. They are now removed when a scan starts, a refresh reads the library about ten times faster, and it no longer makes the rest of the app wait while a scan runs.
+- **Properties loads instantly** and lists every detail in the picture: camera, exposure, brightness, lens, GPS (with decimal degrees), resolution, software, and the embedded thumbnail's location, length and size.
+- **Strictly one Picaluma at a time**, whichever library it opens.
+
 ## 0.7.26 — 2026-10-30
 
 - **Thumbnails always match the file** — a picture changed on disk, or a new picture after a delete, could keep showing an old thumbnail (seen on Mac). Thumbnails now refresh whenever a folder's pictures change.

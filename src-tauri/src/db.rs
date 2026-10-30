@@ -87,6 +87,33 @@ pub fn open_reader(path: &Path) -> rusqlite::Result<Connection> {
   Ok(conn)
 }
 
+/// Runs a read on this thread's read-only connection, so the library view and the Properties
+/// panel never queue behind a scan or a slow write holding the main connection. Falls back to
+/// the main connection when the reader can't be opened.
+pub fn read<T>(state: &crate::AppState, f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> rusqlite::Result<T> {
+  thread_local! {
+    static READER: std::cell::RefCell<Option<Connection>> = const { std::cell::RefCell::new(None) };
+  }
+  let mut f = Some(f);
+  let done = READER.with(|cell| {
+    let mut reader = cell.borrow_mut();
+    if reader.is_none() {
+      *reader = open_reader(&state.data_dir.join("library.db")).ok();
+      if let Some(conn) = reader.as_ref() {
+        let _ = conn.execute_batch("PRAGMA cache_size=-32768; PRAGMA temp_store=MEMORY;");
+      }
+    }
+    reader.as_ref().map(|conn| (f.take().unwrap())(conn))
+  });
+  match done {
+    Some(result) => result,
+    None => {
+      let conn = state.db.lock().map_err(|_| rusqlite::Error::InvalidQuery)?;
+      (f.take().unwrap())(&conn)
+    }
+  }
+}
+
 fn open_checked(path: &Path) -> rusqlite::Result<Connection> {
   let conn = Connection::open(path)?;
   conn.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))?;

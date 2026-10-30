@@ -226,6 +226,7 @@ fn run_scan(app: &AppHandle) {
   let started = Instant::now();
   migrate_edits_to_folders(&db);
   let (roots, excluded) = load_roots(&db);
+  forget_outside_roots(app, &db, &roots, &excluded);
   let once = scan_once_roots(&db);
   crate::watch::refresh(app, &roots.iter().filter(|r| !once.contains(r)).cloned().collect::<Vec<_>>());
   let mut progress = ScanProgress { scanning: true, phase: "listing".into(), ..Default::default() };
@@ -516,6 +517,48 @@ fn list_images(dir: &Path, streaming: bool) -> Vec<FileInfo> {
     .collect()
 }
 
+/// Folders no longer under a watched folder (or now excluded) leave the library before the scan
+/// starts, rather than after listing every drive: a library that once watched whole drives kept
+/// millions of stale pictures, and every library refresh had to read them all. One folder per
+/// transaction, so other work isn't held up.
+fn forget_outside_roots(app: &AppHandle, db: &Arc<Mutex<Connection>>, roots: &[String], excluded: &[String]) {
+  let roots_norm: Vec<String> = roots.iter().map(|r| normalize(r)).collect();
+  let gone: Vec<i64> = {
+    let conn = db.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare("SELECT id, path FROM folders") else { return };
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)));
+    let Ok(rows) = rows else { return };
+    rows
+      .filter_map(Result::ok)
+      .filter(|(_, path)| {
+        let n = normalize(path);
+        !roots_norm.iter().any(|r| n.starts_with(r.as_str())) || is_excluded(Path::new(path), excluded)
+      })
+      .map(|(id, _)| id)
+      .collect()
+  };
+  if gone.is_empty() {
+    return;
+  }
+  let started = Instant::now();
+  let mut last_emit = Instant::now();
+  for id in &gone {
+    let mut conn = db.lock().unwrap();
+    if let Ok(tx) = conn.transaction() {
+      let _ = tx.execute("DELETE FROM photos_fts WHERE rowid IN (SELECT id FROM photos WHERE folder_id = ?1)", [id]);
+      let _ = tx.execute("DELETE FROM folders WHERE id = ?1", [id]);
+      let _ = tx.commit();
+    }
+    drop(conn);
+    if last_emit.elapsed() >= EVENT_THROTTLE {
+      last_emit = Instant::now();
+      let _ = app.emit("library-changed", ());
+    }
+  }
+  let _ = app.emit("library-changed", ());
+  log::info!("removed {} folders outside the watched folders in {:?}", gone.len(), started.elapsed());
+}
+
 /// Drop folders that vanished from disk or now fall outside the watched roots.
 fn prune_missing_folders(db: &Arc<Mutex<Connection>>, roots: &[String], excluded: &[String], seen: &[String]) {
   let seen: HashSet<&str> = seen.iter().map(String::as_str).collect();
@@ -708,6 +751,192 @@ fn index_file(p: &Pending) -> Meta {
     fill_exif(&mut meta, &ex);
   }
   meta
+}
+
+/// The Properties panel's full list: every EXIF field in the file (camera, exposure, brightness,
+/// GPS, embedded thumbnail…), read from the file when the panel asks. The main fields come first
+/// in Picasa's order, the rest as the file has them. None for an online-only (cloud) file, which
+/// reading would download; the panel then shows what the scan stored.
+pub(crate) fn exif_properties(path: &str) -> Option<Vec<(String, String)>> {
+  use std::io::Read;
+  let p = Path::new(path);
+  if is_streaming_volume(p) || std::fs::metadata(p).map(|m| is_online_only(&m)).unwrap_or(true) {
+    return None;
+  }
+  if formats::is_video(path) {
+    return Some(Vec::new());
+  }
+  let mut bytes = Vec::with_capacity(HEADER_BYTES as usize);
+  std::fs::File::open(p).ok()?.take(HEADER_BYTES).read_to_end(&mut bytes).ok()?;
+  let mut ex = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes));
+  if ex.is_err() && bytes.len() as u64 == HEADER_BYTES {
+    if let Ok(all) = std::fs::read(p) {
+      ex = exif::Reader::new().read_from_container(&mut Cursor::new(&all));
+    }
+  }
+  let Ok(ex) = ex else { return Some(Vec::new()) };
+  Some(property_rows(&ex))
+}
+
+fn property_rows(ex: &exif::Exif) -> Vec<(String, String)> {
+  use exif::{In, Tag};
+  // Picasa's names for the common fields, in its order.
+  const NAMED: &[(Tag, &str)] = &[
+    (Tag::Make, "Camera Make"),
+    (Tag::Model, "Camera Model"),
+    (Tag::DateTimeOriginal, "Camera Date"),
+    (Tag::DateTimeDigitized, "Digitized Date"),
+    (Tag::DateTime, "Modified Date"),
+    (Tag::Orientation, "Orientation"),
+    (Tag::Flash, "Flash"),
+    (Tag::FocalLength, "Focal Length"),
+    (Tag::FocalLengthIn35mmFilm, "Focal Length in 35mm Film"),
+    (Tag::ExposureTime, "Exposure Time"),
+    (Tag::ApertureValue, "Aperture"),
+    (Tag::FNumber, "F Number"),
+    (Tag::PhotographicSensitivity, "ISO"),
+    (Tag::WhiteBalance, "White Balance"),
+    (Tag::MeteringMode, "Metering Mode"),
+    (Tag::ExposureProgram, "Exposure Program"),
+    (Tag::ColorSpace, "Color Space"),
+    (Tag::ExposureBiasValue, "Exposure Bias"),
+    (Tag::MaxApertureValue, "Max Aperture"),
+    (Tag::BrightnessValue, "Brightness"),
+    (Tag::ShutterSpeedValue, "Shutter Speed"),
+    (Tag::LightSource, "Light Source"),
+    (Tag::SubjectDistance, "Subject Distance"),
+    (Tag::SensingMethod, "Sensing Method"),
+    (Tag::ExposureMode, "Exposure Mode"),
+    (Tag::SceneCaptureType, "Scene Capture Type"),
+    (Tag::DigitalZoomRatio, "Digital Zoom Ratio"),
+    (Tag::Contrast, "Contrast"),
+    (Tag::Saturation, "Saturation"),
+    (Tag::Sharpness, "Sharpness"),
+    (Tag::GainControl, "Gain Control"),
+    (Tag::CustomRendered, "Custom Rendered"),
+    (Tag::SubjectDistanceRange, "Subject Distance Range"),
+    (Tag::LensMake, "Lens Make"),
+    (Tag::LensModel, "Lens"),
+    (Tag::LensSpecification, "Lens Specification"),
+    (Tag::BodySerialNumber, "Camera Serial Number"),
+    (Tag::ImageDescription, "Description"),
+    (Tag::Artist, "Artist"),
+    (Tag::Copyright, "Copyright"),
+    (Tag::Software, "Software"),
+    (Tag::PixelXDimension, "Exif Image Width"),
+    (Tag::PixelYDimension, "Exif Image Height"),
+    (Tag::XResolution, "X Resolution"),
+    (Tag::YResolution, "Y Resolution"),
+    (Tag::ResolutionUnit, "Resolution Unit"),
+    (Tag::YCbCrPositioning, "YCbCr Positioning"),
+    (Tag::ExifVersion, "Exif Version"),
+    (Tag::FlashpixVersion, "FlashPix Version"),
+    (Tag::ComponentsConfiguration, "Components Configuration"),
+    (Tag::CompressedBitsPerPixel, "Compressed Bits Per Pixel"),
+    (Tag::ImageUniqueID, "Unique Image ID"),
+    (Tag::GPSLatitude, "Latitude"),
+    (Tag::GPSLongitude, "Longitude"),
+    (Tag::GPSAltitude, "Altitude"),
+    (Tag::GPSDateStamp, "GPS Date"),
+    (Tag::GPSTimeStamp, "GPS Time"),
+    (Tag::GPSImgDirection, "Image Direction"),
+    (Tag::GPSSpeed, "GPS Speed"),
+    (Tag::GPSMapDatum, "Map Datum"),
+    (Tag::GPSVersionID, "GPS Version"),
+  ];
+  // Pointers, blobs and the reference letters folded into their values.
+  const SKIP: &[Tag] = &[
+    Tag::ExifIFDPointer,
+    Tag::GPSInfoIFDPointer,
+    Tag::InteropIFDPointer,
+    Tag::MakerNote,
+    Tag::GPSLatitudeRef,
+    Tag::GPSLongitudeRef,
+    Tag::GPSAltitudeRef,
+    Tag::GPSImgDirectionRef,
+    Tag::GPSSpeedRef,
+    Tag::StripOffsets,
+    Tag::StripByteCounts,
+    Tag::JPEGInterchangeFormat,
+    Tag::JPEGInterchangeFormatLength,
+  ];
+  let text = |f: &exif::Field| -> Option<String> {
+    if let exif::Value::Undefined(bytes, _) = &f.value {
+      // A comment is an 8-byte character-set code, then the text (often just spaces).
+      if f.tag == Tag::UserComment {
+        let t = String::from_utf8_lossy(bytes.get(8..).unwrap_or_default()).trim_matches(|c: char| c == '\0' || c.is_whitespace()).to_string();
+        return (!t.is_empty() && bytes.starts_with(b"ASCII")).then_some(t);
+      }
+      if bytes.len() > 64 {
+        return None;
+      }
+    }
+    let mut v = f.display_value().with_unit(ex).to_string().trim_matches('"').trim().to_string();
+    // Raw binary shown as hex (CFA Pattern and the like) means nothing to a reader.
+    if v.is_empty() || (v.starts_with("0x") && v.len() > 10) {
+      return None;
+    }
+    if v.len() > 200 {
+      let cut = (0..=200).rev().find(|&i| v.is_char_boundary(i)).unwrap_or(0);
+      v.truncate(cut);
+      v.push('…');
+    }
+    Some(v)
+  };
+  let primary = |tag: Tag| ex.get_field(tag, In::PRIMARY);
+  let mut rows: Vec<(String, String)> = Vec::new();
+  let (lat, lon) = gps(ex).map_or((None, None), |(a, b)| (Some(a), Some(b)));
+  for &(tag, label) in NAMED {
+    let Some(f) = primary(tag) else { continue };
+    let value = match tag {
+      Tag::Orientation => Some(orientation_name(f.value.get_uint(0).unwrap_or(1) as i64).to_string()),
+      // "5 deg 24 min 51.2 sec N" (the reference letter comes with the value) plus decimal degrees.
+      Tag::GPSLatitude => text(f).map(|v| lat.map_or(v.clone(), |d| format!("{v} ({d:.6})"))),
+      Tag::GPSLongitude => text(f).map(|v| lon.map_or(v.clone(), |d| format!("{v} ({d:.6})"))),
+      _ => text(f),
+    };
+    if let Some(v) = value {
+      rows.push((label.to_string(), v));
+    }
+  }
+  // Everything else in the main picture's fields, named from the tag ("SubSecTime" → "Sub Sec Time").
+  for f in ex.fields().filter(|f| f.ifd_num == In::PRIMARY) {
+    if NAMED.iter().any(|(t, _)| *t == f.tag) || SKIP.contains(&f.tag) {
+      continue;
+    }
+    let name = f.tag.to_string();
+    if name.starts_with("Tag(") {
+      continue;
+    }
+    if let Some(v) = text(f) {
+      rows.push((spaced(&name), v));
+    }
+  }
+  // The embedded thumbnail: where it sits in the EXIF data, its length and size.
+  let thumb_at = ex.get_field(Tag::JPEGInterchangeFormat, In::THUMBNAIL).and_then(|f| f.value.get_uint(0));
+  let thumb_len = ex.get_field(Tag::JPEGInterchangeFormatLength, In::THUMBNAIL).and_then(|f| f.value.get_uint(0));
+  if let (Some(at), Some(len)) = (thumb_at, thumb_len) {
+    rows.push(("Thumbnail Location".into(), at.to_string()));
+    rows.push(("Thumbnail Length".into(), format!("{len} bytes")));
+    if let Some(sz) = ex.buf().get(at as usize..(at as usize).saturating_add(len as usize)).and_then(|b| imagesize::blob_size(b).ok()) {
+      rows.push(("Thumbnail Size".into(), format!("{} x {} pixels", sz.width, sz.height)));
+    }
+  }
+  rows
+}
+
+/// "ExposureBiasValue" → "Exposure Bias Value".
+fn spaced(name: &str) -> String {
+  let mut out = String::with_capacity(name.len() + 4);
+  let chars: Vec<char> = name.chars().collect();
+  for (i, &c) in chars.iter().enumerate() {
+    let next_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
+    if i > 0 && c.is_uppercase() && (chars[i - 1].is_lowercase() || next_lower) {
+      out.push(' ');
+    }
+    out.push(c);
+  }
+  out
 }
 
 fn empty_meta() -> Meta {

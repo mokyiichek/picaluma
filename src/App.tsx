@@ -52,12 +52,39 @@ export default function App() {
     api.scanStatus().then(s.setScan);
     api.listRoots().then((roots) => roots.every((r) => r.excluded) && s.setFolderManager(true));
 
-    // Scans emit library-changed in bursts; coalesce reloads.
+    // Scans emit library-changed in bursts; coalesce reloads. One reload at a time, and the
+    // longer a reload takes (big libraries), the longer the gap before the next, so a scan
+    // never keeps the app busy reloading.
     let timer: number | undefined;
-    const unChanged = listen("library-changed", () => {
-      clearTimeout(timer);
-      timer = window.setTimeout(() => useStore.getState().loadSnapshot(), 300);
-    });
+    let loading = false;
+    let again = false;
+    let took = 0;
+    const reload = async () => {
+      if (loading) {
+        again = true;
+        return;
+      }
+      loading = true;
+      const started = performance.now();
+      try {
+        await useStore.getState().loadSnapshot();
+      } finally {
+        took = performance.now() - started;
+        loading = false;
+        if (again) {
+          again = false;
+          schedule();
+        }
+      }
+    };
+    const schedule = () => {
+      if (timer !== undefined) return;
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        reload();
+      }, Math.max(300, took * 4));
+    };
+    const unChanged = listen("library-changed", schedule);
     const unProgress = listen<ScanProgress>("scan-progress", (e) => useStore.getState().setScan(e.payload));
     const unFaces = listen<FaceProgress>("faces-progress", (e) => useStore.getState().setFaceProgress(e.payload));
     api.faceProgress().then(s.setFaceProgress).catch(() => {});

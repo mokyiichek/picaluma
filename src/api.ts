@@ -264,6 +264,8 @@ export const api = {
   importPicasa: () => invoke<number>("import_picasa_scanlist"),
   search: (query: string) => invoke<{ ids: number[]; seconds: number }>("search", { query }),
   getPhoto: (id: number) => invoke<Photo>("get_photo", { id }),
+  /** Every EXIF field of the file, for the Properties panel. */
+  photoProperties: (id: number) => invoke<[string, string][]>("photo_properties", { id }),
   /** Tools menu jobs (tools.rs); progress arrives as "tool-progress" events. */
   cancelTool: () => invoke<void>("cancel_tool"),
   findSimilar: () => invoke<number[][]>("find_similar"),
