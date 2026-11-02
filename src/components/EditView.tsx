@@ -3,6 +3,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, photoUrl, thumbUrl, Photo, photoVersion } from "../api";
 import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS, turnRect } from "../effects";
+import { flightThumb, useEditedThumb, useThumbImage } from "../editedThumbs";
 import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
@@ -134,7 +135,7 @@ export function EditToolbar() {
         </button>
         <div className="strip">
           {strip.map((p) => (
-            <img key={p} src={thumbUrl(p)} className={p === id ? "cur" : ""} onClick={() => setEditId(p)} alt="" draggable={false} onError={hideBroken} />
+            <StripThumb key={p} id={p} current={p === id} onClick={() => setEditId(p)} />
           ))}
         </div>
         <button className="arrow" onClick={() => idx < seq.length - 1 && setEditId(seq[idx + 1])} title="Next (→)">
@@ -160,6 +161,11 @@ export function EditToolbar() {
   );
 }
 
+function StripThumb({ id, current, onClick }: { id: number; current: boolean; onClick: () => void }) {
+  const { src, style } = useThumbImage(id);
+  return <img src={src} style={style} className={current ? "cur" : ""} onClick={onClick} alt="" draggable={false} onError={hideBroken} />;
+}
+
 /** Leave the editor, zooming the photo back to its thumbnail. */
 export function backToLibrary() {
   const s = useStore.getState();
@@ -167,8 +173,11 @@ export function backToLibrary() {
   const box = document.querySelector(".edit-photo") as HTMLElement | null;
   if (id != null && box) {
     const r = box.getBoundingClientRect();
-    const rendered = render(s.edits.get(id) ?? []);
-    s.closeEditor({ photoId: id, src: thumbUrl(id), from: { x: r.left, y: r.top, w: r.width, h: r.height }, filter: rendered.filter, rotate: rendered.rotate });
+    const edits = s.edits.get(id) ?? [];
+    const thumb = flightThumb(id, edits);
+    // Not rendered yet: no zoom, rather than flying the untouched picture.
+    if (thumb) s.closeEditor({ photoId: id, src: thumb.src, from: { x: r.left, y: r.top, w: r.width, h: r.height }, filter: thumb.filter, rotate: render(edits).rotate });
+    else s.closeEditor();
   } else {
     s.closeEditor();
   }
@@ -450,6 +459,8 @@ function Stage({
   const r = render(shown);
   const rot90 = r.rotate === 90 || r.rotate === 270;
   const preview = usePixelPreview(id, shown, hasPixelOps(shown));
+  // Ready before Back to Library, so the thumbnail is the edited picture from the first frame.
+  useEditedThumb(id, edits, render(edits).rotate !== 0);
 
   useLayoutEffect(() => {
     const el = stageRef.current!;

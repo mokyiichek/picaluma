@@ -14,6 +14,7 @@ mod share;
 mod sysimg;
 mod thumbs;
 mod tools;
+mod updater;
 mod watch;
 
 use std::path::PathBuf;
@@ -162,6 +163,8 @@ pub fn run() {
       commands::search,
       commands::get_photo,
       commands::photo_properties,
+      updater::update_check,
+      updater::update_install,
       commands::set_star,
       commands::set_caption,
       commands::set_folder_description,

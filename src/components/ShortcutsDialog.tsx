@@ -1,12 +1,8 @@
-import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { fmtShortcut, isMac } from "../platform";
 import { useStore } from "../store";
 
 import { ISSUES_URL, SITE_URL } from "./AboutDialog";
-import { confirmAsk, notify } from "../dialogs";
-
-const LATEST = "https://api.github.com/repos/mokyiichek/picaluma/releases/latest";
 
 const GROUPS: [string, [string, string][]][] = [
   [
@@ -98,30 +94,6 @@ export default function ShortcutsDialog() {
       </div>
     </div>
   );
-}
-
-const newer = (a: string, b: string) => {
-  const pa = a.replace(/^v/, "").split(".").map(Number);
-  const pb = b.replace(/^v/, "").split(".").map(Number);
-  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
-  return false;
-};
-
-/** Help › Check for Updates: compares with the latest release on GitHub. */
-export async function checkForUpdates() {
-  const current = await getVersion();
-  try {
-    const res = await fetch(LATEST, { headers: { Accept: "application/vnd.github+json" } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const latest = (await res.json()).tag_name as string;
-    if (newer(latest, current)) {
-      if (await confirmAsk(`Picaluma ${latest.replace(/^v/, "")} is available (you have ${current}).\n\nOpen the download page?`, { ok: "Open Download Page" })) openUrl(SITE_URL);
-    } else {
-      notify(`You have the latest version of Picaluma (${current}).`);
-    }
-  } catch (e) {
-    if (await confirmAsk(`Couldn't check for updates (${e}).\n\nOpen the Picaluma website instead?`, { ok: "Open Website" })) openUrl(SITE_URL);
-  }
 }
 
 export const openWebsite = () => openUrl(SITE_URL);

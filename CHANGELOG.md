@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.29 — 2026-11-02
+
+- **Update from Help › About** — Check for Updates, then Update Now: Picaluma downloads the latest version, checks the download, installs it and restarts. Your library and settings stay as they are. On Linux it opens the download page.
+- **Straighten shows in the thumbnail** — thumbnails, the filmstrip and Properties now show a straightened picture, and Vignette too.
+- **No flash of the original** — an edited picture's thumbnail no longer shows the untouched picture first, including when zooming back to the library.
+
 ## 0.7.28 — 2026-10-30
 
 - **Right-click menus stay open on a Mac** — a right-click or Control-click menu closed the moment it appeared. Control-click no longer also changes the selection (⌘-click adds to it).

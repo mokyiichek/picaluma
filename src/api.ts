@@ -266,6 +266,8 @@ export const api = {
   getPhoto: (id: number) => invoke<Photo>("get_photo", { id }),
   /** Every EXIF field of the file, for the Properties panel. */
   photoProperties: (id: number) => invoke<[string, string][]>("photo_properties", { id }),
+  updateCheck: () => invoke<{ current: string; latest: string; newer: boolean; canInstall: boolean }>("update_check"),
+  updateInstall: () => invoke<void>("update_install"),
   /** Tools menu jobs (tools.rs); progress arrives as "tool-progress" events. */
   cancelTool: () => invoke<void>("cancel_tool"),
   findSimilar: () => invoke<number[][]>("find_similar"),

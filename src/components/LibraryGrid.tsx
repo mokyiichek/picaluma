@@ -1,13 +1,13 @@
 import { isMac, mod } from "../platform";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { faceUrl, thumbUrl, Folder } from "../api";
-import { cropViewBox, render } from "../effects";
+import { faceUrl, Folder } from "../api";
+import { render } from "../effects";
 import { fmtDate, plural } from "../format";
 import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, selectProject, selectVisible, useStore } from "../store";
 import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
-import { useEditedThumb } from "../editedThumbs";
+import { useThumbImage } from "../editedThumbs";
 import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
@@ -451,19 +451,9 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const video = useStore((s) => s.videos.has(id));
   const hidden = useStore((s) => s.hidden.has(id));
   const caption = useThumbCaption(id);
-  const edits = useStore((s) => s.edits.get(id));
   const clickPhoto = useStore((s) => s.clickPhoto);
   const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
-  // Pixel effects: the thumbnail rendered with its edits (crop and rotation included).
-  const baked = useEditedThumb(id, edits);
-  const r = edits && !baked ? render(edits) : null;
-  const style = r
-    ? ({
-        filter: r.filter || undefined,
-        transform: r.rotate ? `rotate(${r.rotate}deg)` : undefined,
-        objectViewBox: cropViewBox(r.crop),
-      } as React.CSSProperties)
-    : undefined;
+  const { src, style, baked, waiting } = useThumbImage(id);
 
   return (
     <div
@@ -484,8 +474,8 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
     >
       <img
         data-photo={id}
-        src={baked ?? thumbUrl(id)}
-        className={loaded ? "" : "loading"}
+        src={src}
+        className={loaded && !waiting ? "" : "loading"}
         decoding="async"
         draggable={false}
         style={style}

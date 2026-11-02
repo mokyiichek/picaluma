@@ -2154,6 +2154,16 @@ input[type="range"]:focus {
 .about .ver {
   color: var(--muted);
 }
+.about .update {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.about .update .tbtn {
+  display: inline-flex;
+}
+.about .update .fine {
+  margin-top: 6px;
+}
 .about .tagline {
   margin: 14px 0 12px;
   line-height: 1.5;

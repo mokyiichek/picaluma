@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { api, Photo, thumbUrl } from "../api";
+import { api, Photo } from "../api";
+import { useThumbImage } from "../editedThumbs";
 import { fmtBytes, fmtDateTime } from "../format";
 import { useStore } from "../store";
 import { CloseIcon } from "./Icons";
+
+function PropsThumb({ id }: { id: number }) {
+  const { src, style } = useThumbImage(id);
+  return <img src={src} style={style} alt="" draggable={false} onError={(e) => (e.currentTarget.style.visibility = "hidden")} />;
+}
 
 export function usePhoto(id: number | null): Photo | null {
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -68,7 +74,7 @@ export default function PropertiesPanel() {
       {photo ? (
         <>
           <div className="props-thumb">
-            <img src={thumbUrl(photo.id)} alt="" draggable={false} onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+            <PropsThumb id={photo.id} />
           </div>
           <div className="props-title">Properties of {photo.name}:</div>
           <div className="props-list">

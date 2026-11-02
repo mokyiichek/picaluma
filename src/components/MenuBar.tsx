@@ -27,7 +27,8 @@ import {
   setAsDesktop,
 } from "../actions";
 import { copyPicture, folderIds, trayIds } from "../share";
-import { checkForUpdates, openWebsite, reportProblem } from "./ShortcutsDialog";
+import { checkForUpdates } from "./AboutDialog";
+import { openWebsite, reportProblem } from "./ShortcutsDialog";
 import { confirmAsk } from "../dialogs";
 
 export interface MenuEntry {

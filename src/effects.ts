@@ -302,6 +302,9 @@ export function sliderValue(edits: Edit[], op: string, fallback = 0): number {
   return fallback;
 }
 
+/** Safari (macOS) has no canvas filters: what uses them there has to add them as CSS. */
+export const canvasFilters = typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
+
 /**
  * Replays edits onto a canvas at full resolution for Export (or, with maxSource, a smaller
  * preview for the editor when pixel effects are present).
