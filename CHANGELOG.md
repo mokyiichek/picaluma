@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.30 — 2026-11-02
+
+- **Thumbnails stay right after Save** — applying the same edit again to a saved picture no longer brings back its earlier thumbnail.
+
 ## 0.7.29 — 2026-11-02
 
 - **Update from Help › About** — Check for Updates, then Update Now: Picaluma downloads the latest version, checks the download, installs it and restarts. Your library and settings stay as they are. On Linux it opens the download page.

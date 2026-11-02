@@ -34,7 +34,8 @@ function remember(key: string, url: string) {
   }
 }
 
-const keyOf = (id: number, edits: Edit[]) => `${id}:${JSON.stringify(edits)}`;
+// The thumbnail's URL changes with the picture (Save, Undo Save), so a rendering never outlives it.
+const keyOf = (id: number, edits: Edit[]) => `${thumbUrl(id)}:${JSON.stringify(edits)}`;
 
 function needsRender(edits: Edit[]) {
   if (hasPixelOps(edits)) return true;
