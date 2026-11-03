@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.31 — 2026-11-03
+
+- **Edits stay put.** An effect clicked while the library was refreshing could vanish from the picture and its thumbnail, and the next click could lose it for good. Quick slider changes could also save an older value. Every edit now stays exactly as you made it.
+- **Thumbnails always follow your edits**, including Sepia, Glow, Tint and the other effects on every tab.
+- **Effects apply in the order you click them** — Tint then Sepia now looks different from Sepia then Tint, the same in Edit view, thumbnails, Save and Export.
+- **Effects work on a Mac when saving** — Sepia, B&W, Warmify, Saturation and others are now drawn the same as on Windows.
+- **Picaluma tells you about new versions.** A little after it starts, a small panel shows when a new version is out: one click on Update Now downloads it, installs it and restarts Picaluma (Windows and Mac). Turn it off in Tools › Options › General.
+
 ## 0.7.30 — 2026-11-02
 
 - **Thumbnails stay right after Save** — applying the same edit again to a saved picture no longer brings back its earlier thumbnail.

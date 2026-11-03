@@ -1,6 +1,6 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { thumbUrl } from "./api";
-import { canvasFilters, cropViewBox, Edit, render, renderToCanvas } from "./effects";
+import { cropViewBox, Edit, render, renderToCanvas } from "./effects";
 import { hasPixelOps } from "./pixelfx";
 import { useStore } from "./store";
 
@@ -91,10 +91,7 @@ export function useEditedThumb(id: number, edits: Edit[] | undefined, force = fa
 export function useThumbImage(id: number): { src: string | undefined; style: CSSProperties | undefined; baked: boolean; waiting: boolean } {
   const edits = useStore((s) => s.edits.get(id));
   const { url, waiting: pending } = useEditedThumb(id, edits);
-  if (url) {
-    const filter = canvasFilters || !edits ? "" : render(edits, true).filter;
-    return { src: url, style: filter ? { filter } : undefined, baked: true, waiting: false };
-  }
+  if (url) return { src: url, style: undefined, baked: true, waiting: false };
   if (pending) return { src: undefined, style: undefined, baked: false, waiting: true };
   const r = edits ? render(edits) : null;
   const style = r
@@ -110,7 +107,7 @@ export function useThumbImage(id: number): { src: string | undefined; style: CSS
 /** What the picture flies back to the grid as; null when its rendering isn't ready yet. */
 export function flightThumb(id: number, edits: Edit[]): { src: string; filter: string } | null {
   const hit = cache.get(keyOf(id, edits));
-  if (hit) return { src: hit, filter: canvasFilters ? "" : render(edits, true).filter };
+  if (hit) return { src: hit, filter: "" };
   const r = render(edits);
   if (r.rotate || needsRender(edits)) return null;
   return { src: thumbUrl(id), filter: r.filter };

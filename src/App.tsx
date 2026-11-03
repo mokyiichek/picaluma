@@ -27,6 +27,7 @@ import PeoplePanel from "./components/PeoplePanel";
 // The map (Leaflet) loads only when Places is opened.
 const PlacesPanel = lazy(() => import("./components/PlacesPanel"));
 import ScanNotifier from "./components/ScanNotifier";
+import UpdateNotice from "./components/UpdateNotice";
 import OptionsDialog from "./components/OptionsDialog";
 import AlbumPicker from "./components/AlbumPicker";
 import ExportDialog from "./components/ExportDialog";
@@ -302,6 +303,7 @@ export default function App() {
       <FolderManager />
       <ContextMenu />
       <ScanNotifier />
+      <UpdateNotice />
       <OptionsDialog />
       <AlbumPicker />
       <ExportDialog />

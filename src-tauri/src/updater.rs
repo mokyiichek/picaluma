@@ -207,6 +207,7 @@ pub fn update_install(app: AppHandle) -> CmdResult<()> {
   std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
   let file = download(&app, asset, &dir)?;
   log::info!("updating to {tag}");
+  crate::folderini::wait_for_edit_writes(Duration::from_secs(5));
   apply(&file)?;
   app.exit(0);
   Ok(())

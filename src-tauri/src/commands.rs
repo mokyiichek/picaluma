@@ -567,6 +567,7 @@ pub fn set_folder_description(state: State<'_, AppState>, id: i64, description: 
 /// Edits are stored as a JSON stack and rendered non-destructively; originals are never touched.
 #[tauri::command(async)]
 pub fn set_edits(state: State<'_, AppState>, id: i64, edits: String) -> CmdResult<()> {
+  let _writing = crate::folderini::EditWrite::begin();
   let path: String = {
     let conn = state.db.lock().map_err(err)?;
     conn.execute("UPDATE photos SET edits = ?1 WHERE id = ?2", params![edits, id]).map_err(err)?;

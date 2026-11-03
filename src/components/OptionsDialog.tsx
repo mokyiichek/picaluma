@@ -4,7 +4,7 @@ import { api, FileTypes, LibraryInfo } from "../api";
 import { confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_REMOVE } from "../dialogs";
 import { fmtMB, offerFaceModels } from "../faceModels";
 import { fmtBytes } from "../format";
-import { getPref, reopenLastFolder, setPref, setReopenLastFolder, setStripGps, stripGps } from "../prefs";
+import { checkUpdates, getPref, reopenLastFolder, setCheckUpdates, setPref, setReopenLastFolder, setStripGps, stripGps } from "../prefs";
 import { loadSlideshowOpts, saveSlideshowOpts, SlideshowOpts } from "../slideshowOpts";
 import { useStore } from "../store";
 
@@ -60,6 +60,7 @@ export default function OptionsDialog() {
   const [gpu, setGpu] = useState(false);
   const [gpuDraft, setGpuDraft] = useState(false);
   const [reopen, setReopen] = useState(true);
+  const [updates, setUpdates] = useState(true);
   const [types, setTypes] = useState<FileTypes>(ALL_TYPES);
   const [typesDraft, setTypesDraft] = useState<FileTypes>(ALL_TYPES);
   const [minKb, setMinKb] = useState(0);
@@ -77,6 +78,7 @@ export default function OptionsDialog() {
     setDraft(useStore.getState().effects);
     setShow(loadSlideshowOpts());
     setReopen(reopenLastFolder());
+    setUpdates(checkUpdates());
     setEmailVia(getPref("emailVia") ?? "program");
     setEmailEdge(Number(getPref("emailEdge") ?? 1024));
     setExp(readExport());
@@ -105,6 +107,7 @@ export default function OptionsDialog() {
       });
     }
     setReopenLastFolder(reopen);
+    setCheckUpdates(updates);
     saveSlideshowOpts(show);
     setPref("emailVia", emailVia);
     setPref("emailEdge", String(emailEdge));
@@ -160,6 +163,10 @@ export default function OptionsDialog() {
                   "Animated transitions: smooth wheel scrolling, gliding folder-to-folder scrolling, zooming into and out of photos, thumbnail resizing and panel slide-ins.",
                 )}
                 {check(reopen, setReopen, "Open the last folder you looked at", "When Picaluma starts, it goes back to where you were.")}
+              </fieldset>
+              <fieldset>
+                <legend>Updates</legend>
+                {check(updates, setUpdates, "Check for updates when Picaluma starts", "When there's a new version, one click downloads it, installs it and restarts Picaluma.")}
               </fieldset>
               <fieldset>
                 <legend>Graphics</legend>

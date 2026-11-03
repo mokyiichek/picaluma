@@ -259,6 +259,19 @@ interface State {
 let searchSeq = 0;
 let flightSeq = 0;
 
+// A reload reads the whole library, which takes a while. Edits made meanwhile, or still on their
+// way to the database, must not be undone by what it read. Times here are this counter's.
+let clock = 0;
+/** When the snapshot on screen was asked for. */
+let snapshotAsked = 0;
+/** Recent edits: `savedAt` is 0 until they're in the database. */
+const recentEdits = new Map<number, { list: Edit[]; savedAt: number }>();
+let editWrites: Promise<unknown> = Promise.resolve();
+/** Resolves once every edit so far is in the database. */
+export const editsSaved = () => editWrites;
+/** Edits that Save or Undo Save just changed in the database. */
+export const noteSavedEdits = (id: number, list: Edit[]) => recentEdits.set(id, { list, savedAt: ++clock });
+
 export const useStore = create<State>((set, get) => ({
   snapshot: null,
   folderById: new Map(),
@@ -337,7 +350,13 @@ export const useStore = create<State>((set, get) => ({
   confirmReq: null,
   textPrompt: null,
 
-  loadSnapshot: async () => get().applySnapshot(await api.snapshot()),
+  loadSnapshot: async () => {
+    const asked = ++clock;
+    const snapshot = await api.snapshot();
+    if (asked < snapshotAsked) return; // a later reload has already answered
+    snapshotAsked = asked;
+    get().applySnapshot(snapshot);
+  },
 
   dropPhotos: (ids) => {
     const snapshot = get().snapshot;
@@ -361,6 +380,11 @@ export const useStore = create<State>((set, get) => ({
     }
     const edits = new Map<number, Edit[]>();
     for (const [id, json] of snapshot.edits) edits.set(id, parseEdits(json));
+    for (const [id, recent] of recentEdits) {
+      if (recent.savedAt && recent.savedAt < snapshotAsked) recentEdits.delete(id);
+      else if (recent.list.length) edits.set(id, recent.list);
+      else edits.delete(id);
+    }
     // The picture open in Edit view was deleted: go on to the next one (or back to the library).
     const editId = get().editId;
     let nextEdit: number | null | undefined;
@@ -683,7 +707,14 @@ export const useStore = create<State>((set, get) => ({
     if (list.length) edits.set(id, list);
     else edits.delete(id);
     set({ edits });
-    api.setEdits(id, list.length ? JSON.stringify(list) : "");
+    // One at a time and in order, or an older edit can overwrite a newer one; only the latest counts.
+    const recent = { list, savedAt: 0 };
+    recentEdits.set(id, recent);
+    editWrites = editWrites.then(async () => {
+      if (recentEdits.get(id) !== recent) return;
+      await api.setEdits(id, list.length ? JSON.stringify(list) : "").catch(() => {});
+      recent.savedAt = ++clock;
+    });
   },
 
   startSlideshow: (photos, index = 0) => {

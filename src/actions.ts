@@ -5,7 +5,7 @@ import { stripGps } from "./prefs";
 import { aspectCache } from "./aspect";
 import { parseEdits } from "./effects";
 import { hasEdits, joinPath, renderJpegBase64 } from "./share";
-import { selectVisible, useStore } from "./store";
+import { editsSaved, noteSavedEdits, selectVisible, useStore } from "./store";
 import { binName } from "./platform";
 import { askText, confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_REMOVE } from "./dialogs";
 
@@ -181,6 +181,7 @@ export async function savePictures(ids: number[]) {
     { title: "Save", ok: "Save" },
   );
   if (!ok) return;
+  await editsSaved();
   const s = useStore.getState();
   const failed: string[] = [];
   for (const id of edited) {
@@ -190,6 +191,7 @@ export async function savePictures(ids: number[]) {
       aspectCache.delete(id); // a saved crop changes the picture's shape
       const edits = new Map(useStore.getState().edits);
       edits.delete(id);
+      noteSavedEdits(id, []);
       useStore.setState({ edits });
     } catch (e) {
       failed.push(String(e));
@@ -214,6 +216,7 @@ export async function undoSave(ids: number[]) {
       const edits = new Map(useStore.getState().edits);
       const list = parseEdits(json);
       list.length ? edits.set(id, list) : edits.delete(id);
+      noteSavedEdits(id, list);
       useStore.setState({ edits });
     } catch (e) {
       failed.push(String(e));

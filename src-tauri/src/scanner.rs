@@ -368,9 +368,12 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
   let files = list_images(dir, streaming);
   let dir_str = dir.to_string_lossy().into_owned();
   // Edits recorded in the folder (.picaluma.ini, or Picasa's .picasa.ini), read before locking.
+  let writes = crate::folderini::edit_writes();
   let record = if !streaming && crate::folderini::has_edit_files(dir) { crate::folderini::folder_record(dir) } else { Default::default() };
-  let ini_edits = &record.edits;
   let mut conn = db.lock().unwrap();
+  // Edited meanwhile: the database has the newer edits, and the next listing reads the new file.
+  let no_edits = Default::default();
+  let ini_edits = if crate::folderini::edits_unchanged_since(writes) { &record.edits } else { &no_edits };
 
   if files.is_empty() {
     conn.execute("DELETE FROM photos_fts WHERE rowid IN (SELECT p.id FROM photos p JOIN folders f ON f.id = p.folder_id WHERE f.path = ?1)", [&dir_str])?;
@@ -1272,6 +1275,28 @@ mod tests {
     let (_, changed) = list_dir(&conn, &dir, false).unwrap().unwrap();
     assert!(changed, "a downloaded file is picked up");
     assert_eq!(state(&conn), (0, 0), "and queued for indexing");
+  }
+
+  #[test]
+  fn listing_does_not_undo_an_edit_being_written() {
+    let d = temp_dir("edit-race");
+    let conn = Arc::new(Mutex::new(db::open(&d.join("library.db")).unwrap()));
+    let dir = d.join("pics");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("a.jpg");
+    write_jpeg(&file);
+    list_dir(&conn, &dir, false).unwrap();
+    crate::folderini::save_edits(&file, r#"[{"op":"sepia"}]"#).unwrap();
+    let new = r#"[{"op":"sepia"},{"op":"tint"}]"#;
+    let edits = |c: &Arc<Mutex<Connection>>| -> String { c.lock().unwrap().query_row("SELECT edits FROM photos", [], |r| r.get(0)).unwrap() };
+    conn.lock().unwrap().execute("UPDATE photos SET edits = ?1", [new]).unwrap();
+    {
+      let _writing = crate::folderini::EditWrite::begin();
+      list_dir(&conn, &dir, false).unwrap();
+      assert_eq!(edits(&conn), new, "the file is behind while an edit is being written");
+    }
+    list_dir(&conn, &dir, false).unwrap();
+    assert_eq!(edits(&conn), r#"[{"op":"sepia"}]"#, "otherwise the folder's file is the record");
   }
 
   /// Live updates: a new folder tree is listed, skipped folders are ignored, and a removed

@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
-import { useStore } from "../store";
+import { editsSaved, useStore } from "../store";
 
 // One source for the app's description and links: the same wording as https://ahmok.com/picaluma/.
 export const SITE_URL = "https://ahmok.com/picaluma/";
@@ -27,11 +27,35 @@ function Link({ href, children }: { href: string; children?: React.ReactNode }) 
   );
 }
 
-type Update =
+export type Update =
   | { s: "idle" | "checking" | "latest" }
   | { s: "available"; version: string; canInstall: boolean }
   | { s: "installing"; pct: number }
   | { s: "failed"; message: string };
+
+/** Check, then one click downloads, installs and restarts (used by About and the startup notice). */
+export function useUpdater() {
+  const [update, setUpdate] = useState<Update>({ s: "idle" });
+  const check = (quiet = false) => {
+    setUpdate({ s: "checking" });
+    return api
+      .updateCheck()
+      .then((u) => setUpdate(u.newer ? { s: "available", version: u.latest, canInstall: u.canInstall } : { s: "latest" }))
+      .catch((e) => setUpdate(quiet ? { s: "idle" } : { s: "failed", message: String(e) }));
+  };
+  const install = async () => {
+    setUpdate({ s: "installing", pct: 0 });
+    const stop = await listen<number>("update-progress", (e) => setUpdate({ s: "installing", pct: e.payload }));
+    try {
+      await editsSaved();
+      await api.updateInstall();
+    } catch (e) {
+      setUpdate({ s: "failed", message: String(e) });
+    }
+    stop();
+  };
+  return { update, setUpdate, check, install };
+}
 
 let checkOnOpen = false;
 
@@ -41,10 +65,10 @@ export function checkForUpdates() {
   useStore.getState().setAboutOpen(true);
 }
 
-function UpdateRow({ update, check, install }: { update: Update; check: () => void; install: () => void }) {
+export function UpdateRow({ update, check, install }: { update: Update; check: () => void; install: () => void }) {
   switch (update.s) {
     case "idle":
-      return <button className="tbtn" onClick={check}>Check for Updates</button>;
+      return <button className="tbtn" onClick={() => check()}>Check for Updates</button>;
     case "checking":
       return <span>Checking for updates…</span>;
     case "latest":
@@ -78,24 +102,7 @@ function UpdateRow({ update, check, install }: { update: Update; check: () => vo
 export default function AboutDialog() {
   const open = useStore((s) => s.aboutOpen);
   const [version, setVersion] = useState("");
-  const [update, setUpdate] = useState<Update>({ s: "idle" });
-  const check = () => {
-    setUpdate({ s: "checking" });
-    api
-      .updateCheck()
-      .then((u) => setUpdate(u.newer ? { s: "available", version: u.latest, canInstall: u.canInstall } : { s: "latest" }))
-      .catch((e) => setUpdate({ s: "failed", message: String(e) }));
-  };
-  const install = async () => {
-    setUpdate({ s: "installing", pct: 0 });
-    const stop = await listen<number>("update-progress", (e) => setUpdate({ s: "installing", pct: e.payload }));
-    try {
-      await api.updateInstall();
-    } catch (e) {
-      setUpdate({ s: "failed", message: String(e) });
-    }
-    stop();
-  };
+  const { update, setUpdate, check, install } = useUpdater();
   useEffect(() => {
     if (!open) return;
     getVersion().then(setVersion).catch(() => {});

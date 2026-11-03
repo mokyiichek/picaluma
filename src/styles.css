@@ -1181,6 +1181,19 @@ input[type="range"]:focus {
   transition: width 400ms linear;
 }
 
+/* Startup update notice: the scan notifier's panel, a little higher so both can show. */
+.update-notice {
+  bottom: 214px;
+}
+.update-notice .logo {
+  flex: none;
+}
+.update-notice .btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 /* ---------- Tags panel ---------- */
 .tags-body {
   flex: 1;

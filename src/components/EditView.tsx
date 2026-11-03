@@ -28,12 +28,12 @@ const TOOL_EFFECTS: Record<string, ToolName> = { crop: "crop", straighten: "stra
 
 /** Canvas rendering of the edit stack for effects CSS can't show (Red-eye, Retouch, Text…). */
 function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | null {
-  const [url, setUrl] = useState<string | null>(null);
+  const [preview, setUrl] = useState<{ id: number; url: string } | null>(null);
   const key = enabled ? JSON.stringify(edits) : "";
   useEffect(() => {
     if (!enabled) {
       setUrl((old) => {
-        if (old) URL.revokeObjectURL(old);
+        if (old) URL.revokeObjectURL(old.url);
         return null;
       });
       return;
@@ -47,8 +47,8 @@ function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | 
         if (cancelled || !blob) return;
         const next = URL.createObjectURL(blob);
         setUrl((old) => {
-          if (old) URL.revokeObjectURL(old);
-          return next;
+          if (old) URL.revokeObjectURL(old.url);
+          return { id, url: next };
         });
       } catch {
         /* keep showing the CSS rendering */
@@ -59,7 +59,8 @@ function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | 
       clearTimeout(timer);
     };
   }, [id, key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return url;
+  // The next picture never shows the previous one's preview while its own is being made.
+  return preview?.id === id ? preview.url : null;
 }
 
 /** Oriented thumbnail aspect ratios, filled by the grid as thumbnails load. */

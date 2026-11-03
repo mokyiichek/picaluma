@@ -1,4 +1,4 @@
-import { applyColorOps, applyFinalOps, applySourceOps, hexRgb, isPixelEdit, SOURCE_OPS } from "./pixelfx";
+import { applyColorOps, applyFinalOps, applySourceOps, filterCanvas, hexRgb, isPixelEdit, SOURCE_OPS } from "./pixelfx";
 
 // Non-destructive edits. Each edit is rendered as CSS filters (+ optional overlay/frame) for
 // display, and replayed onto a canvas for export. Originals on disk are never modified.
@@ -302,9 +302,6 @@ export function sliderValue(edits: Edit[], op: string, fallback = 0): number {
   return fallback;
 }
 
-/** Safari (macOS) has no canvas filters: what uses them there has to add them as CSS. */
-export const canvasFilters = typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
-
 /**
  * Replays edits onto a canvas at full resolution for Export (or, with maxSource, a smaller
  * preview for the editor when pixel effects are present).
@@ -339,7 +336,6 @@ export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0):
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
-  ctx.filter = r.filter || "none";
   ctx.translate(w / 2, h / 2);
   ctx.rotate(((r.rotate + r.straighten) * Math.PI) / 180);
   if (r.straighten) {
@@ -348,8 +344,24 @@ export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0):
   }
   ctx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.filter = "none";
-  applyColorOps(canvas, edits);
+  // In the order they were applied: the last one on top, as on screen.
+  let filters = "";
+  let pixels: Edit[] = [];
+  for (const e of edits) {
+    if (isPixelEdit(e)) {
+      filterCanvas(canvas, filters);
+      filters = "";
+      pixels.push(e);
+    } else {
+      const css = render([e], true).filter;
+      if (!css) continue;
+      applyColorOps(canvas, pixels);
+      pixels = [];
+      filters += ` ${css}`;
+    }
+  }
+  filterCanvas(canvas, filters);
+  applyColorOps(canvas, pixels);
   if (r.vignette > 0) {
     const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * (0.1 + 0.4 * r.vignetteSize), w / 2, h / 2, Math.hypot(w, h) / 2);
     g.addColorStop(0, "rgba(0,0,0,0)");

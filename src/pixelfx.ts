@@ -107,8 +107,18 @@ function curveOf(e: Edit): Curve | null {
   }
 }
 
-/** Tone curves, sharpening, colour effects and soft-focus style blends on the finished picture. */
+/** Tone curves, sharpening, colour effects and soft-focus style blends, in the order they were applied. */
 export function applyColorOps(canvas: HTMLCanvasElement, edits: Edit[]) {
+  for (let i = 0; i < edits.length; ) {
+    // Curves in a row fold into one lookup table.
+    let end = i + 1;
+    if (curveOf(edits[i])) while (end < edits.length && curveOf(edits[end])) end++;
+    applyColorRun(canvas, edits.slice(i, end));
+    i = end;
+  }
+}
+
+function applyColorRun(canvas: HTMLCanvasElement, edits: Edit[]) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   const W = canvas.width;
   const H = canvas.height;
@@ -212,10 +222,119 @@ function layer(canvas: HTMLCanvasElement, filter: string): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = canvas.width;
   c.height = canvas.height;
-  const x = c.getContext("2d")!;
-  x.filter = filter;
-  x.drawImage(canvas, 0, 0);
+  c.getContext("2d")!.drawImage(canvas, 0, 0);
+  filterCanvas(c, filter);
   return c;
+}
+
+/** Safari (macOS) has no canvas filters: there they're worked out on the pixels. */
+const canvasFilters = typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
+
+/** Redraws the canvas through a CSS filter. */
+export function filterCanvas(canvas: HTMLCanvasElement, filter: string) {
+  if (!filter) return;
+  if (!canvasFilters) return filterPixels(canvas, filter);
+  const copy = document.createElement("canvas");
+  copy.width = canvas.width;
+  copy.height = canvas.height;
+  copy.getContext("2d")!.drawImage(canvas, 0, 0);
+  const ctx = canvas.getContext("2d")!;
+  // A blur fades out at the edges: the picture stays underneath there, so they don't go black.
+  if (!filter.includes("blur")) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.filter = filter;
+  ctx.drawImage(copy, 0, 0);
+  ctx.filter = "none";
+  copy.width = 0;
+}
+
+/** The colour matrix of a CSS filter function (from the Filter Effects specification). */
+function filterMatrix(name: string, n: number): number[] | null {
+  const a = 1 - Math.min(1, n);
+  switch (name) {
+    case "grayscale":
+      return [0.2126 + 0.7874 * a, 0.7152 - 0.7152 * a, 0.0722 - 0.0722 * a, 0.2126 - 0.2126 * a, 0.7152 + 0.2848 * a, 0.0722 - 0.0722 * a, 0.2126 - 0.2126 * a, 0.7152 - 0.7152 * a, 0.0722 + 0.9278 * a];
+    case "sepia":
+      return [0.393 + 0.607 * a, 0.769 - 0.769 * a, 0.189 - 0.189 * a, 0.349 - 0.349 * a, 0.686 + 0.314 * a, 0.168 - 0.168 * a, 0.272 - 0.272 * a, 0.534 - 0.534 * a, 0.131 + 0.869 * a];
+    case "saturate":
+      return [0.213 + 0.787 * n, 0.715 - 0.715 * n, 0.072 - 0.072 * n, 0.213 - 0.213 * n, 0.715 + 0.285 * n, 0.072 - 0.072 * n, 0.213 - 0.213 * n, 0.715 - 0.715 * n, 0.072 + 0.928 * n];
+    case "hue-rotate": {
+      const c = Math.cos((n * Math.PI) / 180);
+      const s = Math.sin((n * Math.PI) / 180);
+      return [
+        0.213 + c * 0.787 - s * 0.213,
+        0.715 - c * 0.715 - s * 0.715,
+        0.072 - c * 0.072 + s * 0.928,
+        0.213 - c * 0.213 + s * 0.143,
+        0.715 + c * 0.285 + s * 0.14,
+        0.072 - c * 0.072 - s * 0.283,
+        0.213 - c * 0.213 - s * 0.787,
+        0.715 - c * 0.715 + s * 0.715,
+        0.072 + c * 0.928 + s * 0.072,
+      ];
+    }
+    default:
+      return null;
+  }
+}
+
+function filterPixels(canvas: HTMLCanvasElement, filter: string) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.getImageData(0, 0, W, H);
+  const d = img.data;
+  for (const [, name, arg] of filter.matchAll(/([a-z-]+)\(([^)]*)\)/g)) {
+    const n = parseFloat(arg);
+    const m = filterMatrix(name, n);
+    if (name === "blur") blurPixels(d, W, H, n);
+    else if (m) {
+      for (let i = 0; i < d.length; i += 4) {
+        const [r, g, b] = [d[i], d[i + 1], d[i + 2]];
+        d[i] = m[0] * r + m[1] * g + m[2] * b;
+        d[i + 1] = m[3] * r + m[4] * g + m[5] * b;
+        d[i + 2] = m[6] * r + m[7] * g + m[8] * b;
+      }
+    } else {
+      const [slope, add] = name === "brightness" ? [n, 0] : name === "contrast" ? [n, 127.5 * (1 - n)] : name === "invert" ? [1 - 2 * n, 255 * n] : [1, 0];
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = slope * d[i] + add;
+        d[i + 1] = slope * d[i + 1] + add;
+        d[i + 2] = slope * d[i + 2] + add;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/** A Gaussian blur of standard deviation `sigma`, as three box blurs. */
+function blurPixels(d: Uint8ClampedArray, W: number, H: number, sigma: number) {
+  let small = Math.floor(Math.sqrt(4 * sigma * sigma + 1));
+  if (small % 2 === 0) small--;
+  const smallPasses = Math.round((12 * sigma * sigma - 3 * small * small - 12 * small - 9) / (-4 * small - 4));
+  for (let pass = 0; pass < 3; pass++) {
+    const r = ((pass < smallPasses ? small : small + 2) - 1) / 2;
+    if (r < 1) continue;
+    boxPass(d, H, W, 4, W * 4, r);
+    boxPass(d, W, H, W * 4, 4, r);
+  }
+}
+
+/** One box blur along `lines` lines of `len` pixels; the picture's edge pixels carry on past it. */
+function boxPass(d: Uint8ClampedArray, lines: number, len: number, step: number, stride: number, r: number) {
+  const line = new Uint8Array(len);
+  const k = 1 / (2 * r + 1);
+  for (let l = 0; l < lines; l++) {
+    for (let ch = 0; ch < 3; ch++) {
+      const base = l * stride + ch;
+      for (let i = 0; i < len; i++) line[i] = d[base + i * step];
+      let sum = line[0] * (r + 1);
+      for (let i = 1; i <= r; i++) sum += line[Math.min(i, len - 1)];
+      for (let i = 0; i < len; i++) {
+        d[base + i * step] = sum * k;
+        sum += line[Math.min(i + r + 1, len - 1)] - line[Math.max(i - r, 0)];
+      }
+    }
+  }
 }
 
 /** Keeps the layer only outside (or inside) an ellipse around the centre, with a soft edge. */

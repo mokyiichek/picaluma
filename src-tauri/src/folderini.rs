@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{json, Value};
 
@@ -100,6 +101,44 @@ pub fn save_edits(photo: &Path, edits: &str) -> std::io::Result<()> {
     entry.insert("edits".into(), edits.to_string());
   }
   write(&file, &s)
+}
+
+static EDIT_WRITES_BEGUN: AtomicU64 = AtomicU64::new(0);
+static EDIT_WRITES_DONE: AtomicU64 = AtomicU64::new(0);
+
+/// Held while an edit goes into the database and the folder's file. A folder listing that read the
+/// file before or during that must not put the older edits it found back over the new ones.
+pub struct EditWrite;
+
+impl EditWrite {
+  pub fn begin() -> Self {
+    EDIT_WRITES_BEGUN.fetch_add(1, Ordering::SeqCst);
+    EditWrite
+  }
+}
+
+impl Drop for EditWrite {
+  fn drop(&mut self) {
+    EDIT_WRITES_DONE.fetch_add(1, Ordering::SeqCst);
+  }
+}
+
+/// Taken before reading a folder's file, for `edits_unchanged_since`.
+pub fn edit_writes() -> (u64, u64) {
+  (EDIT_WRITES_BEGUN.load(Ordering::SeqCst), EDIT_WRITES_DONE.load(Ordering::SeqCst))
+}
+
+/// No edit was being written when `seen` was taken, and none has been since.
+pub fn edits_unchanged_since(seen: (u64, u64)) -> bool {
+  seen.0 == seen.1 && edit_writes() == seen
+}
+
+/// Waits (no longer than `limit`) for the edits being written to finish, so quitting can't cut one off.
+pub fn wait_for_edit_writes(limit: std::time::Duration) {
+  let end = std::time::Instant::now() + limit;
+  while EDIT_WRITES_BEGUN.load(Ordering::SeqCst) != EDIT_WRITES_DONE.load(Ordering::SeqCst) && std::time::Instant::now() < end {
+    std::thread::sleep(std::time::Duration::from_millis(20));
+  }
 }
 
 /// Whether the folder has any edit file to read (two cheap checks; nothing is downloaded).
