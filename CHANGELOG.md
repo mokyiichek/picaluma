@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.32 — 2026-11-04
+
+- **The library no longer jumps while you scroll.** When the library refreshed in the background during a mouse-wheel or trackpad scroll (a scan, or files changing in a synced folder), the view could jump away from where you were.
+- **Tools menu tidied** — Show Duplicate Files and Find Similar Pictures are now straight under Tools (no Experimental submenu), and Adjust Date and Time moved to the Picture menu.
+
 ## 0.7.31 — 2026-11-03
 
 - **Edits stay put.** An effect clicked while the library was refreshing could vanish from the picture and its thumbnail, and the next click could lose it for good. Quick slider changes could also save an older value. Every edit now stays exactly as you made it.

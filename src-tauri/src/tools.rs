@@ -1,4 +1,4 @@
-//! Tools menu jobs that work across the library: Experimental › Show Duplicate Files,
+//! Tools menu jobs that work across the library: Show Duplicate Files,
 //! Adjust Date and Time, and Back Up Pictures.
 
 use std::collections::HashMap;
@@ -56,7 +56,7 @@ fn fingerprint(path: &Path, size: u64) -> Option<[u8; 32]> {
   Some(h.finalize().into())
 }
 
-/// Tools › Experimental › Show Duplicate Files: sets of pictures with identical contents.
+/// Tools › Show Duplicate Files: sets of pictures with identical contents.
 /// Online-only cloud files are skipped (reading them would download them).
 #[tauri::command]
 pub async fn find_duplicates(app: AppHandle) -> CmdResult<Vec<Vec<i64>>> {
@@ -109,7 +109,7 @@ pub async fn find_duplicates(app: AppHandle) -> CmdResult<Vec<Vec<i64>>> {
   .map_err(err)?
 }
 
-/// Tools › Adjust Date and Time: moves the pictures' dates by `delta` seconds (or, with `reset`,
+/// Picture › Adjust Date and Time: moves the pictures' dates by `delta` seconds (or, with `reset`,
 /// back to the camera's date). The new date is recorded in the folder's .picaluma.ini; the
 /// pictures themselves are not changed.
 #[tauri::command(async)]
@@ -463,7 +463,7 @@ fn dhash(jpeg: &[u8]) -> Option<u64> {
   Some(h)
 }
 
-/// Tools › Experimental › Find Similar Pictures: sets of pictures that look the same (resized,
+/// Tools › Find Similar Pictures: sets of pictures that look the same (resized,
 /// re-saved, lightly edited, or exact copies). Fingerprints are kept, so later searches are quick.
 #[tauri::command]
 pub async fn find_similar(app: AppHandle) -> CmdResult<Vec<Vec<i64>>> {

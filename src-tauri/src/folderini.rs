@@ -209,7 +209,7 @@ pub struct FolderRecord {
   pub edits: BTreeMap<String, String>,
   pub star: BTreeMap<String, bool>,
   pub hidden: BTreeMap<String, bool>,
-  /// Dates set with Tools › Adjust Date and Time (local seconds).
+  /// Dates set with Picture › Adjust Date and Time (local seconds).
   pub dates: BTreeMap<String, i64>,
   /// From Picasa's [Picasa] section: date (local seconds), description, place.
   pub folder_date: Option<i64>,

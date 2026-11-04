@@ -29,7 +29,7 @@ function ProgressBar({ p }: { p: { done: number; total: number } | null }) {
   );
 }
 
-/** Tools › Experimental › Show Duplicate Files: the search, then the duplicates shown in the library. */
+/** Tools › Show Duplicate Files: the search, then the duplicates shown in the library. */
 export async function showDuplicates() {
   const s = useStore.getState();
   s.setToolDialog("dups");
@@ -46,7 +46,7 @@ export async function showDuplicates() {
 }
 
 /**
- * Tools › Experimental › Find Similar Pictures (not in Picasa): pictures that look the same even
+ * Tools › Find Similar Pictures (not in Picasa): pictures that look the same even
  * when resized, re-saved or lightly edited. The first search fingerprints every picture.
  */
 export async function showSimilar() {
@@ -118,7 +118,7 @@ function describeShift(d: number) {
 }
 
 /**
- * Tools › Adjust Date and Time, as in Picasa: set the right date for the first picture and every
+ * Picture › Adjust Date and Time, as in Picasa: set the right date for the first picture and every
  * selected picture moves by the same amount (a camera clock that was wrong). The new dates are
  * kept in the folders' .picaluma.ini; the files are not changed.
  */

@@ -122,7 +122,7 @@ export interface Photo {
   caption: string;
   starred: boolean;
   edits: string;
-  /** Tools › Adjust Date and Time moved its date. */
+  /** Picture › Adjust Date and Time moved its date. */
   dateAdjusted: boolean;
 }
 

@@ -107,7 +107,7 @@ pub struct PhotoDto {
   caption: String,
   starred: bool,
   edits: String,
-  /// Tools › Adjust Date and Time moved `taken`.
+  /// Picture › Adjust Date and Time moved `taken`.
   date_adjusted: bool,
 }
 

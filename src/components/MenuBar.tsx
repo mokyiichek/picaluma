@@ -187,6 +187,7 @@ function useMenus(): [string, MenuEntry[]][] {
           submenu: BATCH.map(([label, op]) => ({ label, action: selected.length ? () => batchEdit(selected, op) : undefined })),
         },
         { label: "Undo All Edits", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
+        { label: "Adjust Date and Time...", action: targets.length ? () => s.setAdjustDate(targets) : undefined },
         {
           label: "Hide",
           action: targets.some((id) => !s.hidden.has(id)) ? () => api.setHidden(targets, true).then(() => (s.clearSelection(), s.loadSnapshot())) : undefined,
@@ -223,15 +224,9 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "People Manager...", shortcut: "Ctrl+Shift+M", action: () => s.setPeopleManager({ tab: "unnamed" }) },
         sep,
         { label: "Back Up Pictures...", action: () => s.setToolDialog("backup") },
-        { label: "Adjust Date and Time...", action: targets.length ? () => s.setAdjustDate(targets) : undefined },
         { label: "Library Statistics...", action: () => s.setToolDialog("stats") },
-        {
-          label: "Experimental",
-          submenu: [
-            { label: "Show Duplicate Files", action: () => showDuplicates() },
-            { label: "Find Similar Pictures", action: () => showSimilar() },
-          ],
-        },
+        { label: "Show Duplicate Files", action: () => showDuplicates() },
+        { label: "Find Similar Pictures", action: () => showSimilar() },
         sep,
         { label: "Rescan Library", action: () => api.rescan() },
         sep,

@@ -139,7 +139,7 @@ interface State {
   thumbCaption: "none" | "filename" | "caption" | "tags" | "resolution";
   /** Folder Properties dialog (double-click a folder). */
   folderProps: number | null;
-  /** Tools › Experimental › Show Duplicate Files: sets of identical pictures, shown in their folders. */
+  /** Tools › Show Duplicate Files: sets of identical pictures, shown in their folders. */
   dupGroups: number[][] | null;
   dupIds: Set<number> | null;
   /** What dupGroups holds: exact copies, or pictures that look alike. */
@@ -148,7 +148,7 @@ interface State {
   toolDialog: "dups" | "similar" | "backup" | "stats" | null;
   /** Rename… with several pictures selected (Picasa's batch rename). */
   renameIds: number[] | null;
-  /** Tools › Adjust Date and Time: the pictures to move. */
+  /** Picture › Adjust Date and Time: the pictures to move. */
   adjustDate: number[] | null;
   /** The ▾ menu's Sort People by: "name", "amount" or "top" (the ten with most pictures). */
   peopleSort: "name" | "amount" | "top";

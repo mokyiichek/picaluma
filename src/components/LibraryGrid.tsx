@@ -1,7 +1,7 @@
 import { isMac, mod } from "../platform";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { faceUrl, Folder } from "../api";
+import { faceUrl, Folder, uiLog } from "../api";
 import { render } from "../effects";
 import { fmtDate, plural } from "../format";
 import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, selectProject, selectVisible, useStore } from "../store";
@@ -27,6 +27,16 @@ const WHEEL_OMEGA = 16;
 /** WebView2 reports ~91 deltaY per notch here; Picasa moves ~117px per notch. */
 const WHEEL_PX_PER_DELTA = 1.16;
 
+/** When Picaluma itself last moved the grid; a big jump without one is logged with its cause unknown. */
+let movedAt = 0;
+
+/** Moves the grid. Big jumps go in the log with the reason, to track down unexpected ones. */
+function moveGrid(el: HTMLElement, top: number, why: string) {
+  if (Math.abs(top - el.scrollTop) > el.clientHeight * 2) uiLog(`grid moved (${why}): ${Math.round(el.scrollTop)} -> ${Math.round(top)}`);
+  movedAt = performance.now();
+  el.scrollTop = top;
+}
+
 /** Thumbnails that have already decoded once; remounts show them instantly without a placeholder. */
 const loadedThumbs = new Set<number>();
 
@@ -42,7 +52,7 @@ export default function LibraryGrid() {
   const [width, setWidth] = useState(800);
   const [resizing, setResizing] = useState(false);
   const topAnchor = useRef<{ photo: number; delta: number } | null>(null);
-  const smooth = useRef<{ to: (y: number) => void } | null>(null);
+  const smooth = useRef<{ to: (y: number) => void; shift: (dy: number) => void } | null>(null);
   /** True while gliding to a clicked folder: the tree keeps that folder highlighted meanwhile. */
   const gliding = useRef(false);
   /** The folder a glide is heading for, so a mid-glide reload can re-aim at its new position. */
@@ -112,14 +122,21 @@ export default function LibraryGrid() {
     if (!el) return;
     if (gliding.current && glideFolder.current != null) {
       const idx = headOfFolder.get(glideFolder.current);
-      if (idx != null) smooth.current?.to(offsets[idx]);
+      if (idx != null) {
+        if (Math.abs(offsets[idx] - el.scrollTop) > el.clientHeight * 2) uiLog(`grid glide re-aimed at folder ${glideFolder.current}`);
+        smooth.current?.to(offsets[idx]);
+      }
       return;
     }
     const a = topAnchor.current;
     const idx = a ? rowOfPhoto.get(a.photo) : undefined;
     if (a && idx != null) {
       const top = Math.max(0, offsets[idx] - a.delta);
-      if (Math.abs(el.scrollTop - top) > 1) el.scrollTop = top;
+      if (Math.abs(el.scrollTop - top) > 1) {
+        // A wheel glide in progress moves with the content, or its next frame would undo this.
+        smooth.current?.shift(top - el.scrollTop);
+        moveGrid(el, top, "kept in place after a refresh");
+      }
     }
   }, [rows, offsets, rowOfPhoto, headOfFolder]);
 
@@ -156,10 +173,15 @@ export default function LibraryGrid() {
         if (Math.abs(dest - pos) > span) {
           pos = dest - Math.sign(dest - pos) * span;
           vel = 0;
-          el.scrollTop = pos;
+          moveGrid(el, pos, "folder jump");
         }
         target = dest;
         if (!raf) raf = requestAnimationFrame(step);
+      },
+      shift: (dy: number) => {
+        if (!raf) return;
+        pos += dy;
+        target += dy;
       },
     };
     const step = (t: number) => {
@@ -221,7 +243,7 @@ export default function LibraryGrid() {
       const idx = rowOfPhoto.get(scrollTarget.photoId)!;
       const top = offsets[idx];
       if (top < el.scrollTop || top + rows[idx].h > el.scrollTop + el.clientHeight) {
-        el.scrollTop = Math.max(0, top - (el.clientHeight - rows[idx].h) / 2);
+        moveGrid(el, Math.max(0, top - (el.clientHeight - rows[idx].h) / 2), "back from Edit view");
       }
       return;
     }
@@ -229,13 +251,18 @@ export default function LibraryGrid() {
     if (idx == null) return;
     glideFolder.current = scrollTarget.folderId;
     if (useStore.getState().effects && smooth.current) smooth.current.to(offsets[idx]);
-    else el.scrollTop = offsets[idx];
+    else moveGrid(el, offsets[idx], "folder jump");
   }, [scrollTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // As the grid scrolls, the tree highlights whichever folder is at the top.
+  const lastTop = useRef(0);
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el || !rows.length) return;
+    if (Math.abs(el.scrollTop - lastTop.current) > el.clientHeight * 2 && performance.now() - movedAt > 150) {
+      uiLog(`grid jumped (scrollbar, keys or not by Picaluma): ${Math.round(lastTop.current)} -> ${Math.round(el.scrollTop)}`);
+    }
+    lastTop.current = el.scrollTop;
     const top = el.scrollTop + 30;
     // Binary search the row under the top edge.
     let lo = 0;
@@ -258,6 +285,7 @@ export default function LibraryGrid() {
   }, [onScroll]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    gliding.current = false;
     const s = useStore.getState();
     const cur = s.anchor != null ? ordered.indexOf(s.anchor) : -1;
     const move = (delta: number) => {
@@ -343,7 +371,7 @@ export default function LibraryGrid() {
           </span>
         </div>
       )}
-      <div className="grid-body">
+      <div className="grid-body" onPointerDownCapture={() => (gliding.current = false)}>
         <div className="grid-scroll" ref={scrollRef} onScroll={onScroll} tabIndex={0} onKeyDown={onKeyDown}>
           <div className={`grid-canvas${resizing && effects ? " resizing" : ""}`} style={{ height: v.getTotalSize() }}>
             {children}
@@ -509,7 +537,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   );
 });
 
-/** Tools › Experimental › Show Duplicate Files: what is shown, and where the selected picture's copies are. */
+/** Tools › Show Duplicate Files: what is shown, and where the selected picture's copies are. */
 function DupBanner({ count }: { count: number }) {
   const sets = useStore((s) => s.dupGroups);
   const kind = useStore((s) => s.dupKind);
