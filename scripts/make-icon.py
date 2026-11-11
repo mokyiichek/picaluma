@@ -22,6 +22,11 @@ ROW = (R - EAVE - 2 * GAP) / 2      # wall row height
 TOP1, TOP2 = EAVE + GAP, EAVE + GAP + ROW + GAP
 DOOR = 48                           # each bottom tile gives up this much width to the door
 
+# The house is drawn SCALE times larger around the centre and raised by LIFT: with its pointed
+# roof it looked smaller than square icons in the taskbar and Dock, and sat low.
+SCALE = 1.1
+LIFT = 28
+
 # The apex sits H above the square so the two roof tips, cut by the centre gap, touch its top.
 A, Q = (MID, L - H), (MID, EAVE)                   # apex, centre of the roof base
 ML, MR = ((L + MID) / 2, (A[1] + EAVE) / 2), ((MID + R) / 2, (A[1] + EAVE) / 2)  # mid-slopes
@@ -83,7 +88,7 @@ def main():
     big = SIZE * SS
     out = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     for poly, dists, c0, c1 in PIECES:
-        pts = [(x * SS, y * SS) for x, y in inset(poly, dists)]
+        pts = [((MID + (x - MID) * SCALE) * SS, (MID + (y - MID) * SCALE - LIFT) * SS) for x, y in inset(poly, dists)]
         xs, ys = [p[0] for p in pts], [p[1] for p in pts]
         box = tuple(int(v) for v in (min(xs), min(ys), max(xs) + 1, max(ys) + 1))
         mask = Image.new("L", (big, big), 0)

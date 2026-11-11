@@ -182,6 +182,8 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("ALTER TABLE photos ADD COLUMN meta_done INTEGER NOT NULL DEFAULT 1")?;
   }
   conn.execute_batch("CREATE INDEX IF NOT EXISTS photos_pending ON photos(meta_done) WHERE meta_done = 0")?;
+  // v0.7.33: finds a folder whose name changed only in capitals (Windows and macOS disks ignore case).
+  conn.execute_batch("CREATE INDEX IF NOT EXISTS folders_path_nocase ON folders(path COLLATE NOCASE)")?;
   // v0.7.7: Folder › Sort Folder By / Sort Album By ('' = date taken, 'modified', 'name', 'size').
   let has_col = |table: &str, col: &str| -> rusqlite::Result<bool> {
     let mut stmt = conn.prepare(&format!("SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1"))?;

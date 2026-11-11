@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.33 — 2026-11-11
+
+- **Folders renamed in capitals show once.** Renaming a folder only in capitals (“holiday photos” → “Holiday Photos”) left the old name in the library next to the new one. Picaluma now shows the folder once, spelled as it is on disk, and its pictures keep their albums, faces and captions. Folders already listed twice are fixed on the next scan.
+- **Bigger app icon** — the icon fills more of its space and sits a little higher, so it no longer looks smaller than other apps in the taskbar and Dock.
+
 ## 0.7.32 — 2026-11-04
 
 - **The library no longer jumps while you scroll.** When the library refreshed in the background during a mouse-wheel or trackpad scroll (a scan, or files changing in a synced folder), the view could jump away from where you were.

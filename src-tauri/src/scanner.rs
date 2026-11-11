@@ -365,6 +365,8 @@ fn list_root(
 /// Record one directory from metadata only. Returns Some((picture count, changed)) or None if
 /// the directory holds no pictures.
 fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlite::Result<Option<(usize, bool)>> {
+  let real = settle_case(db, dir)?;
+  let dir = real.as_path();
   let files = list_images(dir, streaming);
   let dir_str = dir.to_string_lossy().into_owned();
   // Edits recorded in the folder (.picaluma.ini, or Picasa's .picasa.ini), read before locking.
@@ -487,6 +489,76 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
   db::refresh_folder(&tx, folder_id)?;
   tx.commit()?;
   Ok(Some((files.len(), true)))
+}
+
+/// A folder renamed only in capitals ("holiday photos" → "Holiday Photos") still opens under its
+/// old spelling on Windows and macOS, so the old library entry never looked missing and the
+/// folder showed up twice. The library takes the spelling on disk, keeping the older entry (its
+/// pictures keep their albums, faces and captions) and dropping the duplicate.
+/// Returns the folder's path as the disk spells it.
+fn settle_case(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<PathBuf> {
+  let dir_str = dir.to_string_lossy().into_owned();
+  let variants: Vec<(i64, String)> = {
+    let conn = db.lock().unwrap();
+    let mut stmt = conn.prepare_cached("SELECT id, path FROM folders WHERE path = ?1 COLLATE NOCASE ORDER BY id")?;
+    let rows = stmt.query_map([&dir_str], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    rows.filter_map(Result::ok).collect()
+  };
+  if variants.iter().all(|(_, p)| *p == dir_str) {
+    return Ok(dir.to_path_buf()); // the usual case: nothing spelled differently
+  }
+  let real = disk_case(dir);
+  let real_str = real.to_string_lossy().into_owned();
+  // On a disk that tells capitals apart, "Photos" and "photos" can be two real folders.
+  let same: Vec<(i64, String)> = variants.into_iter().filter(|(_, p)| *p == real_str || disk_case(Path::new(p)) != Path::new(p)).collect();
+  let Some((keep, keep_path)) = same.first().cloned() else { return Ok(real) };
+  if same.len() == 1 && keep_path == real_str {
+    return Ok(real);
+  }
+  let mut conn = db.lock().unwrap();
+  let tx = conn.transaction()?;
+  for (id, _) in &same[1..] {
+    tx.execute("DELETE FROM photos_fts WHERE rowid IN (SELECT id FROM photos WHERE folder_id = ?1)", [id])?;
+    tx.execute("DELETE FROM photos WHERE folder_id = ?1", [id])?;
+    tx.execute("DELETE FROM folders WHERE id = ?1", [id])?;
+  }
+  if keep_path != real_str {
+    let name = real.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| real_str.clone());
+    tx.execute("UPDATE folders SET path = ?1, name = ?2 WHERE id = ?3", params![real_str, name, keep])?;
+    let sep = std::path::MAIN_SEPARATOR;
+    tx.execute(
+      "UPDATE photos SET path = ?1 || substr(path, length(?2) + 1) WHERE folder_id = ?3",
+      params![format!("{real_str}{sep}"), format!("{keep_path}{sep}"), keep],
+    )?;
+    let ids: Vec<i64> = {
+      let mut stmt = tx.prepare("SELECT id FROM photos WHERE folder_id = ?1")?;
+      let rows = stmt.query_map([keep], |r| r.get(0))?;
+      rows.filter_map(Result::ok).collect()
+    };
+    for id in ids {
+      db::reindex_photo(&tx, id)?; // the folder name is searchable
+    }
+  }
+  tx.commit()?;
+  log::info!("folder spelled {keep_path:?} on disk is now {real_str:?} ({} duplicate entries dropped)", same.len() - 1);
+  Ok(real)
+}
+
+/// The path with each part spelled as it is on disk.
+fn disk_case(path: &Path) -> PathBuf {
+  use std::path::Component;
+  let mut out = PathBuf::new();
+  for comp in path.components() {
+    let Component::Normal(name) = comp else {
+      out.push(comp);
+      continue;
+    };
+    let entries: Vec<std::ffi::OsString> = std::fs::read_dir(&out).map(|rd| rd.filter_map(Result::ok).map(|e| e.file_name()).collect()).unwrap_or_default();
+    let lower = name.to_string_lossy().to_lowercase();
+    let found = entries.iter().find(|n| n.as_os_str() == name).or_else(|| entries.iter().find(|n| n.to_string_lossy().to_lowercase() == lower));
+    out.push(found.map(|n| n.as_os_str()).unwrap_or(name));
+  }
+  out
 }
 
 /// Options › File Types › skip pictures smaller than this (bytes; 0 = keep all).
@@ -1166,15 +1238,18 @@ pub(crate) fn forget_tree(db: &Arc<Mutex<Connection>>, dir: &Path) {
   let _ = conn.execute("DELETE FROM folders WHERE path = ?1 OR substr(path, 1, length(?2)) = ?2", params![d, prefix]);
 }
 
-/// Lists one folder (live update).
+/// Lists one folder (live update, or opening it). Change notices and the library may still use
+/// a spelling from before a rename in capitals, so the disk's spelling is looked up first.
 pub(crate) fn list_folder(db: &Arc<Mutex<Connection>>, dir: &Path) -> rusqlite::Result<Option<(usize, bool)>> {
-  list_dir(db, dir, is_streaming_volume(dir))
+  let dir = disk_case(dir);
+  list_dir(db, &dir, is_streaming_volume(&dir))
 }
 
 /// Lists a folder and all folders inside it (a folder created or moved into a watched folder).
 pub(crate) fn list_tree(db: &Arc<Mutex<Connection>>, tree: &Path, excluded: &[String]) {
-  let streaming = is_streaming_volume(tree);
-  let walker = WalkDir::new(tree).follow_links(false).into_iter().filter_entry(|e| {
+  let tree = disk_case(tree);
+  let streaming = is_streaming_volume(&tree);
+  let walker = WalkDir::new(&tree).follow_links(false).into_iter().filter_entry(|e| {
     e.file_type().is_dir() && (e.depth() == 0 || (!skip_dir(e.path()) && !is_excluded(e.path(), excluded)))
   });
   for entry in walker.filter_map(Result::ok) {
@@ -1297,6 +1372,48 @@ mod tests {
     }
     list_dir(&conn, &dir, false).unwrap();
     assert_eq!(edits(&conn), r#"[{"op":"sepia"}]"#, "otherwise the folder's file is the record");
+  }
+
+  /// A folder renamed only in capitals stays one folder, under the new spelling, with the same
+  /// rows; a duplicate left by an older version is dropped.
+  #[cfg(any(windows, target_os = "macos"))]
+  #[test]
+  fn folder_renamed_in_capitals_stays_one_folder() {
+    let d = temp_dir("case");
+    let conn = Arc::new(Mutex::new(db::open(&d.join("library.db")).unwrap()));
+    let old = d.join("holiday photos");
+    std::fs::create_dir_all(&old).unwrap();
+    write_jpeg(&old.join("a.jpg"));
+    list_dir(&conn, &old, false).unwrap();
+    let ids = |c: &Arc<Mutex<Connection>>| -> (i64, i64) { c.lock().unwrap().query_row("SELECT folder_id, id FROM photos", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap() };
+    let (fid, pid) = ids(&conn);
+    let new = d.join("Holiday Photos");
+    std::fs::rename(&old, &new).unwrap();
+    let state = |c: &Arc<Mutex<Connection>>| -> (Vec<(i64, String, String)>, Vec<(i64, String)>) {
+      let c = c.lock().unwrap();
+      let folders = c.prepare("SELECT id, path, name FROM folders").unwrap().query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().map(Result::unwrap).collect();
+      let photos = c.prepare("SELECT id, path FROM photos").unwrap().query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(Result::unwrap).collect();
+      (folders, photos)
+    };
+    let want = (
+      vec![(fid, new.to_string_lossy().into_owned(), "Holiday Photos".to_string())],
+      vec![(pid, new.join("a.jpg").to_string_lossy().into_owned())],
+    );
+    // Live updates report both spellings, and opening the folder uses the library's spelling.
+    for p in [&old, &new, &old] {
+      list_folder(&conn, p).unwrap();
+      assert_eq!(state(&conn), want, "after listing {}", p.display());
+    }
+
+    // 0.7.32 left a second entry for the new spelling beside the old one.
+    let c = conn.lock().unwrap();
+    c.execute("UPDATE folders SET path = ?1, name = 'holiday photos'", [old.to_string_lossy()]).unwrap();
+    c.execute("UPDATE photos SET path = ?1", [old.join("a.jpg").to_string_lossy()]).unwrap();
+    c.execute("INSERT INTO folders(path, name) VALUES (?1, 'Holiday Photos')", [new.to_string_lossy()]).unwrap();
+    c.execute("INSERT INTO photos(folder_id, path, name, size, mtime) VALUES (last_insert_rowid(), ?1, 'a.jpg', 1, 1)", [new.join("a.jpg").to_string_lossy()]).unwrap();
+    drop(c);
+    list_dir(&conn, &new, false).unwrap();
+    assert_eq!(state(&conn), want, "the duplicate is dropped and the older entry keeps its rows");
   }
 
   /// Live updates: a new folder tree is listed, skipped folders are ignored, and a removed
