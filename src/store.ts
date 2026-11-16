@@ -96,6 +96,8 @@ interface State {
 
   view: "library" | "edit";
   currentFolderId: number | null;
+  /** Bold (unseen) folders opened since the last library refresh. */
+  seenFolders: Set<number>;
   selected: Set<number>;
   anchor: number | null;
   editId: number | null;
@@ -300,6 +302,7 @@ export const useStore = create<State>((set, get) => ({
 
   view: "library",
   currentFolderId: null,
+  seenFolders: new Set(),
   selected: new Set(),
   anchor: null,
   editId: null,
@@ -404,6 +407,8 @@ export const useStore = create<State>((set, get) => ({
       snapshot,
       folderById,
       folderOfPhoto,
+      // Opened folders the library still lists as unseen (it may lag a moment) stay plain.
+      seenFolders: new Set([...get().seenFolders].filter((id) => folderById.get(id)?.unseen)),
       starred: new Set(snapshot.starred),
       geotagged: new Set(snapshot.geotagged),
       videos: new Set(snapshot.videos ?? []),
@@ -457,8 +462,14 @@ export const useStore = create<State>((set, get) => ({
   setScan: (scan) => set({ scan }),
 
   selectFolder: (id, scroll = true) => {
-    const path = id > 0 ? get().folderById.get(id)?.path : undefined;
+    const folder = id > 0 ? get().folderById.get(id) : undefined;
+    const path = folder?.path;
     if (path) setPref("lastFolderPath", path);
+    // Opening a bold folder (new pictures) makes it plain, as in Picasa.
+    if (folder?.unseen && !get().seenFolders.has(id)) {
+      api.folderSeen(id).catch(() => {});
+      set({ seenFolders: new Set(get().seenFolders).add(id) });
+    }
     // Mid-scan, the folder the user opens jumps the queue (Picasa's scanning priority).
     if (get().scan.scanning && id > 0) api.prioritizeFolder(id).catch(() => {});
     set({

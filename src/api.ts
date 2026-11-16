@@ -20,6 +20,8 @@ export interface Folder {
   photos: number[];
   /** Changes when a picture in the folder is added, removed or changed on disk. */
   stamp?: number;
+  /** Has pictures added since the folder was last opened (shown in bold, as in Picasa). */
+  unseen?: boolean;
 }
 
 export interface Album {
@@ -302,6 +304,7 @@ export const api = {
   renamePhoto: (id: number, name: string) => invoke<string>("rename_photo", { id, name }),
   removeEmptyFolder: (path: string) => invoke<void>("remove_empty_folder", { path }),
   prioritizeFolder: (id: number) => invoke<void>("prioritize_folder", { id }),
+  folderSeen: (id: number) => invoke<void>("folder_seen", { id }),
   getSettings: () =>
     invoke<{ hardwareAcceleration: boolean; fileTypes: FileTypes; faceRecognition: boolean; faceModelsDeclined: boolean; minFileKb: number }>("get_settings"),
   faceModelsStatus: () => invoke<FaceModels>("face_models_status"),

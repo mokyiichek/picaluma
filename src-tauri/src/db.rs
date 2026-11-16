@@ -192,6 +192,11 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   if !has_col("folders", "sort")? {
     conn.execute_batch("ALTER TABLE folders ADD COLUMN sort TEXT NOT NULL DEFAULT ''")?;
   }
+  // v0.7.34: folders with pictures you haven't looked at yet are shown in bold, as in Picasa.
+  // Folders already in the library count as seen.
+  if !has_col("folders", "unseen")? {
+    conn.execute_batch("ALTER TABLE folders ADD COLUMN unseen INTEGER NOT NULL DEFAULT 0")?;
+  }
   // v0.7.1: online-only cloud files (OneDrive / Synology / Dropbox placeholders, Google Drive
   // streaming). They're listed but never read in the background, so scanning doesn't download them.
   if !has("cloud")? {

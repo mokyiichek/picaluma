@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.34 — 2026-11-16
+
+- **New pictures show in bold.** As in Picasa, a folder with pictures you haven't looked at yet is shown in bold in the folder list, until you open it. Folders already in your library start out plain.
+
 ## 0.7.33 — 2026-11-11
 
 - **Folders renamed in capitals show once.** Renaming a folder only in capitals (“holiday photos” → “Holiday Photos”) left the old name in the library next to the new one. Picaluma now shows the folder once, spelled as it is on disk, and its pictures keep their albums, faces and captions. Folders already listed twice are fixed on the next scan.

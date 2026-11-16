@@ -171,6 +171,7 @@ pub fn run() {
       commands::set_edits,
       commands::export_picture,
       commands::prioritize_folder,
+      commands::folder_seen,
       commands::set_sort,
       commands::set_folder_props,
       commands::write_bytes,

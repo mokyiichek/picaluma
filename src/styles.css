@@ -364,6 +364,10 @@ textarea {
   background: var(--tree-sel);
   color: #fff;
 }
+/* Folders with pictures not looked at yet (Picasa shows them in bold until opened). */
+.tree-row.unseen .name {
+  font-weight: 700;
+}
 .tree-row.sel.dim {
   background: #c9d7e4;
   color: #111;

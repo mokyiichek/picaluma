@@ -12,7 +12,7 @@ const NO_PROJECTS: Project[] = [];
 
 type Row =
   | { kind: "group"; label: string }
-  | { kind: "folder"; id: number; name: string; count: number; depth?: number; key?: string; parent?: boolean }
+  | { kind: "folder"; id: number; name: string; count: number; unseen?: boolean; depth?: number; key?: string; parent?: boolean }
   | { kind: "dir"; name: string; depth: number; key: string };
 
 const ROW_H = 22;
@@ -242,10 +242,12 @@ function FolderTree() {
   const selectFolder = useStore((s) => s.selectFolder);
   const view = useStore((s) => s.folderView);
   const sort = useStore((s) => s.folderSort);
+  const seenFolders = useStore((s) => s.seenFolders);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const rows = useMemo(() => {
+    const unseen = (f: { id: number; unseen?: boolean }) => !!f.unseen && !seenFolders.has(f.id);
     const out: Row[] = [];
     if (view === "tree") {
       // Disk hierarchy below the folders' common parent. Parents without pictures appear as plain rows.
@@ -265,7 +267,7 @@ function FolderTree() {
           const parent = seen.get(parentKey);
           if (parent && parent.kind !== "group") (parent as { parent?: boolean }).parent = true;
           if (d === p.length - 1) {
-            const row: Row = { kind: "folder", id: folder.id, name: folder.name, count: photos.length, depth: d - common, key };
+            const row: Row = { kind: "folder", id: folder.id, name: folder.name, count: photos.length, unseen: unseen(folder), depth: d - common, key };
             seen.set(key, row);
             out.push(row);
           } else if (!seen.has(key)) {
@@ -286,10 +288,10 @@ function FolderTree() {
         out.push({ kind: "group", label });
         last = label;
       }
-      out.push({ kind: "folder", id: folder.id, name: folder.name, count: photos.length });
+      out.push({ kind: "folder", id: folder.id, name: folder.name, count: photos.length, unseen: unseen(folder) });
     }
     return out;
-  }, [visible, view, sort, collapsed]);
+  }, [visible, view, sort, collapsed, seenFolders]);
 
   const toggle = (key: string) =>
     setCollapsed((c) => {
@@ -358,7 +360,7 @@ function FolderTree() {
           return (
             <div
               key={item.key}
-              className={`tree-row${r.id === current ? " sel" : ""}`}
+              className={`tree-row${r.id === current ? " sel" : ""}${r.unseen ? " unseen" : ""}`}
               style={{ ...style, ...indent }}
               onMouseDown={(e) => e.button === 0 && selectFolder(r.id)}
               onDoubleClick={() => useStore.getState().setFolderProps(r.id)}

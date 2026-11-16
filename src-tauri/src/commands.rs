@@ -41,6 +41,8 @@ pub struct FolderDto {
   /// Changes whenever a picture in the folder is added, removed or changed on disk; part of the
   /// thumbnail address, so the web view never shows a cached thumbnail of an older file.
   stamp: u32,
+  /// Has pictures added since the folder was last opened (shown in bold, as in Picasa).
+  unseen: bool,
 }
 
 #[derive(Serialize)]
@@ -150,7 +152,7 @@ struct Entry {
 fn build_snapshot(conn: &rusqlite::Connection) -> rusqlite::Result<Snapshot> {
   let mut folders: Vec<FolderDto> = {
     let mut stmt = conn.prepare(
-      "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort, sort_rev, date_set, place, music FROM folders
+      "SELECT id, name, path, description, date_min, date_max, updated, bytes, sort, sort_rev, date_set, place, music, unseen FROM folders
        WHERE photo_count > 0 ORDER BY updated DESC, name",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -170,6 +172,7 @@ fn build_snapshot(conn: &rusqlite::Connection) -> rusqlite::Result<Snapshot> {
         music: r.get(12)?,
         photos: Vec::new(),
         stamp: 0,
+        unseen: r.get::<_, i64>(13)? != 0,
       })
     })?;
     rows.filter_map(Result::ok).collect()
@@ -809,6 +812,14 @@ pub fn prioritize_folder(app: AppHandle, id: i64) {
   }
   crate::people::prioritize(id);
   std::thread::spawn(move || scanner::scan_folder_now(&app, id));
+}
+
+/// The user opened a folder: it's no longer bold.
+#[tauri::command(async)]
+pub fn folder_seen(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+  let conn = state.db.lock().map_err(err)?;
+  conn.execute("UPDATE folders SET unseen = 0 WHERE id = ?1 AND unseen = 1", [id]).map_err(err)?;
+  Ok(())
 }
 
 /// Folder › Sort Folder By / Album › Sort Album By. `id` < 0 is an album (as in the UI).

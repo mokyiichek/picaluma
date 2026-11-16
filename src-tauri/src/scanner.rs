@@ -450,10 +450,15 @@ fn list_dir(db: &Arc<Mutex<Connection>>, dir: &Path, streaming: bool) -> rusqlit
     return Ok(Some((files.len(), false)));
   }
 
+  // New pictures make the folder bold until it's opened (Picasa).
+  let added = changed.iter().any(|f| !known.contains_key(&*f.path.to_string_lossy()));
   let tx = conn.transaction()?;
   let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dir_str.clone());
   tx.execute("INSERT OR IGNORE INTO folders(path, name) VALUES (?1, ?2)", params![dir_str, name])?;
   let folder_id: i64 = tx.query_row("SELECT id FROM folders WHERE path = ?1", [&dir_str], |r| r.get(0))?;
+  if added {
+    tx.execute("UPDATE folders SET unseen = 1 WHERE id = ?1 AND unseen = 0", [folder_id])?;
+  }
   for id in &removed {
     tx.execute("DELETE FROM photos_fts WHERE rowid = ?1", [id])?;
     tx.execute("DELETE FROM photos WHERE id = ?1", [id])?;
@@ -1372,6 +1377,26 @@ mod tests {
     }
     list_dir(&conn, &dir, false).unwrap();
     assert_eq!(edits(&conn), r#"[{"op":"sepia"}]"#, "otherwise the folder's file is the record");
+  }
+
+  /// New pictures make a folder bold (unseen) until it's opened; listing it again unchanged
+  /// keeps it plain.
+  #[test]
+  fn new_pictures_mark_the_folder_unseen() {
+    let d = temp_dir("unseen");
+    let conn = Arc::new(Mutex::new(db::open(&d.join("library.db")).unwrap()));
+    let dir = d.join("Trip");
+    std::fs::create_dir_all(&dir).unwrap();
+    write_jpeg(&dir.join("a.jpg"));
+    let unseen = |c: &Arc<Mutex<Connection>>| -> i64 { c.lock().unwrap().query_row("SELECT unseen FROM folders", [], |r| r.get(0)).unwrap() };
+    list_dir(&conn, &dir, false).unwrap();
+    assert_eq!(unseen(&conn), 1, "a new folder is unseen");
+    conn.lock().unwrap().execute("UPDATE folders SET unseen = 0", []).unwrap(); // opened
+    list_dir(&conn, &dir, false).unwrap();
+    assert_eq!(unseen(&conn), 0, "nothing new");
+    write_jpeg(&dir.join("b.jpg"));
+    list_dir(&conn, &dir, false).unwrap();
+    assert_eq!(unseen(&conn), 1, "a new picture");
   }
 
   /// A folder renamed only in capitals stays one folder, under the new spelling, with the same
