@@ -679,7 +679,14 @@ export const useStore = create<State>((set, get) => ({
 
   clearSearch: () => {
     searchSeq++;
-    set({ query: "", search: null });
+    // Back to the full library on the folder (and picture) the user was on in the results,
+    // as in Picasa — not wherever the longer list happens to put the old scroll position.
+    const { currentFolderId: folderId, anchor, search } = get();
+    set({
+      query: "",
+      search: null,
+      scrollTarget: search && folderId != null ? { folderId, photoId: anchor ?? undefined, nonce: Date.now() } : get().scrollTarget,
+    });
   },
 
   setStarredOnly: (starredOnly) => set({ starredOnly }),

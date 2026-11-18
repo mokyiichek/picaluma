@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.35 — 2026-11-18
+
+- **Esc clears the search from anywhere.** After searching, pressing Esc now clears the search even when you've clicked into the pictures, not only while typing in the search box. As in Picasa, the library goes back to normal and stays on the folder you were looking at.
+
 ## 0.7.34 — 2026-11-16
 
 - **New pictures show in bold.** As in Picasa, a folder with pictures you haven't looked at yet is shown in bold in the folder list, until you open it. Folders already in your library start out plain.

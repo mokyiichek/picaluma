@@ -115,8 +115,24 @@ export default function LibraryToolbar() {
         input.current?.select();
       }
     };
+    // Esc clears the search from anywhere in the library, not just from the search box
+    // (as in Picasa): the grid goes back to normal and stays on the current folder.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const s = useStore.getState();
+      if (!s.query || s.view !== "library" || s.slideshow || s.timelineOpen || s.peopleManager) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("input, textarea, [contenteditable]")) return; // that field's own Esc
+      if (document.querySelector(".modal-back, .modal, .menu-drop")) return; // dialog or menu in front
+      e.preventDefault();
+      s.clearSearch();
+    };
     window.addEventListener("keydown", focus);
-    return () => window.removeEventListener("keydown", focus);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("keydown", focus);
+      window.removeEventListener("keydown", esc);
+    };
   }, []);
 
   return (
