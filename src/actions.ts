@@ -7,7 +7,8 @@ import { parseEdits } from "./effects";
 import { hasEdits, joinPath, renderJpegBase64 } from "./share";
 import { editsSaved, noteSavedEdits, selectVisible, useStore } from "./store";
 import { binName } from "./platform";
-import { askText, confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_REMOVE } from "./dialogs";
+import { askText, confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_MOVE, NO_CONFIRM_REMOVE } from "./dialogs";
+import { pushUndo } from "./undo";
 
 /** Export Picture to Folder: opens the Export dialog for these pictures. */
 export function exportPhotos(ids: number[]) {
@@ -64,6 +65,17 @@ export async function deletePhotos(ids: number[], permanent = false): Promise<bo
   await s.loadSnapshot();
   if (!res) return false;
   reportFailures(res.failed);
+  const batch = res.undo;
+  if (batch != null) {
+    pushUndo({
+      label: "Delete",
+      run: async () => {
+        const back = await api.undoDelete(batch);
+        await useStore.getState().loadSnapshot();
+        reportFailures(back.failed);
+      },
+    });
+  }
   // Like Picasa: offer to tidy up a folder the delete left empty.
   for (const dir of res.emptyFolders ?? []) {
     const name = dir.split(/[\\/]/).pop();
@@ -92,9 +104,13 @@ export async function transferPhotos(ids: number[], copy: boolean) {
   if (!ids.length) return;
   const dest = await open({ directory: true, title: `${copy ? "Copy" : "Move"} ${plural(ids.length)} to folder` });
   if (!dest || Array.isArray(dest)) return;
-  const res = await api.transferPhotos(ids, dest, copy);
-  await useStore.getState().loadSnapshot();
-  reportFailures(res.failed);
+  if (copy) {
+    const res = await api.transferPhotos(ids, dest, true);
+    await useStore.getState().loadSnapshot();
+    reportFailures(res.failed);
+  } else {
+    await moveFiles(ids, dest);
+  }
 }
 
 /** "Move to New Folder…": a new folder next to the pictures' current folder. */
@@ -103,10 +119,59 @@ export async function moveToNewFolder(ids: number[]) {
   const name = await askText(`Move ${plural(ids.length)} to a new folder named:`, "New Folder", "Move");
   if (!name) return;
   const first = await api.getPhoto(ids[0]);
-  const dest = joinPath(parentOf(parentOf(first.path)), name);
-  const res = await api.transferPhotos(ids, dest, false);
+  await moveFiles(ids, joinPath(parentOf(parentOf(first.path)), name));
+}
+
+/** Moves the files on disk (keeping stars, captions, albums and faces), undoable with Edit › Undo. */
+async function moveFiles(ids: number[], dest: string) {
+  let res;
+  try {
+    res = await api.transferPhotos(ids, dest, false);
+  } catch (e) {
+    return void notify(String(e), "error");
+  }
   await useStore.getState().loadSnapshot();
   reportFailures(res.failed);
+  const moved = res.moved ?? [];
+  if (moved.length) {
+    pushUndo({
+      label: "Move",
+      run: async () => {
+        const back = await api.undoMove(moved);
+        reportFailures(back.failed);
+      },
+    });
+  }
+}
+
+/**
+ * Pictures dragged onto a folder in the folder list: moved there on disk, as in Picasa (which
+ * asks first). Pictures already in that folder stay put.
+ */
+export async function dropOnFolder(ids: number[], folderId: number) {
+  const s = useStore.getState();
+  const folder = s.folderById.get(folderId);
+  if (!folder) return;
+  const moving = ids.filter((id) => s.folderOfPhoto.get(id) !== folderId);
+  if (!moving.length) return;
+  const ok = await confirmAsk(`Move ${plural(moving.length)} to "${folder.name}"?\n\nThe ${moving.length === 1 ? "file is" : "files are"} moved on disk. Edit › Undo moves ${moving.length === 1 ? "it" : "them"} back.`, {
+    title: "Move Pictures",
+    ok: "Move",
+    dontAskKey: NO_CONFIRM_MOVE,
+  });
+  if (!ok) return;
+  await moveFiles(moving, folder.path);
+}
+
+/** Picture › Hide / Unhide, undoable with Edit › Undo. */
+export async function setPicturesHidden(ids: number[], hidden: boolean) {
+  const s = useStore.getState();
+  const changing = ids.filter((id) => s.hidden.has(id) !== hidden);
+  if (!changing.length) return;
+  await api.setHidden(changing, hidden);
+  if (hidden) s.clearSelection();
+  await s.loadSnapshot();
+  pushUndo({ label: hidden ? "Hide" : "Unhide", run: () => api.setHidden(changing, !hidden) });
 }
 
 export async function renameFolder(folderId: number) {

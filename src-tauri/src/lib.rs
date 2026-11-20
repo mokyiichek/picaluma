@@ -245,6 +245,8 @@ pub fn run() {
       commands::delete_album,
       fileops::delete_photos,
       fileops::transfer_photos,
+      fileops::undo_move,
+      fileops::undo_delete,
       fileops::rename_folder,
       fileops::move_folder,
       fileops::delete_folder,

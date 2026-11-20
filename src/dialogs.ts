@@ -7,6 +7,7 @@ import { useStore } from "./store";
 /** Options › "Delete from disk without confirmation" / "Remove from album without confirmation". */
 export const NO_CONFIRM_DELETE = "noConfirmDelete";
 export const NO_CONFIRM_REMOVE = "noConfirmRemoveFromAlbum";
+export const NO_CONFIRM_MOVE = "noConfirmMoveDrop";
 
 export interface ConfirmOptions {
   title?: string;

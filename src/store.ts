@@ -169,6 +169,8 @@ interface State {
   collage: number[] | null;
   /** Help › Keyboard Shortcuts dialog. */
   shortcutsOpen: boolean;
+  /** Edit › Undo: what the next undo takes back ("Move", "Hide", "Delete"), if anything. */
+  undoLabel: string | null;
   /** Help › About Picaluma. */
   aboutOpen: boolean;
   /** Open confirmation dialog (confirmAsk) and text prompt (askText). */
@@ -349,6 +351,7 @@ export const useStore = create<State>((set, get) => ({
   print: null,
   collage: null,
   shortcutsOpen: false,
+  undoLabel: null,
   aboutOpen: false,
   confirmReq: null,
   textPrompt: null,

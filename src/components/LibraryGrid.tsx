@@ -12,6 +12,7 @@ import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
 import { exportPhotos } from "../actions";
+import { startPhotoDrag } from "../photoDrag";
 import { aspectCache } from "./EditView";
 import JogScrollbar from "./JogScrollbar";
 
@@ -491,7 +492,15 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
         // On a Mac, Control-click is a right-click (its menu opens from onContextMenu); ⌘ adds to
         // the selection.
         if (e.button !== 0 || (isMac && e.ctrlKey)) return;
-        clickPhoto(id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }, ordered);
+        const mods = { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
+        // Pressing on a selected picture may start dragging the whole selection; it becomes the
+        // only selected one on release if no drag happened.
+        if (selected && !mods.ctrl && !mods.shift) {
+          startPhotoDrag(e, id, () => clickPhoto(id, mods, ordered));
+        } else {
+          clickPhoto(id, mods, ordered);
+          startPhotoDrag(e, id);
+        }
       }}
       onContextMenu={(e) => {
         e.preventDefault();

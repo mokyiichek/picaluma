@@ -103,6 +103,23 @@ pub fn save_edits(photo: &Path, edits: &str) -> std::io::Result<()> {
   write(&file, &s)
 }
 
+/// A picture moved to another folder (or name): its section of .picaluma.ini goes with it.
+pub fn move_entry(from: &Path, to: &Path) -> std::io::Result<()> {
+  let (Some((from_dir, from_name)), Some((to_dir, to_name))) = (split(from), split(to)) else { return Ok(()) };
+  let src_file = from_dir.join(INI);
+  let mut src = read(&src_file);
+  let Some(keys) = src.remove(&from_name) else { return Ok(()) };
+  if from_dir == to_dir {
+    src.insert(to_name, keys);
+    return write(&src_file, &src);
+  }
+  write(&src_file, &src)?;
+  let dst_file = to_dir.join(INI);
+  let mut dst = read(&dst_file);
+  dst.insert(to_name, keys);
+  write(&dst_file, &dst)
+}
+
 static EDIT_WRITES_BEGUN: AtomicU64 = AtomicU64::new(0);
 static EDIT_WRITES_DONE: AtomicU64 = AtomicU64::new(0);
 

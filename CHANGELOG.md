@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.36 — 2026-11-21
+
+- **Drag pictures onto a folder.** Click, hold and drag pictures from the library onto a folder in the folder list to move them there on disk (Picaluma asks first). Stars, captions, edits, albums and faces go with them. Dropping onto an album adds them to it.
+- **Edit › Undo (Ctrl+Z, ⌘Z on Mac) in the library.** Takes back the last move, hide or delete. Deleted pictures come back out of the Recycle Bin / Trash with their stars, captions, edits, albums and faces. Pictures deleted permanently (Shift+Delete) can't come back.
+
 ## 0.7.35 — 2026-11-18
 
 - **Esc clears the search from anywhere.** After searching, pressing Esc now clears the search even when you've clicked into the pictures, not only while typing in the search box. As in Picasa, the library goes back to normal and stays on the folder you were looking at.

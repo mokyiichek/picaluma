@@ -5,6 +5,7 @@ import { offerFaceModels, reportModelError } from "./faceModels";
 import { menuOwnsShortcut } from "./nativeMenu";
 import { selectEditorSequence, useStore } from "./store";
 import { addFiles, deletePhotos, removeFromAlbum, emailPhotos, exportPhotos, printPhotos, renamePictures, savePictures } from "./actions";
+import { undoLast } from "./undo";
 import { copyPicture, folderIds, trayIds } from "./share";
 import { isDeleteKey, isMac, isPermanentDelete, mod } from "./platform";
 import MenuBar from "./components/MenuBar";
@@ -147,6 +148,10 @@ export default function App() {
         e.preventDefault();
         const folder = folderIds();
         st.selectOnly(folder.filter((p) => !st.selected.has(p)));
+      } else if (mod(e) && !e.shiftKey && e.key.toLowerCase() === "z" && st.view === "library" && !(e.target as HTMLElement).closest?.("textarea, [contenteditable]")) {
+        // Edit › Undo: the last move, hide or delete (Edit view has its own undo for edits).
+        e.preventDefault();
+        undoLast();
       } else if (mod(e) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         st.clearSelection();

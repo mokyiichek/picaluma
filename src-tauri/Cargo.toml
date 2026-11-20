@@ -1,6 +1,6 @@
 [package]
 name = "picaluma"
-version = "0.7.35"
+version = "0.7.36"
 description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
 authors = ["mokyiichek"]
 license = "Apache-2.0 OR MIT"
@@ -44,6 +44,12 @@ sha2 = "0.10"
 # codecs the PC has. Same version Tauri already uses, so nothing extra is compiled.
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_System_Com", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+
+# macOS Trash with the place each file landed, so Edit › Undo can put a deleted picture back.
+# Same versions the trash crate already uses.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["std", "NSError", "NSFileManager", "NSString", "NSURL"] }
 
 [profile.release]
 codegen-units = 1

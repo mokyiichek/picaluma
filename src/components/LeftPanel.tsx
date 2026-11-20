@@ -95,6 +95,7 @@ export default function LeftPanel() {
             <div
               key={a.id}
               className={`tree-row${albumView === a.id ? " sel" : ""}`}
+              data-drop-album={a.id}
               onMouseDown={(e) => e.button === 0 && openAlbum(albumView === a.id ? null : a.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -361,6 +362,7 @@ function FolderTree() {
             <div
               key={item.key}
               className={`tree-row${r.id === current ? " sel" : ""}${r.unseen ? " unseen" : ""}`}
+              data-drop-folder={r.id}
               style={{ ...style, ...indent }}
               onMouseDown={(e) => e.button === 0 && selectFolder(r.id)}
               onDoubleClick={() => useStore.getState().setFolderProps(r.id)}

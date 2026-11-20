@@ -25,7 +25,9 @@ import {
   savePictures,
   undoSave,
   setAsDesktop,
+  setPicturesHidden,
 } from "../actions";
+import { undoLast } from "../undo";
 import { copyPicture, folderIds, trayIds } from "../share";
 import { checkForUpdates } from "./AboutDialog";
 import { openWebsite, reportProblem } from "./ShortcutsDialog";
@@ -103,6 +105,7 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Edit",
       [
+        ...(isMac ? [] : [{ label: s.undoLabel ? `Undo ${s.undoLabel}` : "Undo", shortcut: "Ctrl+Z", action: s.undoLabel && s.view === "library" ? () => undoLast() : undefined }, sep]),
         { label: "Copy Picture", shortcut: "Ctrl+C", action: one != null ? () => copyPicture(one) : undefined },
         sep,
         { label: "Copy All Effects", action: one != null && s.edits.has(one) ? () => copyEffects(one) : undefined },
@@ -190,11 +193,11 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Adjust Date and Time...", action: targets.length ? () => s.setAdjustDate(targets) : undefined },
         {
           label: "Hide",
-          action: targets.some((id) => !s.hidden.has(id)) ? () => api.setHidden(targets, true).then(() => (s.clearSelection(), s.loadSnapshot())) : undefined,
+          action: targets.some((id) => !s.hidden.has(id)) ? () => setPicturesHidden(targets, true) : undefined,
         },
         {
           label: "Unhide",
-          action: targets.some((id) => s.hidden.has(id)) ? () => api.setHidden(targets, false).then(() => s.loadSnapshot()) : undefined,
+          action: targets.some((id) => s.hidden.has(id)) ? () => setPicturesHidden(targets, false) : undefined,
         },
         { label: "Reset Faces", action: targets.length ? () => api.resetFaces(targets).then(() => s.loadSnapshot()) : undefined },
         sep,

@@ -22,6 +22,7 @@ import {
   renamePictures,
   setAsDesktop,
   transferPhotos,
+  setPicturesHidden,
 } from "../actions";
 import { copyPicture } from "../share";
 import { askText, confirmAsk, notify } from "../dialogs";
@@ -126,8 +127,8 @@ function photoEntries(): MenuEntry[] {
     sep,
     { label: ids.every((id) => s.starred.has(id)) ? "Remove Star" : "Add Star", shortcut: "Ctrl+Shift+8", action: () => s.toggleStar(ids) },
     ids.some((id) => s.hidden.has(id))
-      ? { label: "Unhide", action: () => api.setHidden(ids, false).then(() => s.loadSnapshot()) }
-      : { label: "Hide", action: ids.length ? () => api.setHidden(ids, true).then(() => (s.clearSelection(), s.loadSnapshot())) : undefined },
+      ? { label: "Unhide", action: () => setPicturesHidden(ids, false) }
+      : { label: "Hide", action: ids.length ? () => setPicturesHidden(ids, true) : undefined },
     sep,
     { label: "Move to Folder...", action: ids.length ? () => transferPhotos(ids, false) : undefined },
     { label: "Copy to Folder...", action: ids.length ? () => transferPhotos(ids, true) : undefined },

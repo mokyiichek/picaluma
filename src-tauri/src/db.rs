@@ -298,6 +298,12 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
        PRIMARY KEY (face_id, person_id)
      );",
   )?;
+  // Edit › Undo of a delete keeps the deleted rows here until the app quits. Dropped at every
+  // start: undo doesn't outlive the session, and the copies always match today's columns.
+  conn.execute_batch(
+    "DROP TABLE IF EXISTS undo_photos; DROP TABLE IF EXISTS undo_album_photos;
+     DROP TABLE IF EXISTS undo_faces; DROP TABLE IF EXISTS undo_face_rejects; DROP TABLE IF EXISTS undo_trash;",
+  )?;
   Ok(())
 }
 

@@ -3716,3 +3716,41 @@ button.link:hover {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* ---------- Dragging pictures onto a folder or album ---------- */
+.drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.drag-ghost img {
+  display: block;
+  max-width: 72px;
+  max-height: 72px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.drag-ghost span {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #1a8cff;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+body.dragging-photos,
+body.dragging-photos * {
+  cursor: grabbing !important;
+}
+.tree-row.drop-target {
+  background: #1a8cff !important;
+  color: #fff !important;
+}
