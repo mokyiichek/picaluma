@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.37 — 2026-11-21
+
+- **Ctrl+drag copies.** Hold Ctrl (Option on a Mac) while dragging pictures onto a folder and a green + appears: the pictures are copied there instead of moved, as in Picasa. Edit › Undo (Ctrl+Z) takes the copy back (the copies go to the Recycle Bin / Trash; the originals stay).
+
 ## 0.7.36 — 2026-11-21
 
 - **Drag pictures onto a folder.** Click, hold and drag pictures from the library onto a folder in the folder list to move them there on disk (Picaluma asks first). Stars, captions, edits, albums and faces go with them. Dropping onto an album adds them to it.

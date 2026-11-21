@@ -31,6 +31,23 @@ pub struct OpResult {
   moved: Vec<(i64, String)>,
   /// For Edit › Undo of a delete to the Recycle Bin / Trash (see `undo_delete`).
   undo: Option<i64>,
+  /// For Edit › Undo of a copy: the new files.
+  copied: Vec<String>,
+}
+
+/// Edit › Undo of a copy: the copies go to the Recycle Bin / Trash (the originals stay).
+#[tauri::command(async)]
+pub fn undo_copy(app: AppHandle, paths: Vec<String>) -> CmdResult<OpResult> {
+  let mut res = OpResult::default();
+  let there: Vec<&Path> = paths.iter().map(|p| Path::new(p.as_str())).filter(|p| p.exists()).collect();
+  for (p, out) in there.iter().zip(trash_files(&there)) {
+    match out {
+      Ok(_) => res.done += 1,
+      Err(e) => res.failed.push(format!("{}: {e}", p.display())),
+    }
+  }
+  scanner::spawn_rescan(app);
+  Ok(res)
 }
 
 /// Move pictures to the Recycle Bin / Trash (or, with `permanent`, delete them outright —
@@ -119,7 +136,10 @@ pub fn transfer_photos(app: AppHandle, state: State<'_, AppState>, ids: Vec<i64>
     let target = unique_target(&dest_dir, src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
     if copy {
       match std::fs::copy(&src, &target) {
-        Ok(_) => res.done += 1,
+        Ok(_) => {
+          res.done += 1;
+          res.copied.push(target.to_string_lossy().into_owned());
+        }
         Err(e) => res.failed.push(format!("{path}: {e}")),
       }
     } else {

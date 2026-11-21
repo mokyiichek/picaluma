@@ -3753,4 +3753,24 @@ body.dragging-photos * {
 .tree-row.drop-target {
   background: #1a8cff !important;
   color: #fff !important;
+}.drag-ghost b {
+  display: none;
+  position: absolute;
+  left: -8px;
+  bottom: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2e9e3e;
+  color: #fff;
+  font: 700 16px/20px sans-serif;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.drag-ghost.copy b {
+  display: block;
+}
+body.dragging-photos.copy-drag,
+body.dragging-photos.copy-drag * {
+  cursor: copy !important;
 }

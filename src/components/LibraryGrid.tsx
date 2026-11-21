@@ -493,9 +493,9 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
         // the selection.
         if (e.button !== 0 || (isMac && e.ctrlKey)) return;
         const mods = { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
-        // Pressing on a selected picture may start dragging the whole selection; it becomes the
-        // only selected one on release if no drag happened.
-        if (selected && !mods.ctrl && !mods.shift) {
+        // Pressing on a selected picture may start dragging the whole selection (Ctrl held: a
+        // copy); the click itself counts only on release, if no drag happened.
+        if (selected && !mods.shift) {
           startPhotoDrag(e, id, () => clickPhoto(id, mods, ordered));
         } else {
           clickPhoto(id, mods, ordered);

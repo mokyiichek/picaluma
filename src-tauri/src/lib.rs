@@ -247,6 +247,7 @@ pub fn run() {
       fileops::transfer_photos,
       fileops::undo_move,
       fileops::undo_delete,
+      fileops::undo_copy,
       fileops::rename_folder,
       fileops::move_folder,
       fileops::delete_folder,

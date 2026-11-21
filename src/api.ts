@@ -359,6 +359,7 @@ export const api = {
   transferPhotos: (ids: number[], dest: string, copy: boolean) => invoke<OpResult>("transfer_photos", { ids, dest, copy }),
   undoMove: (moved: [number, string][]) => invoke<OpResult>("undo_move", { moved }),
   undoDelete: (batch: number) => invoke<OpResult>("undo_delete", { batch }),
+  undoCopy: (paths: string[]) => invoke<OpResult>("undo_copy", { paths }),
   renameFolder: (id: number, name: string) => invoke<string>("rename_folder", { id, name }),
   moveFolder: (id: number, destParent: string) => invoke<string>("move_folder", { id, destParent }),
   deleteFolder: (id: number) => invoke<void>("delete_folder", { id }),
@@ -383,6 +384,8 @@ export interface OpResult {
   moved?: [number, string][];
   /** Deletes to the Recycle Bin / Trash: the batch Edit › Undo brings back. */
   undo?: number | null;
+  /** Copies: the new files, for Edit › Undo. */
+  copied?: string[];
 }
 
 export interface TagCount {

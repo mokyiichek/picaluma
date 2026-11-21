@@ -104,12 +104,28 @@ export async function transferPhotos(ids: number[], copy: boolean) {
   if (!ids.length) return;
   const dest = await open({ directory: true, title: `${copy ? "Copy" : "Move"} ${plural(ids.length)} to folder` });
   if (!dest || Array.isArray(dest)) return;
-  if (copy) {
-    const res = await api.transferPhotos(ids, dest, true);
-    await useStore.getState().loadSnapshot();
-    reportFailures(res.failed);
-  } else {
-    await moveFiles(ids, dest);
+  await (copy ? copyFiles(ids, dest) : moveFiles(ids, dest));
+}
+
+/** Copies the files into `dest` (the copies are added by a rescan), undoable with Edit › Undo. */
+async function copyFiles(ids: number[], dest: string) {
+  let res;
+  try {
+    res = await api.transferPhotos(ids, dest, true);
+  } catch (e) {
+    return void notify(String(e), "error");
+  }
+  await useStore.getState().loadSnapshot();
+  reportFailures(res.failed);
+  const copied = res.copied ?? [];
+  if (copied.length) {
+    pushUndo({
+      label: "Copy",
+      run: async () => {
+        const back = await api.undoCopy(copied);
+        reportFailures(back.failed);
+      },
+    });
   }
 }
 
@@ -146,14 +162,15 @@ async function moveFiles(ids: number[], dest: string) {
 
 /**
  * Pictures dragged onto a folder in the folder list: moved there on disk, as in Picasa (which
- * asks first). Pictures already in that folder stay put.
+ * asks first), or copied with Ctrl held (Option on a Mac). Pictures already in that folder stay put.
  */
-export async function dropOnFolder(ids: number[], folderId: number) {
+export async function dropOnFolder(ids: number[], folderId: number, copy = false) {
   const s = useStore.getState();
   const folder = s.folderById.get(folderId);
   if (!folder) return;
   const moving = ids.filter((id) => s.folderOfPhoto.get(id) !== folderId);
   if (!moving.length) return;
+  if (copy) return copyFiles(moving, folder.path);
   const ok = await confirmAsk(`Move ${plural(moving.length)} to "${folder.name}"?\n\nThe ${moving.length === 1 ? "file is" : "files are"} moved on disk. Edit › Undo moves ${moving.length === 1 ? "it" : "them"} back.`, {
     title: "Move Pictures",
     ok: "Move",

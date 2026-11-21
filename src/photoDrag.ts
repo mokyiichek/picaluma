@@ -6,6 +6,7 @@
 import { thumbUrl } from "./api";
 import { useStore } from "./store";
 import { dropOnFolder } from "./actions";
+import { isMac } from "./platform";
 
 const THRESHOLD = 5;
 
@@ -16,6 +17,14 @@ export function startPhotoDrag(e: React.MouseEvent, id: number, deferred?: () =>
   let ghost: HTMLDivElement | null = null;
   let target: HTMLElement | null = null;
   let ids: number[] = [];
+  // Ctrl (Option on a Mac) held: copy instead of move, shown by a "+" on the dragged pictures.
+  let copy = false;
+  const copyKey = (ev: MouseEvent | KeyboardEvent) => (isMac ? ev.altKey : ev.ctrlKey);
+  const setCopy = (on: boolean) => {
+    copy = on;
+    ghost?.classList.toggle("copy", on);
+    document.body.classList.toggle("copy-drag", !!ghost && on);
+  };
 
   const setTarget = (el: HTMLElement | null) => {
     if (el === target) return;
@@ -39,9 +48,13 @@ export function startPhotoDrag(e: React.MouseEvent, id: number, deferred?: () =>
         n.textContent = String(ids.length);
         ghost.appendChild(n);
       }
+      const plus = document.createElement("b");
+      plus.textContent = "+";
+      ghost.appendChild(plus);
       document.body.appendChild(ghost);
       document.body.classList.add("dragging-photos");
     }
+    setCopy(copyKey(ev));
     ghost.style.transform = `translate(${ev.clientX + 12}px, ${ev.clientY + 12}px)`;
     const under = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
     setTarget(under?.closest<HTMLElement>("[data-drop-folder], [data-drop-album]") ?? null);
@@ -58,21 +71,29 @@ export function startPhotoDrag(e: React.MouseEvent, id: number, deferred?: () =>
     window.removeEventListener("mousemove", move);
     window.removeEventListener("mouseup", up);
     window.removeEventListener("keydown", key, true);
+    window.removeEventListener("keyup", key, true);
     const wasDrag = !!ghost;
     ghost?.remove();
-    document.body.classList.remove("dragging-photos");
+    document.body.classList.remove("dragging-photos", "copy-drag");
     const el = target;
     setTarget(null);
     if (!wasDrag) return deferred?.();
     if (!drop || !el) return;
     const folder = el.dataset.dropFolder;
     const album = el.dataset.dropAlbum;
-    if (folder) dropOnFolder(ids, Number(folder));
+    if (folder) dropOnFolder(ids, Number(folder), copy);
     else if (album) useStore.getState().addToAlbum(Number(album), ids);
   };
-  const up = () => finish(true);
+  const up = (ev: MouseEvent) => {
+    setCopy(copyKey(ev));
+    finish(true);
+  };
   const key = (ev: KeyboardEvent) => {
-    if (ev.key === "Escape" && ghost) {
+    if (!ghost) return;
+    if (ev.key === "Control" || ev.key === "Alt") {
+      setCopy(copyKey(ev));
+      ev.preventDefault();
+    } else if (ev.type === "keydown" && ev.key === "Escape") {
       ev.preventDefault();
       ev.stopPropagation();
       finish(false);
@@ -81,4 +102,5 @@ export function startPhotoDrag(e: React.MouseEvent, id: number, deferred?: () =>
   window.addEventListener("mousemove", move);
   window.addEventListener("mouseup", up);
   window.addEventListener("keydown", key, true);
+  window.addEventListener("keyup", key, true);
 }
