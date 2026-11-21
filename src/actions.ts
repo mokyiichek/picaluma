@@ -8,7 +8,7 @@ import { hasEdits, joinPath, renderJpegBase64 } from "./share";
 import { editsSaved, noteSavedEdits, selectVisible, useStore } from "./store";
 import { binName } from "./platform";
 import { askText, confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_MOVE, NO_CONFIRM_REMOVE } from "./dialogs";
-import { pushUndo } from "./undo";
+import { pushUndo, recordEdits } from "./undo";
 
 /** Export Picture to Folder: opens the Export dialog for these pictures. */
 export function exportPhotos(ids: number[]) {
@@ -65,14 +65,20 @@ export async function deletePhotos(ids: number[], permanent = false): Promise<bo
   await s.loadSnapshot();
   if (!res) return false;
   reportFailures(res.failed);
-  const batch = res.undo;
+  let batch = res.undo;
   if (batch != null) {
     pushUndo({
       label: "Delete",
-      run: async () => {
-        const back = await api.undoDelete(batch);
-        await useStore.getState().loadSnapshot();
+      undo: async () => {
+        const back = await api.undoDelete(batch!);
         reportFailures(back.failed);
+      },
+      // Redo: to the Recycle Bin / Trash again (no question this time), and undoable again.
+      redo: async () => {
+        const st = useStore.getState();
+        const again = await api.deletePhotos(ids.filter((id) => st.folderOfPhoto.has(id)), false);
+        reportFailures(again.failed);
+        batch = again.undo ?? batch;
       },
     });
   }
@@ -117,13 +123,18 @@ async function copyFiles(ids: number[], dest: string) {
   }
   await useStore.getState().loadSnapshot();
   reportFailures(res.failed);
-  const copied = res.copied ?? [];
+  let copied = res.copied ?? [];
   if (copied.length) {
     pushUndo({
       label: "Copy",
-      run: async () => {
+      undo: async () => {
         const back = await api.undoCopy(copied);
         reportFailures(back.failed);
+      },
+      redo: async () => {
+        const again = await api.transferPhotos(ids, dest, true);
+        reportFailures(again.failed);
+        copied = again.copied ?? [];
       },
     });
   }
@@ -148,16 +159,14 @@ async function moveFiles(ids: number[], dest: string) {
   }
   await useStore.getState().loadSnapshot();
   reportFailures(res.failed);
-  const moved = res.moved ?? [];
-  if (moved.length) {
-    pushUndo({
-      label: "Move",
-      run: async () => {
-        const back = await api.undoMove(moved);
-        reportFailures(back.failed);
-      },
-    });
-  }
+  // Each undo or redo moves the pictures back to where the last one found them.
+  let moved = res.moved ?? [];
+  const swap = async () => {
+    const back = await api.undoMove(moved);
+    reportFailures(back.failed);
+    moved = back.moved ?? [];
+  };
+  if (moved.length) pushUndo({ label: "Move", undo: swap, redo: swap });
 }
 
 /**
@@ -188,7 +197,7 @@ export async function setPicturesHidden(ids: number[], hidden: boolean) {
   await api.setHidden(changing, hidden);
   if (hidden) s.clearSelection();
   await s.loadSnapshot();
-  pushUndo({ label: hidden ? "Hide" : "Unhide", run: () => api.setHidden(changing, !hidden) });
+  pushUndo({ label: hidden ? "Hide" : "Unhide", undo: () => api.setHidden(changing, !hidden), redo: () => api.setHidden(changing, hidden) });
 }
 
 export async function renameFolder(folderId: number) {
@@ -337,13 +346,21 @@ export function pasteEffects(ids: number[]) {
   const s = useStore.getState();
   const copied = s.copiedEdits;
   if (!copied) return;
-  for (const id of ids) if (!s.videos.has(id)) s.setPhotoEdits(id, [...copied]);
+  const pics = ids.filter((id) => !s.videos.has(id));
+  recordEdits("Paste Effects", pics, () => pics.forEach((id) => s.setPhotoEdits(id, [...copied])));
 }
 
 /** Picture › Batch Edit: apply one effect to every selected picture. */
-export function batchEdit(ids: number[], op: string, v?: number) {
+export function batchEdit(ids: number[], op: string, v?: number, label = "Batch Edit") {
   const s = useStore.getState();
-  for (const id of ids) if (!s.videos.has(id)) s.setPhotoEdits(id, [...(s.edits.get(id) ?? []), v == null ? { op } : { op, v }]);
+  const pics = ids.filter((id) => !s.videos.has(id));
+  recordEdits(label, pics, () => pics.forEach((id) => s.setPhotoEdits(id, [...(s.edits.get(id) ?? []), v == null ? { op } : { op, v }])));
+}
+
+/** File › Revert / Picture › Undo All Edits, undoable. */
+export function revertEdits(ids: number[]) {
+  const s = useStore.getState();
+  recordEdits("Revert", ids, () => ids.forEach((id) => s.setPhotoEdits(id, [])));
 }
 
 /** Create › Set as Desktop. */

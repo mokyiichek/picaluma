@@ -171,6 +171,10 @@ interface State {
   shortcutsOpen: boolean;
   /** Edit › Undo: what the next undo takes back ("Move", "Hide", "Delete"), if anything. */
   undoLabel: string | null;
+  redoLabel: string | null;
+  /** Edit view: whether its own history has something to undo / redo (greys the menu items). */
+  editCanUndo: boolean;
+  editCanRedo: boolean;
   /** Help › About Picaluma. */
   aboutOpen: boolean;
   /** Open confirmation dialog (confirmAsk) and text prompt (askText). */
@@ -352,6 +356,9 @@ export const useStore = create<State>((set, get) => ({
   collage: null,
   shortcutsOpen: false,
   undoLabel: null,
+  redoLabel: null,
+  editCanUndo: false,
+  editCanRedo: false,
   aboutOpen: false,
   confirmReq: null,
   textPrompt: null,

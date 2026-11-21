@@ -23,7 +23,9 @@ import {
   setAsDesktop,
   transferPhotos,
   setPicturesHidden,
+  revertEdits,
 } from "../actions";
+import { recordEdits } from "../undo";
 import { copyPicture } from "../share";
 import { askText, confirmAsk, notify } from "../dialogs";
 
@@ -51,11 +53,13 @@ function sortEntry(id: number, current: string, reverse: boolean): MenuEntry {
 
 export function rotateSelected(deg: number) {
   const s = useStore.getState();
-  for (const id of s.selected) {
-    if (s.videos.has(id)) continue;
-    const list: Edit[] = [...(s.edits.get(id) ?? []), { op: "rotate", v: deg }];
-    s.setPhotoEdits(id, list);
-  }
+  const pics = [...s.selected].filter((id) => !s.videos.has(id));
+  recordEdits("Rotate", pics, () => {
+    for (const id of pics) {
+      const list: Edit[] = [...(s.edits.get(id) ?? []), { op: "rotate", v: deg }];
+      s.setPhotoEdits(id, list);
+    }
+  });
 }
 
 /** Right-click menus for photos and folders, mirroring Picasa's entries. */
@@ -123,7 +127,7 @@ function photoEntries(): MenuEntry[] {
     sep,
     { label: "Copy All Effects", action: one != null && s.edits.has(one) ? () => copyEffects(one) : undefined },
     { label: "Paste All Effects", action: s.copiedEdits ? () => pasteEffects(ids) : undefined },
-    { label: "Undo all Edits", action: ids.some((id) => s.edits.has(id)) ? () => ids.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
+    { label: "Undo all Edits", action: ids.some((id) => s.edits.has(id)) ? () => revertEdits(ids) : undefined },
     sep,
     { label: ids.every((id) => s.starred.has(id)) ? "Remove Star" : "Add Star", shortcut: "Ctrl+Shift+8", action: () => s.toggleStar(ids) },
     ids.some((id) => s.hidden.has(id))

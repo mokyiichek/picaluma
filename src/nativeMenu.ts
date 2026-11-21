@@ -59,28 +59,27 @@ function item(e: MenuEntry, path: string): Opts {
 
 /** Edit menu for text fields (search box, captions, names) plus Picaluma's own Edit items. */
 function editMenu(entries: MenuEntry[]): Opts[] {
-  const own = entries.filter((e) => !(e.label === "Copy Picture" || e.label === "Select All"));
+  const undoEntry = entries.find((e) => e.label.startsWith("Undo"));
+  const redoEntry = entries.find((e) => e.label.startsWith("Redo"));
+  const own = entries.filter((e) => !(e.label === "Copy Picture" || e.label === "Select All" || e === undoEntry || e === redoEntry));
+  while (own.length && own[0].sep) own.shift();
   const copyPicture = entries.find((e) => e.label === "Copy Picture");
   const selectAll = entries.find((e) => e.label === "Select All");
-  // Undo / Redo: text fields first, otherwise the edit view's own undo (its key handler).
-  const key = (k: string, shift: boolean) => () => {
-    if (inText()) return void document.execCommand(shift ? "redo" : "undo");
-    synthetic = true;
-    try {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: k, metaKey: true, shiftKey: shift, bubbles: true }));
-    } finally {
-      synthetic = false;
-    }
+  // Undo / Redo: in a text field the field's own; otherwise Picaluma's (library or Edit view),
+  // greyed when there is nothing to undo or redo.
+  const history = (e: MenuEntry | undefined, redo: boolean) => () => {
+    if (inText()) return void document.execCommand(redo ? "redo" : "undo");
+    e?.action?.();
   };
   for (const a of ["CmdOrCtrl+Z", "CmdOrCtrl+Shift+Z", "CmdOrCtrl+A", "CmdOrCtrl+C", "CmdOrCtrl+X", "CmdOrCtrl+V", "CmdOrCtrl+,", "CmdOrCtrl+Q", "CmdOrCtrl+H"]) owned.add(combo(a));
-  actions.set("edit:undo", key("z", false));
-  actions.set("edit:redo", key("z", true));
+  actions.set("edit:undo", history(undoEntry, false));
+  actions.set("edit:redo", history(redoEntry, true));
   actions.set("edit:selectall", () => (inText() ? (document.activeElement as HTMLInputElement).select?.() : selectAll?.action?.()));
   actions.set("edit:copypicture", () => copyPicture?.action?.());
   const run = (i: string) => actions.get(i)?.();
   return [
-    { id: "edit:undo", text: "Undo", accelerator: "CmdOrCtrl+Z", action: run },
-    { id: "edit:redo", text: "Redo", accelerator: "CmdOrCtrl+Shift+Z", action: run },
+    { id: "edit:undo", text: undoEntry?.label ?? "Undo", enabled: !!undoEntry?.action, accelerator: "CmdOrCtrl+Z", action: run },
+    { id: "edit:redo", text: redoEntry?.label ?? "Redo", enabled: !!redoEntry?.action, accelerator: "CmdOrCtrl+Shift+Z", action: run },
     { item: "Separator" },
     { item: "Cut" },
     { item: "Copy" },
@@ -109,6 +108,10 @@ export async function setNativeMenu(menus: [string, MenuEntry[]][], appName = "P
     const copyPicture = edit.find((e) => e.label === "Copy Picture");
     actions.set("edit:selectall", () => (inText() ? (document.activeElement as HTMLInputElement).select?.() : selectAll?.action?.()));
     actions.set("edit:copypicture", () => copyPicture?.action?.());
+    const undoEntry = edit.find((e) => e.label.startsWith("Undo"));
+    const redoEntry = edit.find((e) => e.label.startsWith("Redo"));
+    actions.set("edit:undo", () => (inText() ? document.execCommand("undo") : undoEntry?.action?.()));
+    actions.set("edit:redo", () => (inText() ? document.execCommand("redo") : redoEntry?.action?.()));
     for (const [name, entries] of menus) {
       entries.forEach((e, i) => {
         const p = platformItem(e.label, e.shortcut);

@@ -179,8 +179,8 @@ pub fn undo_move(app: AppHandle, state: State<'_, AppState>, moved: Vec<(i64, St
       let _ = std::fs::create_dir_all(dir);
     }
   }
+  // `moved` now holds where they were before the undo: Redo moves them there again.
   relocate(&state, plan, &mut res)?;
-  res.moved.clear();
   scanner::spawn_rescan(app);
   Ok(res)
 }

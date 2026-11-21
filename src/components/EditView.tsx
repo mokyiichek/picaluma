@@ -8,6 +8,7 @@ import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
+import { editHistory } from "../undo";
 import { ArrowIcon, BackIcon, BrushIcon, FixIcon, PlayIcon, SaveIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
@@ -103,7 +104,15 @@ function useEditStack(id: number | null) {
     setPhotoEdits(id, [...edits, redo[redo.length - 1]]);
     setRedo((r) => r.slice(0, -1));
   }, [id, edits, redo, setPhotoEdits]);
-  return { edits, apply, applyEdit, undo, redo: redoOne, canRedo: redo.length > 0 };
+  // Edit › Undo / Redo in the menu bar reach this history, and grey out with it.
+  const canUndo = edits.length > 0;
+  const canRedo = redo.length > 0;
+  useEffect(() => {
+    editHistory.undo = undo;
+    editHistory.redo = redoOne;
+    useStore.setState({ editCanUndo: canUndo, editCanRedo: canRedo });
+  }, [undo, redoOne, canUndo, canRedo]);
+  return { edits, apply, applyEdit, undo, redo: redoOne, canRedo };
 }
 const EMPTY: Edit[] = [];
 

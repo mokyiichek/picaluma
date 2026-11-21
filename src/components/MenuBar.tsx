@@ -26,8 +26,9 @@ import {
   undoSave,
   setAsDesktop,
   setPicturesHidden,
+  revertEdits,
 } from "../actions";
-import { undoLast } from "../undo";
+import { editHistory, redoLast, undoLast } from "../undo";
 import { copyPicture, folderIds, trayIds } from "../share";
 import { checkForUpdates } from "./AboutDialog";
 import { openWebsite, reportProblem } from "./ShortcutsDialog";
@@ -85,7 +86,7 @@ function useMenus(): [string, MenuEntry[]][] {
         { label: "Save", shortcut: "Ctrl+S", action: edited.length ? () => savePictures(edited) : undefined },
         { label: "Undo Save", action: targets.length ? () => undoSave(targets) : undefined },
         { label: "Save a Copy", action: edited.length ? () => saveCopies(edited) : undefined },
-        { label: "Revert", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
+        { label: "Revert", action: edited.length ? () => revertEdits(edited) : undefined },
         sep,
         { label: "Export Picture to Folder...", shortcut: "Ctrl+Shift+S", action: targets.length ? () => exportPhotos(targets) : undefined },
         sep,
@@ -105,7 +106,14 @@ function useMenus(): [string, MenuEntry[]][] {
     [
       "Edit",
       [
-        ...(isMac ? [] : [{ label: s.undoLabel ? `Undo ${s.undoLabel}` : "Undo", shortcut: "Ctrl+Z", action: s.undoLabel && s.view === "library" ? () => undoLast() : undefined }, sep]),
+        // Greyed when there is nothing to undo / redo. Edit view: the picture's own edit history.
+        s.view === "edit"
+          ? { label: "Undo", shortcut: "Ctrl+Z", action: s.editCanUndo ? () => editHistory.undo() : undefined }
+          : { label: s.undoLabel ? `Undo ${s.undoLabel}` : "Undo", shortcut: "Ctrl+Z", action: s.undoLabel ? () => undoLast() : undefined },
+        s.view === "edit"
+          ? { label: "Redo", shortcut: isMac ? "Ctrl+Shift+Z" : "Ctrl+Y", action: s.editCanRedo ? () => editHistory.redo() : undefined }
+          : { label: s.redoLabel ? `Redo ${s.redoLabel}` : "Redo", shortcut: isMac ? "Ctrl+Shift+Z" : "Ctrl+Y", action: s.redoLabel ? () => redoLast() : undefined },
+        sep,
         { label: "Copy Picture", shortcut: "Ctrl+C", action: one != null ? () => copyPicture(one) : undefined },
         sep,
         { label: "Copy All Effects", action: one != null && s.edits.has(one) ? () => copyEffects(one) : undefined },
@@ -189,7 +197,7 @@ function useMenus(): [string, MenuEntry[]][] {
           label: "Batch Edit",
           submenu: BATCH.map(([label, op]) => ({ label, action: selected.length ? () => batchEdit(selected, op) : undefined })),
         },
-        { label: "Undo All Edits", action: edited.length ? () => edited.forEach((id) => s.setPhotoEdits(id, [])) : undefined },
+        { label: "Undo All Edits", action: edited.length ? () => revertEdits(edited) : undefined },
         { label: "Adjust Date and Time...", action: targets.length ? () => s.setAdjustDate(targets) : undefined },
         {
           label: "Hide",

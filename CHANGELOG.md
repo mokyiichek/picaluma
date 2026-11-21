@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.38 — 2026-11-22
+
+- **Redo (Ctrl+Y, ⇧⌘Z on a Mac).** Everything Undo takes back can be done again: move a picture from one folder to another, Undo puts it back, Redo moves it again. The same for copy, hide, delete, and for edits made from the library (rotate, batch effects, paste effects, revert). In Edit view, Undo and Redo work through the picture's edits (crop, filters, rotate…).
+- **Edit › Undo / Redo show what they will do** ("Undo Move", "Redo Copy") and are greyed out when there is nothing to undo or redo.
+
 ## 0.7.37 — 2026-11-21
 
 - **Ctrl+drag copies.** Hold Ctrl (Option on a Mac) while dragging pictures onto a folder and a green + appears: the pictures are copied there instead of moved, as in Picasa. Edit › Undo (Ctrl+Z) takes the copy back (the copies go to the Recycle Bin / Trash; the originals stay).
