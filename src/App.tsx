@@ -246,17 +246,39 @@ export default function App() {
     };
     document.addEventListener("copy", onCopy);
     // Esc closes the dialog in front, as in Picasa: its Cancel (or Close / OK) button.
+    // Full-screen tools (Export, E-Mail, Print, Collage, Movie) close the same way, back to where
+    // the user was.
     const onEsc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      const backs = document.querySelectorAll(".modal-back");
-      const top = backs[backs.length - 1];
-      if (!top) return;
-      const buttons = [...top.querySelectorAll<HTMLButtonElement>(".foot button, .tool-buttons button")];
-      const pick = buttons.find((b) => /^(cancel|close)/i.test(b.textContent?.trim() ?? "")) ?? (buttons.length === 1 ? buttons[0] : undefined);
-      if (pick && !pick.disabled) {
+      if (e.key !== "Escape" && e.key !== "Esc") return;
+      const stop = () => {
         e.preventDefault();
         e.stopImmediatePropagation();
-        pick.click();
+      };
+      const backs = document.querySelectorAll(".modal-back");
+      const top = backs[backs.length - 1];
+      if (top) {
+        const buttons = [...top.querySelectorAll<HTMLButtonElement>(".foot button, .tool-buttons button")];
+        const pick = buttons.find((b) => /^(cancel|close)/i.test(b.textContent?.trim() ?? "")) ?? (buttons.length === 1 ? buttons[0] : undefined);
+        if (pick) {
+          stop(); // a busy dialog (Cancel greyed) keeps Esc from reaching the views behind it
+          if (!pick.disabled) pick.click();
+          return;
+        }
+      }
+      const st = useStore.getState();
+      if (st.confirmReq || st.textPrompt) return;
+      const close = st.print
+        ? () => st.setPrint(null)
+        : st.share
+          ? () => st.setShare(null)
+          : st.collage
+            ? () => st.setCollage(null)
+            : st.movie
+              ? () => st.setMovie(null)
+              : null;
+      if (close) {
+        stop();
+        close();
       }
     };
     // Capture phase: the dialog in front gets Esc before the views behind it.

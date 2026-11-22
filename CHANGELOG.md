@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.39 — 2026-11-22
+
+- **Esc closes Export, E-Mail, Print, Collage and Movie.** Pressing Esc in any of these screens cancels it and goes back to where you were, as in Picasa, on Windows and Mac. While a picture export is running, Esc waits for it rather than cutting it off.
+
 ## 0.7.38 — 2026-11-22
 
 - **Redo (Ctrl+Y, ⇧⌘Z on a Mac).** Everything Undo takes back can be done again: move a picture from one folder to another, Undo puts it back, Redo moves it again. The same for copy, hide, delete, and for edits made from the library (rotate, batch effects, paste effects, revert). In Edit view, Undo and Redo work through the picture's edits (crop, filters, rotate…).
