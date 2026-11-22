@@ -46,7 +46,12 @@ pub fn undo_copy(app: AppHandle, paths: Vec<String>) -> CmdResult<OpResult> {
       Err(e) => res.failed.push(format!("{}: {e}", p.display())),
     }
   }
-  scanner::spawn_rescan(app);
+  let mut dirs: Vec<PathBuf> = there.iter().filter_map(|p| p.parent().map(Path::to_path_buf)).collect();
+  dirs.sort();
+  dirs.dedup();
+  if !dirs.iter().all(|d| scanner::refresh_dir_now(&app, d)) {
+    scanner::spawn_rescan(app);
+  }
   Ok(res)
 }
 
@@ -146,9 +151,14 @@ pub fn transfer_photos(app: AppHandle, state: State<'_, AppState>, ids: Vec<i64>
       plan.push((id, src, target));
     }
   }
+  let moved_any = !plan.is_empty();
   relocate(&state, plan, &mut res)?;
-  // Copies (and moves into folders outside the watched roots) are reconciled by a rescan.
-  scanner::spawn_rescan(app);
+  // Copies show at once in a library folder; moves into folders outside the watched roots (and
+  // copies there) are reconciled by a rescan.
+  let shown = res.copied.is_empty() || scanner::refresh_dir_now(&app, &dest_dir);
+  if moved_any || !shown {
+    scanner::spawn_rescan(app);
+  }
   Ok(res)
 }
 

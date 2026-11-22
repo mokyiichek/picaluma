@@ -40,7 +40,7 @@ const keyOf = (id: number, edits: Edit[]) => `${thumbUrl(id)}:${JSON.stringify(e
 function needsRender(edits: Edit[]) {
   if (hasPixelOps(edits)) return true;
   const r = render(edits);
-  return r.straighten !== 0 || r.vignette > 0 || r.overlays.length > 0;
+  return r.straighten !== 0 || r.vignette > 0 || r.overlays.length > 0 || r.frame !== null;
 }
 
 /**

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.40 — 2026-11-22
+
+- **Copied pictures show up at once.** Ctrl+drag (Option+drag on a Mac) onto a folder copied the files, but the copies only appeared after a rescan of the whole library, which on a big library could take a long time. The folder is now updated straight away, and Edit › Undo removes the copies just as quickly.
+- **Picture frames on thumbnails and exports.** Border, Drop Shadow, Museum Matte and Polaroid now show on the library thumbnails and are drawn into exported, e-mailed, printed and slideshow pictures, as in Picasa, not only in the editor.
+
 ## 0.7.39 — 2026-11-22
 
 - **Esc closes Export, E-Mail, Print, Collage and Movie.** Pressing Esc in any of these screens cancels it and goes back to where you were, as in Picasa, on Windows and Mac. While a picture export is running, Esc waits for it rather than cutting it off.

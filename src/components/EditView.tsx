@@ -42,7 +42,7 @@ function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | 
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const canvas = await renderToCanvas(photoUrl(id), edits, 2000);
+        const canvas = await renderToCanvas(photoUrl(id), edits, 2000, false);
         const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.92));
         canvas.width = 0; // free the render canvas; the preview is the JPEG from here on
         if (cancelled || !blob) return;
@@ -250,7 +250,7 @@ export default function EditView({ active }: { active: boolean }) {
     }
     if (LEVEL_OPS.has(op)) {
       try {
-        const c = await renderToCanvas(photoUrl(id), stack.edits, 640);
+        const c = await renderToCanvas(photoUrl(id), stack.edits, 640, false);
         const lv = measureLevels(c, op !== "autoContrast", op === "lucky" ? 0.003 : 0.005);
         c.width = 0;
         stack.applyEdit({ op, lv });
@@ -263,7 +263,7 @@ export default function EditView({ active }: { active: boolean }) {
   };
   /** Neutral Color Picker: make the clicked spot grey, which corrects the colour of the whole picture. */
   const pickNeutral = async (fx: number, fy: number) => {
-    const c = await renderToCanvas(photoUrl(id), stack.edits, 1200);
+    const c = await renderToCanvas(photoUrl(id), stack.edits, 1200, false);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const cx = Math.round(fx * (c.width - 1));
     const cy = Math.round(fy * (c.height - 1));
@@ -1020,7 +1020,7 @@ function Histogram({ id, photo, edits }: { id: number; photo: Photo | null; edit
     const timer = setTimeout(async () => {
       let data: Uint8ClampedArray;
       try {
-        const src = await renderToCanvas(thumbUrl(id), edits, 128);
+        const src = await renderToCanvas(thumbUrl(id), edits, 128, false);
         data = src.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, src.width, src.height).data;
         src.width = 0;
       } catch {

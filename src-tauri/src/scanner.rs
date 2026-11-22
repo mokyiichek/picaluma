@@ -787,6 +787,29 @@ pub(crate) fn scan_folder_now(app: &AppHandle, folder_id: i64) {
   log::info!("priority scan of {path}: {} pictures indexed in {:?}", pending.len(), started.elapsed());
 }
 
+/// A watched folder changed by Picaluma itself (pictures copied in, or copies taken out): listed
+/// and indexed straight away instead of waiting for a rescan of the whole library. False when
+/// the folder is outside the library (a rescan sorts that out).
+pub(crate) fn refresh_dir_now(app: &AppHandle, dir: &Path) -> bool {
+  let db = app.state::<AppState>().db.clone();
+  let (roots, excluded) = load_roots(&db);
+  if !is_watched(dir, &roots, &excluded) {
+    return false;
+  }
+  if list_folder(&db, dir).is_err() {
+    return false;
+  }
+  let real = disk_case(dir).to_string_lossy().into_owned();
+  let id: Option<i64> = db.lock().unwrap().query_row("SELECT id FROM folders WHERE path = ?1", [&real], |r| r.get(0)).ok();
+  match id {
+    Some(id) => scan_folder_now(app, id),
+    None => {
+      let _ = app.emit("library-changed", ());
+    }
+  }
+  true
+}
+
 /// EXIF and dimensions from the start of the file. TIFF and HEIF may keep EXIF further in, so
 /// those are read whole when the header alone doesn't have it.
 fn index_file(p: &Pending) -> Meta {

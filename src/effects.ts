@@ -306,7 +306,7 @@ export function sliderValue(edits: Edit[], op: string, fallback = 0): number {
  * Replays edits onto a canvas at full resolution for Export (or, with maxSource, a smaller
  * preview for the editor when pixel effects are present).
  */
-export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0): Promise<HTMLCanvasElement> {
+export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0, withFrame = true): Promise<HTMLCanvasElement> {
   let img: HTMLImageElement | HTMLCanvasElement = await loadImage(src);
   const natural = (i: HTMLImageElement | HTMLCanvasElement) => (i instanceof HTMLImageElement ? [i.naturalWidth, i.naturalHeight] : [i.width, i.height]);
   const [nw0, nh0] = natural(img);
@@ -383,7 +383,58 @@ export async function renderToCanvas(src: string, edits: Edit[], maxSource = 0):
     ctx.fillRect(0, 0, w, h);
   }
   applyFinalOps(canvas, edits);
+  if (withFrame && r.frame) {
+    const framed = drawFrame(canvas, r.frame);
+    canvas.width = 0;
+    return framed;
+  }
   return canvas;
+}
+
+/**
+ * Border, Drop Shadow, Museum Matte and Polaroid, drawn around the finished picture (the editor
+ * shows them with CSS), sized to the picture so a thumbnail and a full export look alike.
+ */
+function drawFrame(pic: HTMLCanvasElement, frame: Frame): HTMLCanvasElement {
+  const { width: w, height: h } = pic;
+  const s = Math.max(w, h);
+  const px = (k: number) => Math.max(1, Math.round(s * k));
+  // Space around the picture: left/right, top, bottom.
+  const [side, top, bottom] =
+    frame === "border" ? [px(0.03), px(0.03), px(0.03)]
+    : frame === "shadow" ? [px(0.05), px(0.04), px(0.07)]
+    : frame === "matte" ? [px(0.08), px(0.08), px(0.08)]
+    : [px(0.04), px(0.04), px(0.16)];
+  const out = document.createElement("canvas");
+  out.width = w + side * 2;
+  out.height = h + top + bottom;
+  const ctx = out.getContext("2d")!;
+  ctx.fillStyle = frame === "matte" ? "#f4f1ea" : frame === "polaroid" ? "#fbfbf8" : "#fff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  if (frame === "shadow") {
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = px(0.025);
+    ctx.shadowOffsetX = px(0.012);
+    ctx.shadowOffsetY = px(0.016);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(side, top, w, h);
+    ctx.restore();
+  }
+  ctx.drawImage(pic, side, top);
+  if (frame === "matte") {
+    // The bevelled window cut into the matte, and a fine line round the outside.
+    const line = px(0.003);
+    ctx.strokeStyle = "#bbb";
+    ctx.lineWidth = line;
+    ctx.strokeRect(side - line / 2, top - line / 2, w + line, h + line);
+    ctx.strokeRect(line / 2, line / 2, out.width - line, out.height - line);
+  } else if (frame === "polaroid") {
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, out.width - 1, out.height - 1);
+  }
+  return out;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
