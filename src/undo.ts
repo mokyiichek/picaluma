@@ -6,6 +6,8 @@
  */
 import { useStore } from "./store";
 import { notify } from "./dialogs";
+import { EFFECTS, type Edit } from "./effects";
+import { thumbUrl } from "./api";
 
 export interface UndoAction {
   /** "Move", "Copy", "Hide", "Delete", "Rotate"… shown as "Undo Move" / "Redo Move". */
@@ -74,3 +76,40 @@ export function recordEdits(label: string, ids: number[], change: () => void) {
   };
   pushUndo({ label, undo: () => put(before), redo: () => put(after) });
 }
+
+/**
+ * Edits made in Edit view join the library's history when the editor leaves the picture: back
+ * in the folder, Ctrl+Z (⌘Z) takes them off one at a time, newest first, and Redo puts them back.
+ */
+let visit: { id: number; before: Edit[]; url: string } | null = null;
+const same = (a: Edit[], b: Edit[]) => JSON.stringify(a) === JSON.stringify(b);
+const nameOf = (e: Edit) => EFFECTS[e.op]?.label ?? "Edit";
+
+function closeVisit(v: { id: number; before: Edit[]; url: string }) {
+  // Saved meanwhile: the file itself changed, and Undo Save is the way back.
+  if (thumbUrl(v.id) !== v.url) return;
+  const after = [...(useStore.getState().edits.get(v.id) ?? [])];
+  const { id, before } = v;
+  if (same(before, after)) return;
+  const put = (list: Edit[]) => useStore.getState().setPhotoEdits(id, [...list]);
+  let k = 0;
+  while (k < before.length && k < after.length && same([before[k]], [after[k]])) k++;
+  if (k === before.length) {
+    // Only added: one step per edit.
+    for (let i = k; i < after.length; i++) {
+      const upTo = after.slice(0, i + 1);
+      const below = after.slice(0, i);
+      pushUndo({ label: nameOf(after[i]), undo: () => put(below), redo: () => put(upTo) });
+    }
+  } else {
+    pushUndo({ label: "Edit", undo: () => put(before), redo: () => put(after) });
+  }
+}
+
+useStore.subscribe((s, prev) => {
+  const was = prev.view === "edit" ? prev.editId : null;
+  const now = s.view === "edit" ? s.editId : null;
+  if (was === now) return;
+  if (visit) closeVisit(visit);
+  visit = now != null ? { id: now, before: [...(s.edits.get(now) ?? [])], url: thumbUrl(now) } : null;
+});

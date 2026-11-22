@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.41 — 2026-11-23
+
+- **Undo edits from the folder view.** Effects, tuning, crops and other changes made in Edit view can now be undone back in the library with Ctrl+Z (⌘Z on a Mac), one step at a time, newest first, and redone with Ctrl+Y (⇧⌘Z). Edit › Undo shows which effect it will take off.
+- **Edited thumbnails on the Mac.** Pictures with effects such as Film Grain, Tint, Glow or Soft Focus now show those effects on their thumbnails in the folder view on macOS too, not only in the editor.
+
 ## 0.7.40 — 2026-11-22
 
 - **Copied pictures show up at once.** Ctrl+drag (Option+drag on a Mac) onto a folder copied the files, but the copies only appeared after a rescan of the whole library, which on a big library could take a long time. The folder is now updated straight away, and Edit › Undo removes the copies just as quickly.

@@ -443,6 +443,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = src;
+    // Its own address: Safari (macOS) would otherwise reuse the copy the grid loaded without
+    // CORS, and the canvas could not be read (edited thumbnails stayed unedited).
+    img.src = /^(blob|data):/.test(src) ? src : `${src}${src.includes("?") ? "&" : "?"}cors=1`;
   });
 }
