@@ -1,5 +1,5 @@
 import { isMac, mod } from "../platform";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { faceUrl, Folder, uiLog } from "../api";
 import { render } from "../effects";
@@ -482,7 +482,16 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const caption = useThumbCaption(id);
   const clickPhoto = useStore((s) => s.clickPhoto);
   const [loaded, setLoaded] = useState(() => loadedThumbs.has(id));
-  const { src, style, baked, waiting } = useThumbImage(id);
+  const { src, style, baked, waiting, cropped } = useThumbImage(id);
+  // Natural size of the shown (baked) picture; a cropped one is scaled up to the cell's longer fit.
+  const [nat, setNat] = useState<{ src: string; w: number; h: number } | null>(null);
+  let fit: CSSProperties | undefined;
+  if (cropped && baked && nat && nat.src === src && nat.w > 0 && nat.h > 0) {
+    const bw = Math.max(1, w - 22);
+    const bh = Math.max(1, h - 22);
+    const s = Math.min(bw / nat.w, bh / nat.h);
+    fit = { width: Math.round(nat.w * s), height: Math.round(nat.h * s), maxWidth: "none", maxHeight: "none" };
+  }
 
   return (
     <div
@@ -515,10 +524,11 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
         className={loaded && !waiting ? "" : "loading"}
         decoding="async"
         draggable={false}
-        style={style}
+        style={fit ? { ...style, ...fit } : style}
         onLoad={(e) => {
           const img = e.currentTarget;
           if (!baked) aspectCache.set(id, img.naturalWidth / img.naturalHeight);
+          else setNat({ src: img.src, w: img.naturalWidth, h: img.naturalHeight });
           loadedThumbs.add(id);
           setLoaded(true);
         }}

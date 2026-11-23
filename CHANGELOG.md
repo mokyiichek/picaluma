@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.43 — 2026-11-24
+
+- **Cropped pictures fill their thumbnail.** After a crop, the thumbnail in the folder view stayed as small as the cropped piece. It is now scaled up to the full width or height of its spot, whichever fits, and rendered from the picture itself so it stays sharp.
+
 ## 0.7.42 — 2026-11-23
 
 - **Filters you pick stay on the picture.** Effects with settings (Tint, Glow, Soft Focus, Film Grain, Saturation and others) showed on the picture but only counted after Apply, so going back to the folder or to the next picture dropped them and the thumbnail stayed unchanged. Leaving the picture now keeps the effect as you see it; Cancel still drops it, and Ctrl+Z undoes it.

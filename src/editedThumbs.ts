@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { thumbUrl } from "./api";
+import { photoUrl, thumbUrl } from "./api";
 import { cropViewBox, Edit, render, renderToCanvas } from "./effects";
 import { hasPixelOps } from "./pixelfx";
 import { useStore } from "./store";
@@ -13,6 +13,7 @@ const failed = new Set<string>();
 const waiting: (() => Promise<void>)[] = [];
 let running = 0;
 const LIMIT = 400;
+const THUMB_EDGE = 360; // src-tauri/src/thumbs.rs
 
 function pump() {
   while (running < 2 && waiting.length) {
@@ -67,7 +68,13 @@ export function useEditedThumb(id: number, edits: Edit[] | undefined, force = fa
       if (!live) return;
       try {
         if (!cache.has(key)) {
-          const canvas = await renderToCanvas(thumbUrl(id), edits!, 0);
+          // A crop keeps only part of the thumbnail; render it from the picture itself so the
+          // piece still has a thumbnail's sharpness when the grid scales it up.
+          const c = render(edits!).crop;
+          const part = c ? Math.max(c[2], c[3]) : 1;
+          const canvas = part < 0.9
+            ? await renderToCanvas(photoUrl(id), edits!, Math.min(3200, Math.ceil(THUMB_EDGE / part)))
+            : await renderToCanvas(thumbUrl(id), edits!, 0);
           const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.88));
           canvas.width = 0;
           if (!blob) throw new Error("no image");
@@ -88,11 +95,13 @@ export function useEditedThumb(id: number, edits: Edit[] | undefined, force = fa
 }
 
 /** What an <img> needs to show a picture's thumbnail as edited. */
-export function useThumbImage(id: number): { src: string | undefined; style: CSSProperties | undefined; baked: boolean; waiting: boolean } {
+export function useThumbImage(id: number): { src: string | undefined; style: CSSProperties | undefined; baked: boolean; waiting: boolean; cropped: boolean } {
   const edits = useStore((s) => s.edits.get(id));
   const { url, waiting: pending } = useEditedThumb(id, edits);
-  if (url) return { src: url, style: undefined, baked: true, waiting: false };
-  if (pending) return { src: undefined, style: undefined, baked: false, waiting: true };
+  // A crop is a smaller piece of the thumbnail: the grid scales it up to fill its cell.
+  const cropped = !!edits?.some((e) => e.op === "crop");
+  if (url) return { src: url, style: undefined, baked: true, waiting: false, cropped };
+  if (pending) return { src: undefined, style: undefined, baked: false, waiting: true, cropped };
   const r = edits ? render(edits) : null;
   const style = r
     ? ({
@@ -101,7 +110,7 @@ export function useThumbImage(id: number): { src: string | undefined; style: CSS
         objectViewBox: cropViewBox(r.crop),
       } as CSSProperties)
     : undefined;
-  return { src: thumbUrl(id), style, baked: false, waiting: false };
+  return { src: thumbUrl(id), style, baked: false, waiting: false, cropped };
 }
 
 /** What the picture flies back to the grid as; null when its rendering isn't ready yet. */
