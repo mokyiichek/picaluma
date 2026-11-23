@@ -8,7 +8,7 @@ import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
-import { editHistory } from "../undo";
+import { editHistory, editorPending } from "../undo";
 import { ArrowIcon, BackIcon, BrushIcon, FixIcon, PlayIcon, SaveIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
@@ -178,6 +178,12 @@ function StripThumb({ id, current, onClick }: { id: number; current: boolean; on
 
 /** Leave the editor, zooming the photo back to its thumbnail. */
 export function backToLibrary() {
+  // An effect still previewed in its panel is kept (and flies back as it looks).
+  const p = editorPending.effect;
+  if (p) {
+    editorPending.effect = null;
+    useStore.getState().setPhotoEdits(p.id, [...(useStore.getState().edits.get(p.id) ?? []), p.edit]);
+  }
   const s = useStore.getState();
   const id = s.editId;
   const box = document.querySelector(".edit-photo") as HTMLElement | null;
@@ -225,7 +231,13 @@ export default function EditView({ active }: { active: boolean }) {
 
   // Modal tools (Crop / Straighten) take over the stage and left panel like Picasa's.
   const [tool, setTool] = useState<Tool>(null);
-  useEffect(() => setTool(null), [id]);
+  // The picture the open tool belongs to (on switching pictures, the old tool is still up for one render).
+  const toolPic = useRef(id);
+  useEffect(() => {
+    toolPic.current = id;
+    setTool(null);
+  }, [id]);
+  editorPending.effect = tool?.kind === "effect" && id != null && toolPic.current === id ? { id, edit: tool.edit } : null;
 
   if (id == null) return null;
   if (isVideo) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.42 — 2026-11-23
+
+- **Filters you pick stay on the picture.** Effects with settings (Tint, Glow, Soft Focus, Film Grain, Saturation and others) showed on the picture but only counted after Apply, so going back to the folder or to the next picture dropped them and the thumbnail stayed unchanged. Leaving the picture now keeps the effect as you see it; Cancel still drops it, and Ctrl+Z undoes it.
+
 ## 0.7.41 — 2026-11-23
 
 - **Undo edits from the folder view.** Effects, tuning, crops and other changes made in Edit view can now be undone back in the library with Ctrl+Z (⌘Z on a Mac), one step at a time, newest first, and redone with Ctrl+Y (⇧⌘Z). Edit › Undo shows which effect it will take off.

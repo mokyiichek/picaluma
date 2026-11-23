@@ -106,10 +106,19 @@ function closeVisit(v: { id: number; before: Edit[]; url: string }) {
   }
 }
 
+/**
+ * An effect whose settings panel is still open in Edit view (previewed, Apply not pressed yet).
+ * Leaving the picture keeps it, so what you saw is what the thumbnail shows.
+ */
+export const editorPending: { effect: { id: number; edit: Edit } | null } = { effect: null };
+
 useStore.subscribe((s, prev) => {
   const was = prev.view === "edit" ? prev.editId : null;
   const now = s.view === "edit" ? s.editId : null;
   if (was === now) return;
+  const p = editorPending.effect;
+  editorPending.effect = null;
+  if (p && p.id === was) s.setPhotoEdits(was, [...(useStore.getState().edits.get(was) ?? []), p.edit]);
   if (visit) closeVisit(visit);
   visit = now != null ? { id: now, before: [...(s.edits.get(now) ?? [])], url: thumbUrl(now) } : null;
 });
