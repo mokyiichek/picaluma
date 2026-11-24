@@ -8,12 +8,17 @@ import { useStore } from "./store";
 import { notify } from "./dialogs";
 import { EFFECTS, type Edit } from "./effects";
 import { thumbUrl } from "./api";
+import { afterUndoStep, beforeUndoStep } from "./deleteAnim";
 
 export interface UndoAction {
   /** "Move", "Copy", "Hide", "Delete", "Rotate"… shown as "Undo Move" / "Redo Move". */
   label: string;
   undo: () => Promise<unknown> | void;
   redo: () => Promise<unknown> | void;
+  /** The pictures it acts on: after Undo / Redo the folder view scrolls to them and selects them. */
+  ids?: number[];
+  /** The step that takes them out of view (Delete, Hide: "redo"; Unhide: "undo"); the other brings them back. */
+  leaves?: "undo" | "redo";
 }
 
 const done: UndoAction[] = [];
@@ -41,15 +46,22 @@ async function step(from: UndoAction[], to: UndoAction[], which: "undo" | "redo"
   const action = from.pop();
   if (!action) return publish();
   running = true;
+  const ids = action.ids ?? [];
+  const leaving = action.leaves === which && !(/hide/i.test(action.label) && useStore.getState().showHidden);
+  const start = ids.length ? beforeUndoStep(ids, leaving) : null;
+  let ok = false;
   try {
     await action[which]();
     to.push(action);
+    ok = true;
   } catch (e) {
     notify(`Couldn't ${which}: ${e}`, "error");
   } finally {
     running = false;
     publish();
     await useStore.getState().loadSnapshot();
+    // Show which pictures came back or changed: scrolled to, selected, landing in place.
+    if (ids.length) afterUndoStep(ok ? start : null, ok ? ids : [], leaving, action.leaves != null);
   }
 }
 
@@ -74,7 +86,7 @@ export function recordEdits(label: string, ids: number[], change: () => void) {
     const st = useStore.getState();
     for (const [id, list] of m) st.setPhotoEdits(id, [...list]);
   };
-  pushUndo({ label, undo: () => put(before), redo: () => put(after) });
+  pushUndo({ label, undo: () => put(before), redo: () => put(after), ids });
 }
 
 /**
@@ -99,10 +111,10 @@ function closeVisit(v: { id: number; before: Edit[]; url: string }) {
     for (let i = k; i < after.length; i++) {
       const upTo = after.slice(0, i + 1);
       const below = after.slice(0, i);
-      pushUndo({ label: nameOf(after[i]), undo: () => put(below), redo: () => put(upTo) });
+      pushUndo({ label: nameOf(after[i]), undo: () => put(below), redo: () => put(upTo), ids: [id] });
     }
   } else {
-    pushUndo({ label: "Edit", undo: () => put(before), redo: () => put(after) });
+    pushUndo({ label: "Edit", undo: () => put(before), redo: () => put(after), ids: [id] });
   }
 }
 

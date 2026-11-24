@@ -104,6 +104,8 @@ interface State {
   thumbSize: number;
   /** Edit view zoom as a multiple of the fitted size (1 = fit); the tray's zoom slider sets it. */
   editZoom: number;
+  /** Edit view: the zoom that shows the picture at actual size (1 when it already fits at actual size). */
+  editActual: number;
   showProps: boolean;
   /** Tools › Options › Special effects: animated transitions and smooth scrolling. */
   effects: boolean;
@@ -317,6 +319,7 @@ export const useStore = create<State>((set, get) => ({
   editId: null,
   thumbSize: Number(localStorageGet("thumbSize")) || 150,
   editZoom: 1,
+  editActual: 1,
   showProps: localStorageGet("showProps") !== "0",
   effects: applyEffectsClass(localStorageGet("effects") !== "0"),
   optionsOpen: false,

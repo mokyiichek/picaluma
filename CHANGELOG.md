@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.47 — 2026-11-25
+
+- Edit view zoom slider: a mark in the middle for actual size (100%), and the slider snaps to it when close.
+- Deleting in Edit view: the picture drops away like in the folder view, and the next one springs in.
+- Edit › Undo / Redo in the folder view: the grid scrolls to the pictures and selects them. Undeleted or unhidden pictures drop back in while the others make room, moved pictures slide back, and pictures whose edits were undone pop. Redo Delete makes the pictures drop away again.
+
 ## 0.7.46 — 2026-11-24
 
 - **Livelier delete in the folder view.** A deleted picture lifts, tilts and drops away with a little burst, then the pictures after it ripple into their new places one by one with a slight bounce; pictures moving to the row above hop across, and folder headings move up with them.

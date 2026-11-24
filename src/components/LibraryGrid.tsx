@@ -8,7 +8,7 @@ import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, select
 import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
 import { useThumbImage } from "../editedThumbs";
-import { flipGrid, FlipStart, reflowBus } from "../deleteAnim";
+import { flipGrid, FlipStart, landIn, popIn, reflowBus } from "../deleteAnim";
 import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
@@ -220,10 +220,15 @@ export default function LibraryGrid() {
   }, []);
 
   // Delete: the other pictures ripple into their new places (FLIP, once the deleted ones are gone).
+  // Undo / Redo: the pictures it brought back are shown (scrolled to if off-screen) and drop back
+  // in or pop, as soon as they are on screen.
   const pendingFlip = useRef<FlipStart | null>(null);
+  const arriving = useRef<{ ids: Set<number>; land: boolean; until: number; k: number } | null>(null);
+  const [, setFlipTick] = useState(0);
   useEffect(() => {
     const start = (e: Event) => {
       pendingFlip.current = (e as CustomEvent<FlipStart>).detail;
+      setFlipTick((n) => n + 1); // the grid may already show the reloaded library
     };
     reflowBus.addEventListener("reflow", start);
     return () => reflowBus.removeEventListener("reflow", start);
@@ -231,10 +236,41 @@ export default function LibraryGrid() {
   useLayoutEffect(() => {
     const p = pendingFlip.current;
     const canvas = scrollRef.current?.querySelector(".grid-canvas");
-    if (!p || !canvas) return;
-    if ([...p.gone].some((id) => canvas.querySelector(`img[data-photo="${id}"]`))) return; // not dropped yet
-    pendingFlip.current = null;
-    flipGrid(canvas, p);
+    const el = scrollRef.current;
+    if (p && canvas && el) {
+      if (performance.now() - p.at > 4000) pendingFlip.current = null; // never settled: forget it
+      else if (![...p.gone].some((id) => canvas.querySelector(`img[data-photo="${id}"]`))) {
+        pendingFlip.current = null;
+        let start = p;
+        if (p.back?.size) {
+          // Scroll to the first one brought back when it is out of view (then there is nothing to ripple).
+          const first = [...p.back].map((id) => rowOfPhoto.get(id)).filter((r): r is number => r != null).sort((a, b) => a - b)[0];
+          if (first != null) {
+            const top = offsets[first];
+            if (top < el.scrollTop || top + rows[first].h > el.scrollTop + el.clientHeight) {
+              moveGrid(el, Math.max(0, top - (el.clientHeight - rows[first].h) / 2), "undo shows the picture");
+              start = { ...p, cells: new Map(), heads: new Map() };
+            }
+          }
+        }
+        const moved = start.cells.size || start.heads.size ? flipGrid(canvas, start) : new Set<number>();
+        if (p.back?.size && useStore.getState().effects) {
+          arriving.current = { ids: new Set([...p.back].filter((id) => !moved.has(id))), land: !!p.land, until: performance.now() + 1500, k: 0 };
+        }
+      }
+    }
+    // Brought back by Undo: animate each as it appears (after a scroll, the rows render a moment later).
+    const a = arriving.current;
+    if (a && canvas) {
+      if (performance.now() > a.until || !a.ids.size) arriving.current = null;
+      else
+        for (const id of [...a.ids]) {
+          const cell = canvas.querySelector<HTMLElement>(`img[data-photo="${id}"]`)?.parentElement;
+          if (!cell) continue;
+          a.ids.delete(id);
+          (a.land ? landIn : popIn)(cell, a.k++);
+        }
+    }
   });
 
   // Thumbnail-size slider: animate cells to their new size and keep the same photo at the top.

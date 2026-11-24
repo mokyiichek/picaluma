@@ -84,6 +84,8 @@ export async function deletePhotos(ids: number[], permanent = false, onConfirmed
         reportFailures(again.failed);
         batch = again.undo ?? batch;
       },
+      ids,
+      leaves: "redo",
     });
   }
   // Like Picasa: offer to tidy up a folder the delete left empty.
@@ -170,7 +172,7 @@ async function moveFiles(ids: number[], dest: string) {
     reportFailures(back.failed);
     moved = back.moved ?? [];
   };
-  if (moved.length) pushUndo({ label: "Move", undo: swap, redo: swap });
+  if (moved.length) pushUndo({ label: "Move", undo: swap, redo: swap, ids: moved.map(([id]) => id) });
 }
 
 /**
@@ -201,7 +203,13 @@ export async function setPicturesHidden(ids: number[], hidden: boolean) {
   await api.setHidden(changing, hidden);
   if (hidden) s.clearSelection();
   await s.loadSnapshot();
-  pushUndo({ label: hidden ? "Hide" : "Unhide", undo: () => api.setHidden(changing, !hidden), redo: () => api.setHidden(changing, hidden) });
+  pushUndo({
+    label: hidden ? "Hide" : "Unhide",
+    undo: () => api.setHidden(changing, !hidden),
+    redo: () => api.setHidden(changing, hidden),
+    ids: changing,
+    leaves: hidden ? "redo" : "undo",
+  });
 }
 
 export async function renameFolder(folderId: number) {

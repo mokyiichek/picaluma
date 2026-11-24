@@ -5,8 +5,21 @@ import { plural } from "../format";
 import { isPersonId, isProjectId, selectVisible, useStore } from "../store";
 import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon, ZoomIcon } from "./Icons";
 
-/** The zoom slider's right end: 8 × the fitted size (the editor's keyboard zoom goes as far). */
-const MAX_ZOOM = 8;
+/**
+ * The Edit view zoom slider: left fits the picture to the window, the mark in the middle is actual
+ * size (100%; twice the fitted size for a picture that already shows at actual size), and the
+ * right end twice that (at least 8 × fitted). Each half is a log scale. Near the middle it snaps.
+ */
+const SNAP = 35;
+function zoomScale(actual: number) {
+  const mid = actual > 1.05 ? actual : 2;
+  const max = Math.max(8, mid * 2);
+  return {
+    toPos: (z: number) => (z <= mid ? (Math.log(z) / Math.log(mid)) * 500 : 500 + (Math.log(z / mid) / Math.log(max / mid)) * 500),
+    toZoom: (v: number) => (v <= 500 ? Math.pow(mid, v / 500) : mid * Math.pow(max / mid, (v - 500) / 500)),
+    mid,
+  };
+}
 
 export default function Tray() {
   const selected = useStore((s) => s.selected);
@@ -16,6 +29,8 @@ export default function Tray() {
   const thumbSize = useStore((s) => s.thumbSize);
   const setThumbSize = useStore((s) => s.setThumbSize);
   const editZoom = useStore((s) => s.editZoom);
+  const editActual = useStore((s) => s.editActual);
+  const zs = zoomScale(editActual);
   const toggleProps = useStore((s) => s.toggleProps);
   const showProps = useStore((s) => s.showProps);
   const sidePanel = useStore((s) => s.sidePanel);
@@ -118,17 +133,26 @@ export default function Tray() {
         )}
         {view === "edit" && (
           // Edit view: the zoom slider, as in Picasa (left fits the picture to the window).
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }} title={`Zoom: ${Math.round(editZoom * 100)}% of the fitted size (0 fits)`}>
+          <span
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+            title={`Zoom: ${Math.round((editZoom / editActual) * 100)}% of actual size. Left fits the window; the middle mark is ${editActual > 1.05 ? "actual size" : "2×"}.`}
+          >
             <ZoomIcon size={16} />
-            <input
-              className="slider"
-              type="range"
-              min={0}
-              max={1000}
-              value={Math.round((Math.log(editZoom) / Math.log(MAX_ZOOM)) * 1000)}
-              onChange={(e) => useStore.getState().setEditZoom(Math.pow(MAX_ZOOM, Number(e.target.value) / 1000))}
-              onDoubleClick={() => useStore.getState().setEditZoom(1)}
-            />
+            <span className="zoom-slider">
+              <input
+                className="slider"
+                type="range"
+                min={0}
+                max={1000}
+                value={Math.round(zs.toPos(editZoom))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  useStore.getState().setEditZoom(Math.abs(v - 500) < SNAP ? zs.mid : zs.toZoom(v));
+                }}
+                onDoubleClick={() => useStore.getState().setEditZoom(1)}
+              />
+              <i className="zoom-mid" />
+            </span>
           </span>
         )}
         <span className="tgroup">

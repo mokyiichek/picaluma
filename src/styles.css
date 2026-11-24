@@ -1426,6 +1426,23 @@ input[type="range"]:focus {
   width: 120px;
   accent-color: #5a8fc0;
 }
+/* Edit view zoom slider: a mark in the middle (actual size), where the slider snaps. */
+.zoom-slider {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.zoom-slider .zoom-mid {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 14px;
+  margin-left: -0.5px;
+  transform: translateY(-50%);
+  background: #6f6f6f;
+  pointer-events: none;
+}
 
 /* ---------- Edit view ---------- */
 .edit-left {
