@@ -8,7 +8,7 @@ import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, select
 import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
 import { useThumbImage } from "../editedThumbs";
-import { reflowBus } from "../deleteAnim";
+import { flipGrid, FlipStart, reflowBus } from "../deleteAnim";
 import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
@@ -219,20 +219,23 @@ export default function LibraryGrid() {
     };
   }, []);
 
-  // Delete: the other pictures glide into their new places.
+  // Delete: the other pictures ripple into their new places (FLIP, once the deleted ones are gone).
+  const pendingFlip = useRef<FlipStart | null>(null);
   useEffect(() => {
-    let t = 0;
-    const glide = () => {
-      setResizing(true);
-      clearTimeout(t);
-      t = window.setTimeout(() => setResizing(false), RESIZE_ANIM_MS);
+    const start = (e: Event) => {
+      pendingFlip.current = (e as CustomEvent<FlipStart>).detail;
     };
-    reflowBus.addEventListener("reflow", glide);
-    return () => {
-      reflowBus.removeEventListener("reflow", glide);
-      clearTimeout(t);
-    };
+    reflowBus.addEventListener("reflow", start);
+    return () => reflowBus.removeEventListener("reflow", start);
   }, []);
+  useLayoutEffect(() => {
+    const p = pendingFlip.current;
+    const canvas = scrollRef.current?.querySelector(".grid-canvas");
+    if (!p || !canvas) return;
+    if ([...p.gone].some((id) => canvas.querySelector(`img[data-photo="${id}"]`))) return; // not dropped yet
+    pendingFlip.current = null;
+    flipGrid(canvas, p);
+  });
 
   // Thumbnail-size slider: animate cells to their new size and keep the same photo at the top.
   const prevSize = useRef(thumbSize);
@@ -442,6 +445,7 @@ const FolderHead = memo(function FolderHead({ folder, photos, top }: { folder: F
   return (
     <div
       className="folder-head"
+      data-folder={folder.id}
       style={{ top, height: HEAD_H - 6 }}
       onContextMenu={(e) => {
         e.preventDefault();

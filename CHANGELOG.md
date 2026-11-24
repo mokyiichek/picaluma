@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.46 — 2026-11-24
+
+- **Livelier delete in the folder view.** A deleted picture lifts, tilts and drops away with a little burst, then the pictures after it ripple into their new places one by one with a slight bounce; pictures moving to the row above hop across, and folder headings move up with them.
+
 ## 0.7.45 — 2026-11-24
 
 - **Delete animation.** Deleted pictures shrink away and the rest of the folder glides into their new places, so you can see how the pictures move up.
