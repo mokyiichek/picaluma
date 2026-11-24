@@ -1,3 +1,4 @@
+import { animateEditorDelete } from "./deleteAnim";
 import { lazy, Suspense, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, FaceModels, FaceProgress, ScanProgress } from "./api";
@@ -178,9 +179,10 @@ export default function App() {
           const seq = selectEditorSequence(st);
           const i = seq.indexOf(st.editId);
           const next = seq[i + 1] ?? seq[i - 1];
-          deletePhotos([st.editId], permanent).then((deleted) => {
+          // Once confirmed, the next picture zooms in at once (the files move in the background).
+          deletePhotos([st.editId], permanent, () => {
+            animateEditorDelete(next ?? null);
             const now = useStore.getState();
-            if (!deleted || now.folderOfPhoto.has(st.editId!)) return; // cancelled or failed
             if (next != null) now.setEditId(next);
             else now.closeEditor();
           });

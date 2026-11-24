@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.45 — 2026-11-24
+
+- **Delete animation.** Deleted pictures shrink away and the rest of the folder glides into their new places, so you can see how the pictures move up.
+- **Delete in Edit view** moves on at once: the deleted picture shrinks away and the next one zooms in to take its place (the file moves to the Recycle Bin / Trash in the background).
+- Both follow Tools › Options › Special effects.
+
 ## 0.7.44 — 2026-11-24
 
 - **Zoom slider in Edit view.** The bottom tray now has a zoom slider while you edit, as in Picasa: left fits the picture to the window, right zooms in up to 8×. Double-click it to fit again.

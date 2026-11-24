@@ -1,3 +1,4 @@
+import { animateGridDelete } from "./deleteAnim";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, bumpPhoto } from "./api";
@@ -38,7 +39,7 @@ function reportFailures(failed: string[]) {
  * Delete key / "Delete from Disk": pictures go to the Recycle Bin (Trash on macOS).
  * With `permanent` (Shift+Del / Ctrl+Del, ⌥⌘⌫ on Mac) they are deleted outright.
  */
-export async function deletePhotos(ids: number[], permanent = false): Promise<boolean> {
+export async function deletePhotos(ids: number[], permanent = false, onConfirmed?: () => void): Promise<boolean> {
   if (!ids.length) return false;
   const one = ids.length === 1;
   const what = one ? "the selected picture" : `the ${ids.length} selected pictures`;
@@ -55,7 +56,10 @@ export async function deletePhotos(ids: number[], permanent = false): Promise<bo
       });
   if (!ok) return false;
   const s = useStore.getState();
-  // Gone from the grid at once; a big library takes a moment to reload after the files are moved.
+  // Gone from the grid at once (shrinking away, the rest gliding together); a big library takes a
+  // moment to reload after the files are moved.
+  if (onConfirmed) onConfirmed();
+  else if (s.view === "library") animateGridDelete(ids);
   s.clearSelection();
   s.dropPhotos(ids);
   const res = await api.deletePhotos(ids, permanent).catch((e) => {

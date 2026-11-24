@@ -8,6 +8,7 @@ import { isPersonId, isProjectId, PERSON_BASE, selectAlbum, selectPerson, select
 import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
 import { useThumbImage } from "../editedThumbs";
+import { reflowBus } from "../deleteAnim";
 import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
@@ -215,6 +216,21 @@ export default function LibraryGrid() {
       el.removeEventListener("wheel", onWheel);
       cancelAnimationFrame(raf);
       smooth.current = null;
+    };
+  }, []);
+
+  // Delete: the other pictures glide into their new places.
+  useEffect(() => {
+    let t = 0;
+    const glide = () => {
+      setResizing(true);
+      clearTimeout(t);
+      t = window.setTimeout(() => setResizing(false), RESIZE_ANIM_MS);
+    };
+    reflowBus.addEventListener("reflow", glide);
+    return () => {
+      reflowBus.removeEventListener("reflow", glide);
+      clearTimeout(t);
     };
   }, []);
 

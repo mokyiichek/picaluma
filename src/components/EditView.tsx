@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { api, photoUrl, thumbUrl, Photo, photoVersion } from "../api";
 import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS, turnRect } from "../effects";
 import { flightThumb, useEditedThumb, useThumbImage } from "../editedThumbs";
+import { zoomInArrival } from "../deleteAnim";
 import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
@@ -569,6 +570,11 @@ function Stage({
     );
     anim.onfinish = anim.oncancel = () => endFlight();
   }, [flight?.nonce, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After a Delete, the next picture grows into the deleted one's place.
+  useLayoutEffect(() => {
+    if (active && box && boxRef.current) zoomInArrival(boxRef.current, id);
+  }, [id, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zoom (↑/↓, Page Up/Down, +/−, wheel; 0 fits, 1 is actual size) and drag to pan. Tools work on the fitted view.
   // The zoom level lives in the store (the tray's zoom slider sets it, as in Picasa); the pan is here.
