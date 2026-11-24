@@ -28,9 +28,9 @@ let lastTab = "fixes";
 const TOOL_EFFECTS: Record<string, ToolName> = { crop: "crop", straighten: "straighten", redeye: "redeye", retouch: "retouch", text: "text", focalZoom: "focal" };
 
 /** Canvas rendering of the edit stack for effects CSS can't show (Red-eye, Retouch, Text…). */
-function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | null {
+function usePixelPreview(id: number, edits: Edit[], enabled: boolean, maxSource = 2000): string | null {
   const [preview, setUrl] = useState<{ id: number; url: string } | null>(null);
-  const key = enabled ? JSON.stringify(edits) : "";
+  const key = enabled ? `${maxSource}:${JSON.stringify(edits)}` : "";
   useEffect(() => {
     if (!enabled) {
       setUrl((old) => {
@@ -42,7 +42,7 @@ function usePixelPreview(id: number, edits: Edit[], enabled: boolean): string | 
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const canvas = await renderToCanvas(photoUrl(id), edits, 2000, false);
+        const canvas = await renderToCanvas(photoUrl(id), edits, maxSource, false);
         const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/jpeg", 0.92));
         canvas.width = 0; // free the render canvas; the preview is the JPEG from here on
         if (cancelled || !blob) return;
@@ -480,9 +480,8 @@ function Stage({
   const shown = previewEdits(edits, tool);
   const r = render(shown);
   const rot90 = r.rotate === 90 || r.rotate === 270;
-  const preview = usePixelPreview(id, shown, hasPixelOps(shown));
   // Ready before Back to Library, so the thumbnail is the edited picture from the first frame.
-  useEditedThumb(id, edits, render(edits).rotate !== 0);
+  const edited = useEditedThumb(id, edits, render(edits).rotate !== 0).url;
 
   useLayoutEffect(() => {
     const el = stageRef.current!;
@@ -520,13 +519,20 @@ function Stage({
   const compare = !tool && (mode === "ab" || pair != null);
   const pinPreview = usePixelPreview(pair ?? id, pinEdits ?? [], pair != null);
   const halfW = compare ? (stage.w - STAGE_PAD) / 2 : stage.w;
+  // The picture's real pixel size as shown: cropped part, turned.
+  const real = useMemo((): [number, number] | null => {
+    const d = uprightDims(photo, id);
+    if (!d) return null;
+    const [, , cw, ch] = r.crop ?? [0, 0, 1, 1];
+    return turnedDims([d[0] * cw, d[1] * ch], r.rotate);
+  }, [photo, id, cropKey, r.rotate]); // eslint-disable-line react-hooks/exhaustive-deps
   const box = useMemo(() => {
     if (!aspectNow || !stage.w) return null;
     const aspect = displayAspect(aspectNow, r);
     const maxW = halfW - STAGE_PAD * 2;
     const maxH = stage.h - STAGE_PAD * 2;
-    // Don't upscale small images past their real pixel size.
-    const natW = photo && photo.width ? Math.max(photo.width, photo.height) * (aspect >= 1 ? 1 : aspect) : Infinity;
+    // Don't upscale small pictures (or small crops) past their real pixel size, as in Picasa.
+    const natW = real ? real[0] : Infinity;
     let w = Math.min(maxW, natW);
     let h = w / aspect;
     if (h > maxH) {
@@ -534,7 +540,7 @@ function Stage({
       w = h * aspect;
     }
     return { x: compare ? halfW + STAGE_PAD / 2 + (halfW - w) / 2 : (stage.w - w) / 2, y: (stage.h - h) / 2, w, h };
-  }, [aspectNow, stage, rot90, photo, cropKey, compare]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aspectNow, stage, rot90, real, cropKey, compare]); // eslint-disable-line react-hooks/exhaustive-deps
   const before = useMemo(() => {
     if (!compare || !aspectNow || !stage.w) return null;
     const maxW = halfW - STAGE_PAD * 2;
@@ -565,11 +571,23 @@ function Stage({
   }, [flight?.nonce, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zoom (↑/↓, Page Up/Down, +/−, wheel; 0 fits, 1 is actual size) and drag to pan. Tools work on the fitted view.
-  const [zoom, setZoom] = useState<Zoom>(FIT);
+  // The zoom level lives in the store (the tray's zoom slider sets it, as in Picasa); the pan is here.
+  const zStore = useStore((s) => s.editZoom);
+  const [pan, setPan] = useState({ x: 0, y: 0, z: 1 });
+  const zoom: Zoom = !tool && zStore > 1 ? { z: zStore, x: (pan.x * zStore) / pan.z, y: (pan.y * zStore) / pan.z } : FIT;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const setZoom = useCallback((v: Zoom | ((cur: Zoom) => Zoom)) => {
+    const next = typeof v === "function" ? v(zoomRef.current) : v;
+    zoomRef.current = next;
+    setPan({ x: next.x, y: next.y, z: next.z });
+    useStore.getState().setEditZoom(next.z);
+  }, []);
   const [dragging, setDragging] = useState(false);
   const wheelAcc = useRef(0);
-  useEffect(() => setZoom(FIT), [id, tool != null]);
-  const actual = photo?.width && box ? Math.max(photo.width, photo.height) / Math.max(box.w, box.h) : 1;
+  useEffect(() => setZoom(FIT), [id, tool != null]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => useStore.getState().setEditZoom(1), []);
+  const actual = real && box ? Math.max(real[0], real[1]) / Math.max(box.w, box.h) : 1;
   const clampPan = useCallback(
     (zm: Zoom): Zoom => {
       if (zm.z <= 1 || !box) return FIT;
@@ -579,6 +597,7 @@ function Stage({
     },
     [box, stage],
   );
+  const placed = clampPan(zoom); // the slider changes the zoom without knowing the pan's limits
   const zoomTo = useCallback((z: number) => setZoom((cur) => clampPan({ z, x: (cur.x * z) / cur.z, y: (cur.y * z) / cur.z })), [clampPan]);
   const zoomStep = useCallback(
     (dir: 1 | -1) =>
@@ -637,6 +656,13 @@ function Stage({
     window.addEventListener("mouseup", up);
   };
 
+  // Pixel effects (and crops) are drawn on a canvas from the picture at a size that stays sharp on
+  // screen: a small crop of a big picture uses more of it, and zooming in draws it again bigger.
+  const part = r.crop ? Math.max(r.crop[2], r.crop[3]) : 1;
+  const need = box ? (Math.max(box.w, box.h) * zoom.z * (window.devicePixelRatio || 1)) / part : 2000;
+  const preview = usePixelPreview(id, shown, hasPixelOps(shown), Math.min(6000, Math.max(2000, Math.ceil(need / 1000) * 1000)));
+  // Until that drawing is ready, the edited thumbnail stands in (never the uncropped picture).
+  const standIn = !preview && hasPixelOps(shown) && shown === edits && !r.frame ? edited : null;
   const frameClass = r.frame ? ` frame-${r.frame}` : "";
   const innerW = box ? (rot90 ? box.h : box.w) : 0;
   const innerH = box ? (rot90 ? box.w : box.h) : 0;
@@ -673,7 +699,7 @@ function Stage({
         s.openContextMenu({ x: e.clientX, y: e.clientY, kind: "photo" });
       }}
     >
-      <div className="zoom-layer" style={zoom.z > 1 ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.z})` } : undefined}>
+      <div className="zoom-layer" style={placed.z > 1 ? { transform: `translate(${placed.x}px, ${placed.y}px) scale(${placed.z})` } : undefined}>
       {before && pair == null && (
         <div className="edit-photo before" style={{ left: before.x, top: before.y, width: before.w, height: before.h }}>
           <img src={thumbUrl(id)} alt="" draggable={false} />
@@ -694,9 +720,9 @@ function Stage({
       )}
       {box && (
         <div ref={boxRef} className={`edit-photo${frameClass}`} style={{ left: box.x, top: box.y, width: box.w, height: box.h, transformOrigin: "0 0" }}>
-          {preview ? (
+          {preview || standIn ? (
             // Pixel effects: a canvas rendering of the whole edit stack (crop, rotation and filters included).
-            <img className="pixel-preview" src={preview} alt="" draggable={false} />
+            <img className="pixel-preview" src={(preview ?? standIn)!} alt="" draggable={false} />
           ) : (
             <div style={inner}>
               <img src={thumbUrl(id)} style={imgStyle} alt="" draggable={false} />

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.44 — 2026-11-24
+
+- **Zoom slider in Edit view.** The bottom tray now has a zoom slider while you edit, as in Picasa: left fits the picture to the window, right zooms in up to 8×. Double-click it to fit again.
+- **Cropped pictures in Edit view.** A small crop is no longer blown up past its real size, and it is drawn from the full picture so it stays sharp; zooming in draws it again at the bigger size.
+- **No flash of the uncropped picture** when opening a cropped or filtered picture from the folder: its edited thumbnail stands in until the full picture is ready.
+- **Esc leaves Show Duplicate Files / Find Similar Pictures** and goes back to all pictures.
+
 ## 0.7.43 — 2026-11-24
 
 - **Cropped pictures fill their thumbnail.** After a crop, the thumbnail in the folder view stayed as small as the cropped piece. It is now scaled up to the full width or height of its spot, whichever fits, and rendered from the picture itself so it stays sharp.

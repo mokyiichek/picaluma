@@ -254,6 +254,17 @@ export const CollapseIcon = ({ open = true, ...p }: P & { open?: boolean }) =>
     p,
   );
 
+export const ZoomIcon = (p: P) =>
+  svg(
+    p.size ?? 18,
+    <>
+      <circle cx="10" cy="10" r="6" fill="#fff" stroke="#4a7fb0" strokeWidth="1.6" />
+      <path d="m14.5 14.5 6 6" stroke="#4a7fb0" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M7 10h6M10 7v6" stroke="#4a7fb0" strokeWidth="1.4" />
+    </>,
+    p,
+  );
+
 export const PicturesIcon = (p: P) =>
   svg(
     p.size ?? 18,

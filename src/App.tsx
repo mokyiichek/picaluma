@@ -275,7 +275,10 @@ export default function App() {
             ? () => st.setCollage(null)
             : st.movie
               ? () => st.setMovie(null)
-              : null;
+              : // Show Duplicate Files / Find Similar Pictures results: Esc is "Back to View All".
+                st.dupGroups && st.view === "library" && !st.slideshow && !document.querySelector(".modal, .menu-drop")
+                ? () => st.setDupGroups(null)
+                : null;
       if (close) {
         stop();
         close();

@@ -3,7 +3,10 @@ import { Edit } from "../effects";
 import { emailPhotos, exportPhotos, printPhotos } from "../actions";
 import { plural } from "../format";
 import { isPersonId, isProjectId, selectVisible, useStore } from "../store";
-import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon } from "./Icons";
+import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon, ZoomIcon } from "./Icons";
+
+/** The zoom slider's right end: 8 × the fitted size (the editor's keyboard zoom goes as far). */
+const MAX_ZOOM = 8;
 
 export default function Tray() {
   const selected = useStore((s) => s.selected);
@@ -12,6 +15,7 @@ export default function Tray() {
   const view = useStore((s) => s.view);
   const thumbSize = useStore((s) => s.thumbSize);
   const setThumbSize = useStore((s) => s.setThumbSize);
+  const editZoom = useStore((s) => s.editZoom);
   const toggleProps = useStore((s) => s.toggleProps);
   const showProps = useStore((s) => s.showProps);
   const sidePanel = useStore((s) => s.sidePanel);
@@ -110,6 +114,21 @@ export default function Tray() {
           <span style={{ display: "flex", alignItems: "center", gap: 6 }} title="Thumbnail size">
             <PicturesIcon size={16} />
             <input className="slider" type="range" min={70} max={330} value={thumbSize} onChange={(e) => setThumbSize(Number(e.target.value))} />
+          </span>
+        )}
+        {view === "edit" && (
+          // Edit view: the zoom slider, as in Picasa (left fits the picture to the window).
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }} title={`Zoom: ${Math.round(editZoom * 100)}% of the fitted size (0 fits)`}>
+            <ZoomIcon size={16} />
+            <input
+              className="slider"
+              type="range"
+              min={0}
+              max={1000}
+              value={Math.round((Math.log(editZoom) / Math.log(MAX_ZOOM)) * 1000)}
+              onChange={(e) => useStore.getState().setEditZoom(Math.pow(MAX_ZOOM, Number(e.target.value) / 1000))}
+              onDoubleClick={() => useStore.getState().setEditZoom(1)}
+            />
           </span>
         )}
         <span className="tgroup">

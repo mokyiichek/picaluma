@@ -102,6 +102,8 @@ interface State {
   anchor: number | null;
   editId: number | null;
   thumbSize: number;
+  /** Edit view zoom as a multiple of the fitted size (1 = fit); the tray's zoom slider sets it. */
+  editZoom: number;
   showProps: boolean;
   /** Tools › Options › Special effects: animated transitions and smooth scrolling. */
   effects: boolean;
@@ -196,6 +198,7 @@ interface State {
   setEditId: (id: number) => void;
   endFlight: () => void;
   setThumbSize: (n: number) => void;
+  setEditZoom: (z: number) => void;
   toggleProps: () => void;
   toggleTags: () => void;
   togglePeople: () => void;
@@ -313,6 +316,7 @@ export const useStore = create<State>((set, get) => ({
   anchor: null,
   editId: null,
   thumbSize: Number(localStorageGet("thumbSize")) || 150,
+  editZoom: 1,
   showProps: localStorageGet("showProps") !== "0",
   effects: applyEffectsClass(localStorageGet("effects") !== "0"),
   optionsOpen: false,
@@ -545,6 +549,7 @@ export const useStore = create<State>((set, get) => ({
   setEditId: (id) => set({ editId: id, selected: new Set([id]), anchor: id }),
   endFlight: () => set({ flight: null }),
 
+  setEditZoom: (z) => set({ editZoom: Math.max(1, z) }),
   setThumbSize: (n) => {
     localStorageSet("thumbSize", String(n));
     set({ thumbSize: n });
