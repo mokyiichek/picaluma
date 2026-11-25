@@ -89,6 +89,11 @@ pub fn kind(path: &str) -> Kind {
   }
 }
 
+/// HEIC / HEIF / HIF, decoded by Picaluma itself (`sysimg::system_image` tries that first).
+pub fn is_heif(path: &str) -> bool {
+  HEIF.contains(&ext(Path::new(path)).as_str())
+}
+
 pub fn is_video(path: &str) -> bool {
   kind(path) == Kind::Video
 }

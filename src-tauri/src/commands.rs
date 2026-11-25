@@ -473,9 +473,28 @@ fn to_fts_query(q: &str) -> String {
   q.split(|c: char| c.is_whitespace() || c == '-' || c == '_' || c == '.')
     .map(|t| t.chars().filter(|c| c.is_alphanumeric()).collect::<String>())
     .filter(|t| !t.is_empty())
-    .map(|t| format!("\"{t}\"*"))
+    .map(|t| match file_type_alias(&t) {
+      // A file type word finds every extension of that type ("heif" finds .HEIC too).
+      Some(exts) => format!("(\"{t}\"* OR {})", exts.iter().map(|e| format!("\"{e}\"")).collect::<Vec<_>>().join(" OR ")),
+      None => format!("\"{t}\"*"),
+    })
     .collect::<Vec<_>>()
-    .join(" ")
+    .join(" AND ")
+}
+
+/// File type words typed in the search box and the extensions they stand for.
+fn file_type_alias(word: &str) -> Option<&'static [&'static str]> {
+  use crate::formats::{HEIF, RAW, VIDEO};
+  const JPEG: &[&str] = &["jpg", "jpeg", "jpe", "jfif"];
+  const TIFF: &[&str] = &["tif", "tiff"];
+  match word.to_lowercase().as_str() {
+    w if HEIF.contains(&w) => Some(HEIF),
+    w if JPEG.contains(&w) => Some(JPEG),
+    "tif" | "tiff" => Some(TIFF),
+    "raw" => Some(RAW),
+    "video" | "videos" | "movie" | "movies" => Some(VIDEO),
+    _ => None,
+  }
 }
 
 #[tauri::command(async)]
@@ -1099,4 +1118,21 @@ pub fn photo_labels(state: State<'_, AppState>, ids: Vec<i64>, kind: String) -> 
     }
   }
   Ok(out)
+}
+
+#[cfg(test)]
+mod search_tests {
+  use super::to_fts_query;
+
+  #[test]
+  fn file_type_words_find_every_extension_of_the_type() {
+    let c = rusqlite::Connection::open_in_memory().unwrap();
+    c.execute_batch("CREATE VIRTUAL TABLE f USING fts5(name); INSERT INTO f(name) VALUES ('IMG_1.HEIC'), ('b.heif'), ('c.jpg'), ('d.JPEG'), ('e.CR2'), ('heifer.png');").unwrap();
+    let n = |q: &str| -> i64 { c.query_row("SELECT COUNT(*) FROM f WHERE f MATCH ?1", [to_fts_query(q)], |r| r.get(0)).unwrap() };
+    assert_eq!(n("heif"), 3); // .HEIC, .heif and the "heifer" prefix
+    assert_eq!(n("heic"), 2);
+    assert_eq!(n("jpeg"), 2);
+    assert_eq!(n("raw"), 1);
+    assert_eq!(n("img heif"), 1);
+  }
 }

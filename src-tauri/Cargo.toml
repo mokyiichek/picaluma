@@ -1,6 +1,6 @@
 [package]
 name = "picaluma"
-version = "0.7.48"
+version = "0.7.49"
 description = "Picaluma — a fast, open-source photo organizer in the spirit of Picasa 3"
 authors = ["mokyiichek"]
 license = "Apache-2.0 OR MIT"
@@ -39,6 +39,9 @@ tract-onnx = "0.21"
 # Downloading the face models on request (verified by SHA-256).
 ureq = "2"
 sha2 = "0.10"
+# HEIC/HEIF decoded by Picaluma itself (pure Rust, no C libraries): iPhone photos open without
+# the Windows HEIF extension. The system decoder stays as the fallback.
+heif-oxide = "0.2"
 
 # Windows' own thumbnail engine (Explorer's): HEIC, AVIF, RAW and video thumbnails with the
 # codecs the PC has. Same version Tauri already uses, so nothing extra is compiled.

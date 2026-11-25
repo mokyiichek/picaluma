@@ -10,9 +10,31 @@
 
 use image::DynamicImage;
 
-/// A still picture decoded by the system, at most `edge` pixels on its longest side.
+/// A still picture decoded by the system, at most `edge` pixels on its longest side. HEIC/HEIF
+/// is decoded by Picaluma itself first, so it works without the system's HEIF codec.
 pub fn system_image(path: &str, edge: u32) -> Result<DynamicImage, String> {
+  if crate::formats::is_heif(path) {
+    match heif(path, edge) {
+      Ok(img) => return Ok(img),
+      Err(e) => log::info!("built-in HEIF decoder: {e}; trying the system's ({path})"),
+    }
+  }
   imp::image(path, edge)
+}
+
+/// HEIC/HEIF with the pure-Rust decoder: upright (irot/imir applied), display-ready sRGB.
+fn heif(path: &str, edge: u32) -> Result<DynamicImage, String> {
+  // One at a time: each decode already spreads its tiles over every core, and several at once
+  // would keep the CPU flat out (this PC shuts down on long full-load heat).
+  static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+  let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+  let d = heif_oxide::decode_file(path).map_err(|e| e.to_string())?;
+  let (w, h) = (d.width, d.height);
+  let img = match d.pixels {
+    heif_oxide::Pixels::Rgb8(ref v) => DynamicImage::ImageRgb8(image::RgbImage::from_raw(w, h, v.clone()).ok_or("bad HEIF size")?),
+    _ => DynamicImage::ImageRgba8(image::RgbaImage::from_raw(w, h, d.to_rgba8()).ok_or("bad HEIF size")?),
+  };
+  Ok(if w.max(h) > edge { img.resize(edge, edge, image::imageops::FilterType::Triangle) } else { img })
 }
 
 /// A representative frame of a video, at most `edge` pixels on its longest side.
@@ -170,5 +192,35 @@ mod imp {
       }
     }
     Err("no video frame (install ffmpeg for video thumbnails)".into())
+  }
+}
+
+#[cfg(test)]
+mod heif_tests {
+  /// `HEIF_SAMPLE=path\to\photo.heic cargo test --lib heif_tests -- --ignored --nocapture`
+  #[test]
+  #[ignore]
+  fn decodes_a_real_heic_without_the_system() {
+    let path = std::env::var("HEIF_SAMPLE").expect("set HEIF_SAMPLE");
+    let t = std::time::Instant::now();
+    let img = super::heif(&path, 720).expect("decodes");
+    println!("{}x{} in {:?}", img.width(), img.height(), t.elapsed());
+    assert!(img.width().max(img.height()) == 720);
+    // Same picture through the system decoder: same shape and colours (small differences from scaling).
+    let own = img.to_rgb8();
+    let sys = super::imp::image(&path, 720).expect("system decodes");
+    let sys = sys.resize_exact(own.width(), own.height(), image::imageops::FilterType::Triangle).to_rgb8();
+    let (w, h) = (sys.width().min(own.width()), sys.height().min(own.height()));
+    println!("system {}x{}", sys.width(), sys.height());
+    let mut diff = 0f64;
+    for y in 0..h {
+      for x in 0..w {
+        let (a, b) = (own.get_pixel(x, y), sys.get_pixel(x, y));
+        diff += (0..3).map(|c| (a[c] as f64 - b[c] as f64).abs()).sum::<f64>() / 3.0;
+      }
+    }
+    let mean = diff / (w * h) as f64;
+    println!("mean difference per channel: {mean:.1} / 255");
+    assert!(mean < 12.0);
   }
 }

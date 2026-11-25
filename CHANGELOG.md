@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.49 — 2026-11-25
+
+- **HEIC / HEIF built in.** iPhone photos (.heic, .heif, .hif) are now decoded by Picaluma itself, so they show without installing the Windows HEIF extension. The system's decoder is only used if Picaluma's own can't read a file.
+- **Search by file type.** Typing "heif" or "heic" finds every HEIC/HEIF/HIF picture; "jpeg" finds .jpg too, "raw" finds camera RAW files and "video" finds videos.
+
 ## 0.7.48 — 2026-11-25
 
 - Edit view zoom slider: the middle mark sits exactly at the centre, and it snaps to true actual size (one picture pixel per screen pixel, also on scaled displays).

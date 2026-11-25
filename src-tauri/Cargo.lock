@@ -1700,6 +1700,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "heif-oxide"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6839df9900736e00ea35c584ad9bd66cdf7d1d20a61dc6e733e4db28f26fa4da"
+dependencies = [
+ "rust_h265",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3152,11 +3162,12 @@ dependencies = [
 
 [[package]]
 name = "picaluma"
-version = "0.7.48"
+version = "0.7.49"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "env_logger",
+ "heif-oxide",
  "image",
  "imagesize",
  "jpeg-decoder",
@@ -3673,6 +3684,12 @@ dependencies = [
  "libsqlite3-sys",
  "smallvec",
 ]
+
+[[package]]
+name = "rust_h265"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673f6ab280648836c8a4b2bdaf4877532b2715e3fdcf6e37a2f46ebed41c8cfd"
 
 [[package]]
 name = "rustc-hash"
