@@ -593,7 +593,8 @@ function Stage({
   const wheelAcc = useRef(0);
   useEffect(() => setZoom(FIT), [id, tool != null]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => useStore.getState().setEditZoom(1), []);
-  const actual = real && box ? Math.max(real[0], real[1]) / Math.max(box.w, box.h) : 1;
+  // Actual size = one picture pixel per screen pixel (not per CSS pixel on a scaled display).
+  const actual = real && box ? Math.max(real[0], real[1]) / (Math.max(box.w, box.h) * (window.devicePixelRatio || 1)) : 1;
   useEffect(() => useStore.setState({ editActual: Math.max(1, actual) }), [actual]);
   const clampPan = useCallback(
     (zm: Zoom): Zoom => {

@@ -1429,8 +1429,14 @@ input[type="range"]:focus {
 /* Edit view zoom slider: a mark in the middle (actual size), where the slider snaps. */
 .zoom-slider {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  flex: none;
+  width: 120px;
+}
+.zoom-slider .slider {
+  width: 100%;
+  margin: 0;
 }
 .zoom-slider .zoom-mid {
   position: absolute;
