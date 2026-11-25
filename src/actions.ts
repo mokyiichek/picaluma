@@ -291,7 +291,9 @@ export async function savePictures(ids: number[]) {
   const failed: string[] = [];
   for (const id of edited) {
     try {
-      await api.savePicture(id, await renderJpegBase64(id, { maxEdge: 0, quality: 0.95 }));
+      // A PNG stays a PNG (it was written as JPEG data under the .png name).
+      const png = /\.png$/i.test((await api.getPhoto(id)).name);
+      await api.savePicture(id, await renderJpegBase64(id, { maxEdge: 0, quality: 0.95 }, png ? "image/png" : "image/jpeg"));
       bumpPhoto(id);
       aspectCache.delete(id); // a saved crop changes the picture's shape
       const edits = new Map(useStore.getState().edits);
@@ -311,7 +313,7 @@ export async function undoSave(ids: number[]) {
   const saved = await api.savedOriginals(ids);
   if (!saved.length) return void notify("These pictures haven't been saved, so there is no original to go back to.");
   const what = saved.length === 1 ? "this picture" : `these ${saved.length} pictures`;
-  if (!(await confirmAsk(`Go back to the original of ${what}?\n\nThe saved version is replaced by the original, and its edits come back so you can change them.`, { title: "Undo Save", ok: "Undo Save" }))) return;
+  if (!(await confirmAsk(`Go back to the original of ${what}?\n\nThe saved version is replaced by the original, and its edits come back as edits: Undo then takes them off one by one.`, { title: "Undo Save", ok: "Undo Save" }))) return;
   const failed: string[] = [];
   for (const id of saved) {
     try {

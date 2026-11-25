@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.51 — 2026-11-26
+
+- **Undo after Save in Edit view.** Once a picture is saved, the Undo button reads "Undo Save": it puts the original back with its effects as edits again, and Undo then takes them off one by one (for example "Undo Invert Colors"). Ctrl+Z (⌘Z) does the same.
+- **Saving a PNG keeps it a PNG.** Save used to write JPEG data into .png files.
+
 ## 0.7.50 — 2026-11-25
 
 - **Star and map pin inside the picture.** In the folder view, the star (bottom left) and the map pin (bottom right) now sit inside the picture's corners with a small margin, a little bigger and with a soft shadow so they show on any photo.

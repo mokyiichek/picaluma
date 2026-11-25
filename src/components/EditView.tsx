@@ -15,7 +15,7 @@ import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
 import { askText, notify } from "../dialogs";
 import { menuOwnsShortcut } from "../nativeMenu";
-import { savePictures } from "../actions";
+import { savePictures, undoSave } from "../actions";
 
 const STAGE_PAD = 14;
 /** Edit view zoom steps, as multiples of the fitted size. */
@@ -75,6 +75,18 @@ function useEditStack(id: number | null) {
   const setPhotoEdits = useStore((s) => s.setPhotoEdits);
   const [redo, setRedo] = useState<Edit[]>([]);
   useEffect(() => setRedo([]), [id]);
+  // A saved picture with nothing left to undo: Undo becomes Undo Save (the original comes back
+  // with its edits, which can then be undone one by one).
+  const [saved, setSaved] = useState(false);
+  const version = id != null ? thumbUrl(id) : "";
+  useEffect(() => {
+    if (id == null || edits.length) return setSaved(false);
+    let live = true;
+    api.savedOriginals([id]).then((r) => live && setSaved(r.includes(id)), () => live && setSaved(false));
+    return () => {
+      live = false;
+    };
+  }, [id, version, edits.length === 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const apply = useCallback(
     (op: string, v?: number, r?: CropRect) => {
@@ -96,24 +108,28 @@ function useEditStack(id: number | null) {
     [id, edits, setPhotoEdits],
   );
   const undo = useCallback(() => {
-    if (id == null || !edits.length) return;
+    if (id == null) return;
+    if (!edits.length) {
+      if (saved) void undoSave([id]);
+      return;
+    }
     setRedo((r) => [...r, edits[edits.length - 1]]);
     setPhotoEdits(id, edits.slice(0, -1));
-  }, [id, edits, setPhotoEdits]);
+  }, [id, edits, saved, setPhotoEdits]);
   const redoOne = useCallback(() => {
     if (id == null || !redo.length) return;
     setPhotoEdits(id, [...edits, redo[redo.length - 1]]);
     setRedo((r) => r.slice(0, -1));
   }, [id, edits, redo, setPhotoEdits]);
   // Edit › Undo / Redo in the menu bar reach this history, and grey out with it.
-  const canUndo = edits.length > 0;
+  const canUndo = edits.length > 0 || saved;
   const canRedo = redo.length > 0;
   useEffect(() => {
     editHistory.undo = undo;
     editHistory.redo = redoOne;
     useStore.setState({ editCanUndo: canUndo, editCanRedo: canRedo });
   }, [undo, redoOne, canUndo, canRedo]);
-  return { edits, apply, applyEdit, undo, redo: redoOne, canRedo };
+  return { edits, apply, applyEdit, undo, redo: redoOne, canRedo, canUndo, saved };
 }
 const EMPTY: Edit[] = [];
 
@@ -980,8 +996,8 @@ function EditPanel({
         </div>
       )}
       <div className="undo-row">
-        <button className="tbtn" disabled={!stack.edits.length} onClick={stack.undo} title="Ctrl+Z">
-          {stack.edits.length ? `Undo ${lastLabel}` : "Undo"}
+        <button className="tbtn" disabled={!stack.canUndo} onClick={stack.undo} title={stack.edits.length || !stack.saved ? "Ctrl+Z" : "Put the original back, with its edits (File › Undo Save)"}>
+          {stack.edits.length ? `Undo ${lastLabel}` : stack.saved ? "Undo Save" : "Undo"}
         </button>
         <button className="tbtn" disabled={!stack.canRedo} onClick={stack.redo} title="Ctrl+Y">
           Redo

@@ -46,8 +46,8 @@ export async function renderPicture(id: number, opts: Pick<RenderOptions, "maxEd
   return canvas;
 }
 
-export async function renderJpegBase64(id: number, opts: RenderOptions): Promise<string> {
-  const url = (await renderPicture(id, opts)).toDataURL("image/jpeg", opts.quality);
+export async function renderJpegBase64(id: number, opts: RenderOptions, type: "image/jpeg" | "image/png" = "image/jpeg"): Promise<string> {
+  const url = (await renderPicture(id, opts)).toDataURL(type, opts.quality);
   return url.slice(url.indexOf(",") + 1);
 }
 
