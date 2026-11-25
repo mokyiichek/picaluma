@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.48 — 2026-11-25
+
+- Edit view zoom slider: the middle mark sits exactly at the centre, and it snaps to true actual size (one picture pixel per screen pixel, also on scaled displays).
+- Deleting a picture in Edit view can now be undone there: Ctrl+Z (Edit › Undo Delete) brings it back from the Recycle Bin / Trash and it drops back in.
+
 ## 0.7.47 — 2026-11-25
 
 - Edit view zoom slider: a mark in the middle for actual size (100%), and the slider snaps to it when close.

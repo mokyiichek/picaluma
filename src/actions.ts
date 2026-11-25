@@ -41,6 +41,7 @@ function reportFailures(failed: string[]) {
  */
 export async function deletePhotos(ids: number[], permanent = false, onConfirmed?: () => void): Promise<boolean> {
   if (!ids.length) return false;
+  const fromEditor = useStore.getState().view === "edit";
   const one = ids.length === 1;
   const what = one ? "the selected picture" : `the ${ids.length} selected pictures`;
   const ok = permanent
@@ -86,6 +87,7 @@ export async function deletePhotos(ids: number[], permanent = false, onConfirmed
       },
       ids,
       leaves: "redo",
+      editor: fromEditor,
     });
   }
   // Like Picasa: offer to tidy up a folder the delete left empty.

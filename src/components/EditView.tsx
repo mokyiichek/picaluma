@@ -9,7 +9,7 @@ import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
 import { selectEditorSequence, useStore } from "../store";
-import { editHistory, editorPending } from "../undo";
+import { editHistory, editorPending, editorUndoDelete } from "../undo";
 import { ArrowIcon, BackIcon, BrushIcon, FixIcon, PlayIcon, SaveIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
@@ -221,7 +221,9 @@ export default function EditView({ active }: { active: boolean }) {
       else if (e.key === "ArrowRight" && i < seq.length - 1) s.setEditId(seq[i + 1]);
       else if (e.key === "ArrowLeft" && i > 0) s.setEditId(seq[i - 1]);
       else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "z") stack.redo(); // ⇧⌘Z on Mac
-      else if (mod(e) && e.key.toLowerCase() === "z") stack.undo();
+      else if (mod(e) && e.key.toLowerCase() === "z") {
+        if (!editorUndoDelete()) stack.undo();
+      }
       else if (mod(e) && e.key.toLowerCase() === "y") stack.redo();
       else return;
       e.preventDefault();

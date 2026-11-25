@@ -28,7 +28,7 @@ import {
   setPicturesHidden,
   revertEdits,
 } from "../actions";
-import { editHistory, redoLast, undoLast } from "../undo";
+import { canEditorUndoDelete, editHistory, editorUndoDelete, redoLast, undoLast } from "../undo";
 import { copyPicture, folderIds, trayIds } from "../share";
 import { checkForUpdates } from "./AboutDialog";
 import { openWebsite, reportProblem } from "./ShortcutsDialog";
@@ -108,7 +108,9 @@ function useMenus(): [string, MenuEntry[]][] {
       [
         // Greyed when there is nothing to undo / redo. Edit view: the picture's own edit history.
         s.view === "edit"
-          ? { label: "Undo", shortcut: "Ctrl+Z", action: s.editCanUndo ? () => editHistory.undo() : undefined }
+          ? canEditorUndoDelete()
+            ? { label: "Undo Delete", shortcut: "Ctrl+Z", action: () => void editorUndoDelete() }
+            : { label: "Undo", shortcut: "Ctrl+Z", action: s.editCanUndo ? () => editHistory.undo() : undefined }
           : { label: s.undoLabel ? `Undo ${s.undoLabel}` : "Undo", shortcut: "Ctrl+Z", action: s.undoLabel ? () => undoLast() : undefined },
         s.view === "edit"
           ? { label: "Redo", shortcut: isMac ? "Ctrl+Shift+Z" : "Ctrl+Y", action: s.editCanRedo ? () => editHistory.redo() : undefined }

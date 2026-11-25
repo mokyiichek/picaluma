@@ -8,7 +8,7 @@ import { useStore } from "./store";
 import { notify } from "./dialogs";
 import { EFFECTS, type Edit } from "./effects";
 import { thumbUrl } from "./api";
-import { afterUndoStep, beforeUndoStep } from "./deleteAnim";
+import { afterUndoStep, arrival, beforeUndoStep } from "./deleteAnim";
 
 export interface UndoAction {
   /** "Move", "Copy", "Hide", "Delete", "Rotate"… shown as "Undo Move" / "Redo Move". */
@@ -19,6 +19,8 @@ export interface UndoAction {
   ids?: number[];
   /** The step that takes them out of view (Delete, Hide: "redo"; Unhide: "undo"); the other brings them back. */
   leaves?: "undo" | "redo";
+  /** A Delete made in Edit view: Undo there brings the picture back (see `editorUndoDelete`). */
+  editor?: boolean;
 }
 
 const done: UndoAction[] = [];
@@ -67,6 +69,32 @@ async function step(from: UndoAction[], to: UndoAction[], which: "undo" | "redo"
 
 export const undoLast = () => step(done, undone, "undo");
 export const redoLast = () => step(undone, done, "redo");
+
+/**
+ * Edit view: after deleting a picture there, Ctrl+Z (Edit › Undo) brings it back, as long as the
+ * delete is the last thing done and the picture now showing hasn't been edited since.
+ */
+export function canEditorUndoDelete(): boolean {
+  const top = done[done.length - 1];
+  const s = useStore.getState();
+  if (!top?.editor || running || s.view !== "edit" || s.editId == null) return false;
+  return !visit || visit.id !== s.editId || same(visit.before, s.edits.get(s.editId) ?? []);
+}
+
+export function editorUndoDelete(): boolean {
+  if (!canEditorUndoDelete()) return false;
+  const id = done[done.length - 1].ids?.[0];
+  void step(done, undone, "undo").then(() => {
+    const s = useStore.getState();
+    if (id == null || s.view !== "edit" || !s.folderOfPhoto.has(id)) return;
+    if (s.effects) {
+      arrival.id = id;
+      arrival.land = true;
+    }
+    s.setEditId(id);
+  });
+  return true;
+}
 
 /** Edit view's own history (the current picture's edits), registered by the editor. */
 export const editHistory = { undo: () => {}, redo: () => {} };

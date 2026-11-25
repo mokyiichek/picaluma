@@ -9,7 +9,8 @@ import { useStore } from "./store";
 export const reflowBus = new EventTarget();
 
 /** Set just before Edit view moves on from a deleted picture: that picture zooms in. */
-export const arrival: { id: number | null } = { id: null };
+/** `land`: the picture drops in from above (Undo of a delete made in Edit view). */
+export const arrival: { id: number | null; land?: boolean } = { id: null };
 
 const on = () => useStore.getState().effects;
 
@@ -306,10 +307,27 @@ export function animateEditorDelete(next: number | null) {
 /** Edit view: the picture that replaces a deleted one grows into place. */
 export function zoomInArrival(el: HTMLElement, id: number) {
   if (arrival.id !== id) return;
+  const land = arrival.land;
   arrival.id = null;
+  arrival.land = false;
   // The box turns about its top-left corner (for the zoom from the grid): keep this one centred.
-  const dx = el.offsetWidth * 0.2;
-  const dy = el.offsetHeight * 0.2;
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  if (land) {
+    const at = (s: number, y: number) => `translate(${(w * (1 - s)) / 2}px, ${(h * (1 - s)) / 2 + y}px) scale(${s})`;
+    el.animate(
+      [
+        { opacity: 0, transform: `${at(0.45, -h * 0.55)} rotate(-6deg)` },
+        { opacity: 1, transform: `${at(1.04, -h * 0.03)} rotate(1deg)`, offset: 0.6 },
+        { opacity: 1, transform: `${at(0.99, h * 0.01)}`, offset: 0.82 },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: 520, easing: "cubic-bezier(0.25, 0.8, 0.3, 1)", fill: "backwards" },
+    );
+    return;
+  }
+  const dx = w * 0.2;
+  const dy = h * 0.2;
   el.animate(
     [
       { opacity: 0, transform: `translate(${dx}px, ${dy}px) scale(0.6)` },
