@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.50 — 2026-11-25
+
+- **Star and map pin inside the picture.** In the folder view, the star (bottom left) and the map pin (bottom right) now sit inside the picture's corners with a small margin, a little bigger and with a soft shadow so they show on any photo.
+
 ## 0.7.49 — 2026-11-25
 
 - **HEIC / HEIF built in.** iPhone photos (.heic, .heif, .hif) are now decoded by Picaluma itself, so they show without installing the Windows HEIF extension. The system's decoder is only used if Picaluma's own can't read a file.

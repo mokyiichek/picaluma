@@ -548,6 +548,19 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
     const s = Math.min(bw / nat.w, bh / nat.h);
     fit = { width: Math.round(nat.w * s), height: Math.round(nat.h * s), maxWidth: "none", maxHeight: "none" };
   }
+  // The star and the map pin sit inside the picture's bottom corners: measure where the picture is.
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [shown, setShown] = useState<{ w: number; h: number } | null>(null);
+  const measure = () => {
+    const img = imgRef.current;
+    if (!img || !img.complete || !img.naturalWidth || waiting) return setShown(null);
+    let bw = img.offsetWidth;
+    let bh = img.offsetHeight;
+    if (/rotate\((90|270|-90)deg\)/.test(String(style?.transform ?? ""))) [bw, bh] = [bh, bw];
+    setShown((old) => (bw && bh ? (old && old.w === bw && old.h === bh ? old : { w: bw, h: bh }) : null));
+  };
+  useLayoutEffect(measure, [src, w, h, loaded, waiting, fit?.width, fit?.height, style?.transform]); // eslint-disable-line react-hooks/exhaustive-deps
+  const corner = shown ? { x: Math.max(4, (w - shown.w) / 2 + 6), y: Math.max(4, (h - shown.h) / 2 + 6) } : null;
 
   return (
     <div
@@ -575,6 +588,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
       onDoubleClick={() => openWithFlight(id)}
     >
       <img
+        ref={imgRef}
         data-photo={id}
         src={src}
         className={loaded && !waiting ? "" : "loading"}
@@ -587,6 +601,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
           else setNat({ src: img.src, w: img.naturalWidth, h: img.naturalHeight });
           loadedThumbs.add(id);
           setLoaded(true);
+          measure();
         }}
         alt=""
       />
@@ -602,10 +617,10 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
           {caption}
         </span>
       )}
-      {starred && <StarIcon size={14} className="star" />}
+      {starred && <StarIcon size={18} className="star" style={corner ? { left: corner.x, bottom: corner.y } : undefined} />}
       {geo && (
-        <span className="badges">
-          <PinIcon />
+        <span className="badges" style={corner ? { right: corner.x, bottom: corner.y } : undefined}>
+          <PinIcon size={18} />
         </span>
       )}
     </div>

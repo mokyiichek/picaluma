@@ -827,6 +827,7 @@ input[type="range"]:focus {
   display: flex;
   gap: 2px;
   pointer-events: none;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.55));
 }
 .cell .play-badge {
   position: absolute;
@@ -887,6 +888,7 @@ input[type="range"]:focus {
   left: 14px;
   bottom: 12px;
   pointer-events: none;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.55));
 }
 .grid-empty {
   position: absolute;
