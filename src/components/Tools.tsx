@@ -297,7 +297,22 @@ export function StraightenBar({
 }) {
   return (
     <div className="straighten-bar">
-      <input type="range" min={-20} max={20} step={0.1} value={tool.angle} onChange={(e) => setTool({ ...tool, angle: Number(e.target.value) })} />
+      {/* A mark at 0 (level), where the slider snaps, as the zoom slider does at actual size. */}
+      <span className="mid-slider straighten-slider">
+        <input
+          type="range"
+          min={-20}
+          max={20}
+          step={0.1}
+          value={tool.angle}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setTool({ ...tool, angle: Math.abs(v) < 0.7 ? 0 : v });
+          }}
+          onDoubleClick={() => setTool({ ...tool, angle: 0 })}
+        />
+        <i className="zoom-mid" />
+      </span>
       <button className="dark-btn" onClick={onApply}>
         APPLY
       </button>

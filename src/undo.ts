@@ -105,6 +105,8 @@ export const editHistory = { undo: () => {}, redo: () => {} };
  */
 export function recordEdits(label: string, ids: number[], change: () => void) {
   const s = useStore.getState();
+  // In Edit view the picture's own history has it; it joins the library's when the editor moves on.
+  if (s.view === "edit" && ids.length === 1 && ids[0] === s.editId) return change();
   const before = new Map(ids.map((id) => [id, [...(s.edits.get(id) ?? [])]]));
   change();
   const now = useStore.getState();

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.52 — 2026-11-26
+
+- **Straighten slider has a centre mark** (level) and snaps to it when close, like the zoom slider. Double-click the slider to go back to level.
+- **Rotate buttons in the tray can be undone.** Rotating from the bottom tray wasn't recorded, so Undo took back something older instead. Every rotate is now "Undo Rotate".
+- **Edit view says what Undo / Redo will do**: Edit › "Undo Invert Colors", "Undo Save", "Undo Delete", "Redo Tint" and so on, as in the folder view.
+
 ## 0.7.51 — 2026-11-26
 
 - **Undo after Save in Edit view.** Once a picture is saved, the Undo button reads "Undo Save": it puts the original back with its effects as edits again, and Undo then takes them off one by one (for example "Undo Invert Colors"). Ctrl+Z (⌘Z) does the same.

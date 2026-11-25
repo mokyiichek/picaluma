@@ -1,6 +1,7 @@
 import { thumbUrl } from "../api";
 import { Edit } from "../effects";
 import { emailPhotos, exportPhotos, printPhotos } from "../actions";
+import { recordEdits } from "../undo";
 import { plural } from "../format";
 import { isPersonId, isProjectId, selectVisible, useStore } from "../store";
 import { ClearSelIcon, EmailIcon, ExportIcon, HoldIcon, InfoIcon, PersonIcon, PicturesIcon, PinIcon, PrintIcon, RotateIcon, StarIcon, TagIcon, ZoomIcon } from "./Icons";
@@ -59,12 +60,16 @@ export default function Tray() {
         : "";
   const canHold = [...selected].some((id) => !heldSet.has(id));
 
+  // Undoable like the menu's Rotate (Edit › Undo Rotate).
   const rotate = (deg: number) => {
     const s = useStore.getState();
-    for (const id of ids) {
-      const list: Edit[] = [...(s.edits.get(id) ?? []), { op: "rotate", v: deg }];
-      s.setPhotoEdits(id, list);
-    }
+    const pics = ids.filter((id) => !s.videos.has(id));
+    recordEdits("Rotate", pics, () => {
+      for (const id of pics) {
+        const list: Edit[] = [...(s.edits.get(id) ?? []), { op: "rotate", v: deg }];
+        s.setPhotoEdits(id, list);
+      }
+    });
   };
 
   return (

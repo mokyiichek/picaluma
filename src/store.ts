@@ -179,6 +179,9 @@ interface State {
   /** Edit view: whether its own history has something to undo / redo (greys the menu items). */
   editCanUndo: boolean;
   editCanRedo: boolean;
+  /** Edit view: what Edit › Undo / Redo would take back or do again ("Invert Colors", "Save"). */
+  editUndoLabel: string | null;
+  editRedoLabel: string | null;
   /** Help › About Picaluma. */
   aboutOpen: boolean;
   /** Open confirmation dialog (confirmAsk) and text prompt (askText). */
@@ -366,6 +369,8 @@ export const useStore = create<State>((set, get) => ({
   redoLabel: null,
   editCanUndo: false,
   editCanRedo: false,
+  editUndoLabel: null,
+  editRedoLabel: null,
   aboutOpen: false,
   confirmReq: null,
   textPrompt: null,

@@ -127,8 +127,14 @@ function useEditStack(id: number | null) {
   useEffect(() => {
     editHistory.undo = undo;
     editHistory.redo = redoOne;
-    useStore.setState({ editCanUndo: canUndo, editCanRedo: canRedo });
-  }, [undo, redoOne, canUndo, canRedo]);
+    // Edit › Undo / Redo name what they do ("Undo Invert Colors", "Undo Save").
+    useStore.setState({
+      editCanUndo: canUndo,
+      editCanRedo: canRedo,
+      editUndoLabel: edits.length ? labelFor(edits[edits.length - 1]) : saved ? "Save" : null,
+      editRedoLabel: redo.length ? labelFor(redo[redo.length - 1]) : null,
+    });
+  }, [undo, redoOne, canUndo, canRedo, edits, redo, saved]);
   return { edits, apply, applyEdit, undo, redo: redoOne, canRedo, canUndo, saved };
 }
 const EMPTY: Edit[] = [];

@@ -110,10 +110,10 @@ function useMenus(): [string, MenuEntry[]][] {
         s.view === "edit"
           ? canEditorUndoDelete()
             ? { label: "Undo Delete", shortcut: "Ctrl+Z", action: () => void editorUndoDelete() }
-            : { label: "Undo", shortcut: "Ctrl+Z", action: s.editCanUndo ? () => editHistory.undo() : undefined }
+            : { label: s.editUndoLabel ? `Undo ${s.editUndoLabel}` : "Undo", shortcut: "Ctrl+Z", action: s.editCanUndo ? () => editHistory.undo() : undefined }
           : { label: s.undoLabel ? `Undo ${s.undoLabel}` : "Undo", shortcut: "Ctrl+Z", action: s.undoLabel ? () => undoLast() : undefined },
         s.view === "edit"
-          ? { label: "Redo", shortcut: isMac ? "Ctrl+Shift+Z" : "Ctrl+Y", action: s.editCanRedo ? () => editHistory.redo() : undefined }
+          ? { label: s.editRedoLabel ? `Redo ${s.editRedoLabel}` : "Redo", shortcut: isMac ? "Ctrl+Shift+Z" : "Ctrl+Y", action: s.editCanRedo ? () => editHistory.redo() : undefined }
           : { label: s.redoLabel ? `Redo ${s.redoLabel}` : "Redo", shortcut: isMac ? "Ctrl+Shift+Z" : "Ctrl+Y", action: s.redoLabel ? () => redoLast() : undefined },
         sep,
         { label: "Copy Picture", shortcut: "Ctrl+C", action: one != null ? () => copyPicture(one) : undefined },
@@ -193,8 +193,8 @@ function useMenus(): [string, MenuEntry[]][] {
       [
         { label: "View and Edit", shortcut: "Ctrl+3", action: one != null ? () => s.openEditor(one) : undefined },
         sep,
-        { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: targets.length ? () => batchEdit(targets, "rotate", 90) : undefined },
-        { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: targets.length ? () => batchEdit(targets, "rotate", -90) : undefined },
+        { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: targets.length ? () => batchEdit(targets, "rotate", 90, "Rotate") : undefined },
+        { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: targets.length ? () => batchEdit(targets, "rotate", -90, "Rotate") : undefined },
         {
           label: "Batch Edit",
           submenu: BATCH.map(([label, op]) => ({ label, action: selected.length ? () => batchEdit(selected, op) : undefined })),
