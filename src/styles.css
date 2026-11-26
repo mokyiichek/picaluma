@@ -1066,6 +1066,33 @@ input[type="range"]:focus {
   cursor: pointer;
 }
 
+/* ---------- Hover tooltips (components/Tooltip.tsx) ---------- */
+.app-tip {
+  position: fixed;
+  z-index: 100000;
+  max-width: 270px;
+  padding: 4px 8px 5px;
+  background: #ffffe6;
+  color: #1e1e1e;
+  border: 1px solid #8c8c7c;
+  border-radius: 2px;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre-line;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.app-tip.in {
+  opacity: 1;
+}
+.app-tip b {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+
 /* ---------- Special effects off (Tools › Options) ---------- */
 .no-effects *,
 .no-effects *::before,

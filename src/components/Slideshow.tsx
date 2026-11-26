@@ -147,13 +147,13 @@ export default function Slideshow() {
       {caption && <div className="slide-caption">{caption}</div>}
       {music && <audio ref={audio} src={music} autoPlay loop />}
       <div className="bar" onClick={(e) => e.stopPropagation()}>
-        <button onClick={() => setIndex(Math.max(0, show.index - 1))}>⏮</button>
-        <button onClick={() => setPlaying((p) => !p)}>{playing ? "⏸" : "▶"}</button>
-        <button onClick={() => setIndex(Math.min(show.photos.length - 1, show.index + 1))}>⏭</button>
+        <button title="Previous picture (←)" onClick={() => setIndex(Math.max(0, show.index - 1))}>⏮</button>
+        <button title={playing ? "Pause (Space)" : "Play (Space)"} onClick={() => setPlaying((p) => !p)}>{playing ? "⏸" : "▶"}</button>
+        <button title="Next picture (→)" onClick={() => setIndex(Math.min(show.photos.length - 1, show.index + 1))}>⏭</button>
         <span style={{ fontSize: 12, minWidth: 70, textAlign: "center" }}>
           {show.index + 1} / {show.photos.length}
         </span>
-        <button onClick={stop}>✕</button>
+        <button title="Exit slideshow (Esc)" onClick={stop}>✕</button>
       </div>
     </div>
   );

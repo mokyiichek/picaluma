@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.54 — 2026-11-26
+
+- **Tooltips on every button**: hovering any button or control shows a pale tooltip box, with a bold heading and a short description for the Edit view's fixes and effects ("I'm Feeling Lucky — Fix the lighting and colour in one click."). Moving on to the next button shows its tooltip at once. Disabled "coming soon" buttons show theirs too.
+- Slideshow buttons have tooltips.
+
 ## 0.7.53 — 2026-11-26
 
 - **Straighten slider mark is centred on the Mac.** The mark sat off the track's middle, and snapping to level only caught within 0.7°. It now snaps within 1.2° while dragging; the arrow keys still step by 0.1°.

@@ -16,6 +16,7 @@ import { usePhoto } from "./PropertiesPanel";
 import { usePhotoFaces } from "./PeoplePanel";
 import { askText, notify } from "../dialogs";
 import { menuOwnsShortcut } from "../nativeMenu";
+import { EFFECT_TIPS } from "../tips";
 import { savePictures, undoSave } from "../actions";
 
 const STAGE_PAD = 14;
@@ -1016,7 +1017,9 @@ function EditPanel({
                   key={e}
                   className="fix-btn"
                   disabled={def.todo || disabled}
-                  title={def.todo ? `${def.label} — coming soon` : def.label}
+                  title={def.todo ? `${def.label}
+Coming soon` : EFFECT_TIPS[e] ? `${def.label}
+${EFFECT_TIPS[e]}` : def.label}
                   onClick={() => onEffect(e)}
                 >
                   <span className="ico">

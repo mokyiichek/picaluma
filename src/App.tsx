@@ -40,6 +40,7 @@ import ShortcutsDialog from "./components/ShortcutsDialog";
 import AboutDialog from "./components/AboutDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import TextPrompt from "./components/TextPrompt";
+import Tooltip from "./components/Tooltip";
 import ContextMenu, { rotateSelected } from "./components/ContextMenu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -349,6 +350,7 @@ export default function App() {
       <ShortcutsDialog />
       <AboutDialog />
       <ConfirmDialog />
+      <Tooltip />
       <TextPrompt />
     </div>
   );
