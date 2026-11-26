@@ -568,24 +568,43 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   };
   useLayoutEffect(measure, [src, w, h, loaded, waiting, fit?.width, fit?.height, style?.transform]); // eslint-disable-line react-hooks/exhaustive-deps
   const corner = shown ? { x: Math.max(4, (w - shown.w) / 2 + 6), y: Math.max(4, (h - shown.h) / 2 + 6) } : null;
-  // Rotating (and its Undo / Redo) turns the picture, once its new rendering is on screen.
+  // Rotating (and its Undo / Redo) turns the picture. A rendered thumbnail (a crop, pixel effects)
+  // is drawn again for the new rotation: until it is, the old one turns and stays turned.
   const rot = useStore((s) => rotationOf(s.edits.get(id)));
   const lastRot = useRef(rot);
-  const turning = useRef<{ turn: number; src?: string; at: number } | null>(null);
+  const lastSrc = useRef(src);
+  const hold = useRef<{ anim: Animation; src: string; turn: number; k: number } | null>(null);
   useLayoutEffect(() => {
-    if (rot !== lastRot.current) {
-      const turn = turnBetween(lastRot.current, rot);
-      lastRot.current = rot;
-      turning.current = turn ? { turn, src: baked ? src : undefined, at: performance.now() } : null;
-    }
-    const t = turning.current;
     const img = imgRef.current;
-    if (!t || !img || waiting || !src) return;
-    if (performance.now() - t.at > 1500) return void (turning.current = null);
-    if (baked && src === t.src) return; // the old rendering is still shown
-    turning.current = null;
-    turnIn(img, t.turn);
-  }, [rot, src, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+    const before = lastSrc.current;
+    lastSrc.current = src;
+    if (hold.current && (src !== hold.current.src || !baked)) {
+      hold.current.anim.cancel();
+      hold.current = null;
+    }
+    if (rot === lastRot.current) return;
+    const turn = turnBetween(lastRot.current, rot);
+    lastRot.current = rot;
+    if (!img || !src || waiting || !turn) return;
+    if (!(baked && src === before)) return turnIn(img, turn);
+    // The old rendering is still up.
+    const from = hold.current?.turn ?? 0;
+    const fromK = hold.current?.k ?? 1;
+    hold.current?.anim.cancel();
+    const to = from + turn;
+    const swap = Math.abs(to) % 180 === 90;
+    // Turned sideways, it must still fit its cell.
+    const k = swap ? Math.min(1, (w - 22) / Math.max(1, img.offsetHeight), (h - 22) / Math.max(1, img.offsetWidth)) : 1;
+    const ms = useStore.getState().effects ? 230 : 0;
+    const anim = img.animate(
+      [
+        { rotate: `${from}deg`, scale: `${fromK}` },
+        { rotate: `${to}deg`, scale: `${k}` },
+      ],
+      { duration: ms, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "forwards" },
+    );
+    hold.current = { anim, src, turn: to, k };
+  }, [rot, src, waiting, baked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div

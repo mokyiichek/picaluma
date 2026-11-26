@@ -601,17 +601,25 @@ function Stage({
     if (active && box && boxRef.current && !slideInArrival(boxRef.current, id)) zoomInArrival(boxRef.current, id);
   }, [id, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Rotating (and its Undo / Redo) turns the picture into its new place.
+  // Rotating (and its Undo / Redo) turns the picture into its new place. A canvas rendering (crop,
+  // pixel effects) is drawn again for the new rotation; until it is, the old one is shown turned.
   const lastTurn = useRef<{ id: number; rot: number; w: number; h: number } | null>(null);
+  const [held, setHeld] = useState<{ url: string; turn: number } | null>(null);
+  const lastShowing = useRef<string | null>(null);
   useLayoutEffect(() => {
     const prev = lastTurn.current;
     if (!box) return;
     lastTurn.current = { id, rot: r.rotate, w: box.w, h: box.h };
-    if (!active || !prev || prev.id !== id || prev.rot === r.rotate || !boxRef.current || hasPixelOps(shown)) return;
+    if (!active || !prev || prev.id !== id || prev.rot === r.rotate || !boxRef.current) return;
     const turn = turnBetween(prev.rot, r.rotate);
+    const showing = preview ?? standIn;
+    if (showing && showing === lastShowing.current) setHeld((h) => ({ url: showing, turn: (h && h.url === showing ? h.turn : 0) + turn }));
     // Turned back by the same angle, the new box must look as big as the old one did.
     turnIn(boxRef.current, turn, Math.abs(turn) === 90 ? prev.w / box.h : prev.w / box.w);
   }, [id, r.rotate, box, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    lastShowing.current = preview ?? standIn;
+  });
 
   // Zoom (↑/↓, Page Up/Down, +/−, wheel; 0 fits, 1 is actual size) and drag to pan. Tools work on the fitted view.
   // The zoom level lives in the store (the tray's zoom slider sets it, as in Picasa); the pan is here.
@@ -758,6 +766,20 @@ function Stage({
   // Until that drawing is ready, the edited thumbnail stands in (never the uncropped picture).
   const standIn = !preview && hasPixelOps(shown) && shown === edits && !r.frame ? edited : null;
   const frameClass = r.frame ? ` frame-${r.frame}` : "";
+  // The old rendering, turned, while the new rotation's is being drawn.
+  const hold = held && held.url === (preview ?? standIn) && ((held.turn % 360) + 360) % 360 !== 0 ? held : null;
+  const swapHeld = hold != null && Math.abs(hold.turn) % 180 === 90;
+  const heldStyle: React.CSSProperties | undefined =
+    hold && box
+      ? {
+          inset: "auto",
+          left: "50%",
+          top: "50%",
+          width: swapHeld ? box.h : box.w,
+          height: swapHeld ? box.w : box.h,
+          transform: `translate(-50%, -50%) rotate(${hold.turn}deg)`,
+        }
+      : undefined;
   const innerW = box ? (rot90 ? box.h : box.w) : 0;
   const innerH = box ? (rot90 ? box.w : box.h) : 0;
   const inner: React.CSSProperties = box
@@ -816,7 +838,7 @@ function Stage({
         <div ref={boxRef} className={`edit-photo${frameClass}`} style={{ left: box.x, top: box.y, width: box.w, height: box.h, transformOrigin: "0 0" }}>
           {preview || standIn ? (
             // Pixel effects: a canvas rendering of the whole edit stack (crop, rotation and filters included).
-            <img className="pixel-preview" src={(preview ?? standIn)!} alt="" draggable={false} />
+            <img className="pixel-preview" src={(preview ?? standIn)!} style={heldStyle} alt="" draggable={false} />
           ) : (
             <div style={inner}>
               <img src={thumbUrl(id)} style={imgStyle} alt="" draggable={false} />
