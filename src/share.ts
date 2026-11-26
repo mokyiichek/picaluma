@@ -3,7 +3,7 @@
 import { stripGps } from "./prefs";
 import { api, Photo, photoUrl } from "./api";
 import { renderToCanvas } from "./effects";
-import { selectVisible, useStore } from "./store";
+import { isPicture, selectVisible, useStore } from "./store";
 import { notify } from "./dialogs";
 
 export interface RenderOptions {
@@ -53,7 +53,7 @@ export async function renderJpegBase64(id: number, opts: RenderOptions, type: "i
 
 /** Writes the picture into dir as JPEG, or copies the original untouched when nothing would change it. Movies are always copied as they are. */
 export async function writePicture(photo: Photo, dir: string, opts: RenderOptions): Promise<string> {
-  if (useStore.getState().videos.has(photo.id)) return api.copyInto(photo.path, dir);
+  if (!isPicture(useStore.getState(), photo.id)) return api.copyInto(photo.path, dir);
   const noGps = stripGps();
   const isJpeg = /\.jpe?g$/i.test(photo.name);
   const untouched = !hasEdits(photo.id) && !opts.watermark?.trim();

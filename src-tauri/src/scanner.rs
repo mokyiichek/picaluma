@@ -820,6 +820,14 @@ fn index_file(p: &Pending) -> Meta {
   if file.take(HEADER_BYTES).read_to_end(&mut bytes).is_err() {
     return meta;
   }
+  if formats::is_pdf(&p.path) {
+    // The first page's size at screen resolution (96 per inch), for the grid's shape.
+    if let Some(&(w, h)) = crate::pdf::page_sizes(&p.path).ok().as_ref().and_then(|s| s.first()) {
+      meta.width = (w * 96.0 / 72.0).round() as i64;
+      meta.height = (h * 96.0 / 72.0).round() as i64;
+    }
+    return meta;
+  }
   if formats::is_video(&p.path) {
     // MP4/MOV keep their 'moov' header at the start or, when not "fast start", at the end.
     let (mut taken, mut w, mut h) = formats::video_info(&bytes);
@@ -868,6 +876,14 @@ pub(crate) fn exif_properties(path: &str) -> Option<Vec<(String, String)>> {
   }
   if formats::is_video(path) {
     return Some(Vec::new());
+  }
+  if formats::is_pdf(path) {
+    let sizes = crate::pdf::page_sizes(path).ok()?;
+    let mut rows = vec![("Pages".to_string(), sizes.len().to_string())];
+    if let Some(&(w, h)) = sizes.first() {
+      rows.push(("Page Size".into(), format!("{:.0} × {:.0} mm", w / 72.0 * 25.4, h / 72.0 * 25.4)));
+    }
+    return Some(rows);
   }
   let mut bytes = Vec::with_capacity(HEADER_BYTES as usize);
   std::fs::File::open(p).ok()?.take(HEADER_BYTES).read_to_end(&mut bytes).ok()?;

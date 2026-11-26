@@ -144,6 +144,7 @@ pub(crate) fn cache_size(dir: &Path) -> (u64, u64) {
 fn make_thumb(path: &str, orientation_hint: i64) -> Result<Vec<u8>, String> {
   match formats::kind(path) {
     Kind::Video => encode_thumb(sysimg::video_frame(path, THUMB_EDGE * 2)?, 1),
+    Kind::Pdf => encode_thumb(crate::pdf::render_page(path, 0, THUMB_EDGE * 2)?, 1),
     Kind::System => encode_thumb(sysimg::system_image(path, THUMB_EDGE * 2)?, 1),
     Kind::Raw => {
       let src = std::fs::read(path).map_err(|e| e.to_string())?;
@@ -314,6 +315,9 @@ pub fn handle_photo(app: &AppHandle, req: &Request<Vec<u8>>) -> Response<Vec<u8>
   let Some(photo) = lookup(app, id) else { return not_found() };
   if formats::is_video(&photo.path) {
     return video_response(&photo.path, req);
+  }
+  if formats::is_pdf(&photo.path) {
+    return pdf_page_response(&photo.path, req);
   }
   if needs_display_conversion(&photo.path) {
     let dir = app.state::<AppState>().thumb_dir.clone();
@@ -583,6 +587,26 @@ fn video_mime(path: &str) -> &'static str {
     "flac" => "audio/flac",
     "wma" => "audio/x-ms-wma",
     _ => "video/mp4",
+  }
+}
+
+/// `photo://localhost/<id>?page=<n>&edge=<px>`: a PDF page (from 0) drawn to fit `edge` pixels.
+fn pdf_page_response(path: &str, req: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+  let q = req.uri().query().unwrap_or("");
+  let num = |k: &str| q.split('&').find_map(|kv| kv.strip_prefix(k)?.strip_prefix('=')?.parse::<u32>().ok());
+  let page = num("page").unwrap_or(0) as usize;
+  let edge = num("edge").unwrap_or(1600);
+  let img = match crate::pdf::render_page(path, page, edge) {
+    Ok(i) => i,
+    Err(e) => {
+      log::warn!("pdf {path} page {page}: {e}");
+      return not_found();
+    }
+  };
+  let mut out = Vec::new();
+  match image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 90).encode_image(&img.to_rgb8()) {
+    Ok(()) => image_response(out, "image/jpeg"),
+    Err(_) => not_found(),
   }
 }
 

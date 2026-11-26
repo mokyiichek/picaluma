@@ -6,7 +6,7 @@ import { stripGps } from "./prefs";
 import { aspectCache } from "./aspect";
 import { parseEdits } from "./effects";
 import { hasEdits, joinPath, renderJpegBase64 } from "./share";
-import { editsSaved, noteSavedEdits, selectVisible, useStore } from "./store";
+import { editsSaved, isPicture, noteSavedEdits, selectVisible, useStore } from "./store";
 import { binName } from "./platform";
 import { askText, confirmAsk, notify, NO_CONFIRM_DELETE, NO_CONFIRM_MOVE, NO_CONFIRM_REMOVE } from "./dialogs";
 import { pushUndo, recordEdits } from "./undo";
@@ -23,8 +23,8 @@ export function emailPhotos(ids: number[]) {
 /** Print screen, optionally starting on a layout ("index" = contact sheet, "poster"). */
 export function printPhotos(ids: number[], layout?: "index" | "poster") {
   const s = useStore.getState();
-  const pictures = ids.filter((id) => !s.videos.has(id));
-  if (!pictures.length) return void notify("Movies can't be printed. Select some pictures to print.");
+  const pictures = ids.filter((id) => isPicture(s, id));
+  if (!pictures.length) return void notify("Movies and PDFs can't be printed here. Select some pictures to print.");
   s.setPrint({ ids: pictures, layout });
 }
 
@@ -362,14 +362,14 @@ export function pasteEffects(ids: number[]) {
   const s = useStore.getState();
   const copied = s.copiedEdits;
   if (!copied) return;
-  const pics = ids.filter((id) => !s.videos.has(id));
+  const pics = ids.filter((id) => isPicture(s, id));
   recordEdits("Paste Effects", pics, () => pics.forEach((id) => s.setPhotoEdits(id, [...copied])));
 }
 
 /** Picture › Batch Edit: apply one effect to every selected picture. */
 export function batchEdit(ids: number[], op: string, v?: number, label = "Batch Edit") {
   const s = useStore.getState();
-  const pics = ids.filter((id) => !s.videos.has(id));
+  const pics = ids.filter((id) => isPicture(s, id));
   recordEdits(label, pics, () => pics.forEach((id) => s.setPhotoEdits(id, [...(s.edits.get(id) ?? []), v == null ? { op } : { op, v }])));
 }
 

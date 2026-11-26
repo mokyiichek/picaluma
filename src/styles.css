@@ -3866,3 +3866,120 @@ body.dragging-photos.copy-drag * {
 .compare-modes {
   gap: var(--btn-gap);
 }
+
+/* ---------- PDF documents ---------- */
+.cell .pdf-badge {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  padding: 1px 4px;
+  font: 700 9px/1.35 system-ui, sans-serif;
+  letter-spacing: 0.3px;
+  color: #fff;
+  background: #c8382c;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+.pdf-panel {
+  flex: none;
+}
+.pdf-thumbs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid #d6d6d6;
+}
+.pdf-thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 0 4px;
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: #555;
+  cursor: pointer;
+}
+.pdf-thumb img {
+  max-width: 120px;
+  max-height: 140px;
+  background: #fff;
+  border: 2px solid transparent;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.35);
+}
+.pdf-thumb:hover img {
+  border-color: #b9d3ec;
+}
+.pdf-thumb.cur img {
+  border-color: var(--sel-ring);
+}
+.pdf-thumb.cur span {
+  color: #1d5c96;
+  font-weight: 600;
+}
+.pdf-stage {
+  display: flex;
+  flex-direction: column;
+}
+.pdf-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.pdf-scroll.zoomed {
+  overflow: auto;
+  cursor: grab;
+}
+.pdf-scroll.dragging {
+  cursor: grabbing;
+}
+.pdf-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pdf-page {
+  position: relative;
+  flex: none;
+  background: #fff;
+  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.5);
+}
+.pdf-page img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+.pdf-scroll .video-fail {
+  height: 100%;
+}
+.pdf-pagebar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--btn-gap);
+  padding: 6px 0;
+  color: #fff;
+}
+.pdf-pagebar span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 8px;
+}
+.pdf-pagebar input {
+  width: 44px;
+  height: var(--btn-h);
+  text-align: center;
+  border: 1px solid #9fa9b4;
+  border-radius: 2px;
+}

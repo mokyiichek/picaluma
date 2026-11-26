@@ -541,6 +541,7 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   const starred = useStore((s) => s.starred.has(id));
   const geo = useStore((s) => s.geotagged.has(id));
   const video = useStore((s) => s.videos.has(id));
+  const pdf = useStore((s) => s.pdfs.has(id));
   const hidden = useStore((s) => s.hidden.has(id));
   const caption = useThumbCaption(id);
   const clickPhoto = useStore((s) => s.clickPhoto);
@@ -654,6 +655,11 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
           <svg viewBox="0 0 24 24" width="12" height="12">
             <path d="M8 5v14l11-7z" fill="#fff" />
           </svg>
+        </span>
+      )}
+      {pdf && (
+        <span className="pdf-badge" style={corner ? { right: corner.x, top: corner.y } : undefined}>
+          PDF
         </span>
       )}
       {caption && (

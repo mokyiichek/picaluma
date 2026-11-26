@@ -249,7 +249,7 @@ fn pending(conn: &Connection, priority: i64) -> rusqlite::Result<Vec<(i64, Strin
   let mut out = Vec::new();
   for (id, path, cloud) in rows {
     // Movies and online-only cloud files (reading them would download them) are skipped.
-    if cloud != 0 || crate::formats::is_video(&path) {
+    if cloud != 0 || crate::formats::is_document_or_movie(&path) {
       conn.execute("UPDATE photos SET faces_done = 2 WHERE id = ?1", [id])?;
     } else {
       out.push((id, path));

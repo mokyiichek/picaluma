@@ -100,6 +100,8 @@ export interface Snapshot {
   totalPhotos: number;
   libraryId: string;
   videos: number[];
+  /** PDF documents. */
+  pdfs?: number[];
   hidden: number[];
   recent: number[];
   projects: Project[];
@@ -233,6 +235,8 @@ const stamp = (id: number) => {
 };
 export const thumbUrl = (id: number) => `${THUMB}${id}?l=${libraryTag}${stamp(id)}${ver(id)}`;
 export const photoUrl = (id: number) => `${PHOTO}${id}?l=${libraryTag}${stamp(id)}${ver(id)}`;
+/** A PDF page (from 0) drawn to fit `edge` pixels. */
+export const pdfPageUrl = (id: number, page: number, edge: number) => `${PHOTO}${id}?l=${libraryTag}${stamp(id)}${ver(id)}&page=${page}&edge=${edge}`;
 export const faceUrl = (id: number) => `${FACE}${id}?l=${libraryTag}`;
 /** A folder's slideshow music (Folder Properties). */
 export const musicUrl = (folderId: number) => `${PHOTO}music/${folderId}?l=${libraryTag}&t=${Date.now()}`;
@@ -266,6 +270,8 @@ export const api = {
   importPicasa: () => invoke<number>("import_picasa_scanlist"),
   search: (query: string) => invoke<{ ids: number[]; seconds: number }>("search", { query }),
   getPhoto: (id: number) => invoke<Photo>("get_photo", { id }),
+  /** A PDF's page sizes in points: [width, height] per page. */
+  pdfPages: (id: number) => invoke<[number, number][]>("pdf_pages", { id }),
   /** Every EXIF field of the file, for the Properties panel. */
   photoProperties: (id: number) => invoke<[string, string][]>("photo_properties", { id }),
   updateCheck: () => invoke<{ current: string; latest: string; newer: boolean; canInstall: boolean }>("update_check"),
@@ -373,6 +379,7 @@ export interface FileTypes {
   psd: boolean;
   tga: boolean;
   videos: boolean;
+  pdf: boolean;
 }
 
 export interface OpResult {

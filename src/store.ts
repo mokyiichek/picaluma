@@ -62,6 +62,8 @@ interface State {
   geotagged: Set<number>;
   /** Videos in the library (play badge, player instead of the editor). */
   videos: Set<number>;
+  /** PDF documents (opened in the page viewer; not edited, printed or shown in slideshows). */
+  pdfs: Set<number>;
   /** Photos with faces (Faces filter). */
   faced: Set<number>;
   /** Picture › Hide, and View › Hidden Pictures. */
@@ -288,6 +290,11 @@ export const editsSaved = () => editWrites;
 /** Edits that Save or Undo Save just changed in the database. */
 export const noteSavedEdits = (id: number, list: Edit[]) => recentEdits.set(id, { list, savedAt: ++clock });
 
+/** A picture (not a movie or a PDF): something that can be edited, printed or shown in a slideshow. */
+export function isPicture(s: { videos: Set<number>; pdfs: Set<number> }, id: number): boolean {
+  return !s.videos.has(id) && !s.pdfs.has(id);
+}
+
 export const useStore = create<State>((set, get) => ({
   snapshot: null,
   folderById: new Map(),
@@ -295,6 +302,7 @@ export const useStore = create<State>((set, get) => ({
   starred: new Set(),
   geotagged: new Set(),
   videos: new Set(),
+  pdfs: new Set(),
   faced: new Set(),
   hidden: new Set(),
   showHidden: false,
@@ -434,6 +442,7 @@ export const useStore = create<State>((set, get) => ({
       starred: new Set(snapshot.starred),
       geotagged: new Set(snapshot.geotagged),
       videos: new Set(snapshot.videos ?? []),
+      pdfs: new Set(snapshot.pdfs ?? []),
       faced: new Set(snapshot.faced ?? []),
       hidden: new Set(snapshot.hidden ?? []),
       recent: new Set(snapshot.recent ?? []),
@@ -759,10 +768,10 @@ export const useStore = create<State>((set, get) => ({
   },
 
   startSlideshow: (photos, index = 0) => {
-    // Slideshows show pictures only; movies are skipped.
-    const videos = get().videos;
+    // Slideshows show pictures only; movies and PDFs are skipped.
+    const s0 = get();
     const start = photos[index];
-    let pics = videos.size ? photos.filter((p) => !videos.has(p)) : photos;
+    let pics = s0.videos.size || s0.pdfs.size ? photos.filter((p) => isPicture(s0, p)) : photos;
     // Options › Slideshow › Shuffle: random order, starting with the picture you chose.
     if (loadSlideshowOpts().shuffle && pics.length > 2) {
       const rest = pics.filter((p) => p !== start);

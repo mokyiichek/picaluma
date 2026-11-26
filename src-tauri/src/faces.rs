@@ -340,6 +340,7 @@ pub fn load_upright(path: &str, edge: u32) -> Result<RgbImage, String> {
   use crate::formats::{self, Kind};
   let img = match formats::kind(path) {
     Kind::Video => return Err("movie".into()),
+    Kind::Pdf => return Err("document".into()),
     Kind::System => crate::sysimg::system_image(path, edge)?,
     kind => {
       let src = std::fs::read(path).map_err(|e| e.to_string())?;

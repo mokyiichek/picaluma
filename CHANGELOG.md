@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.57 — 2026-11-27
+
+- PDF files are now found in your folders and shown in the library, with page 1 as the thumbnail and a small PDF label.
+- Double-click a PDF to read it: every page as a thumbnail down the left, the page fitted to the window, and a page bar (Page 3 of 12) underneath.
+- Turn pages with the arrows, Page Up / Page Down, Space, Home / End, the mouse wheel, or by clicking a page on the left. ← / → still go to the next file.
+- Zoom with the zoom slider, ↑ / ↓, + / −, or Ctrl+wheel; the page is drawn sharp at every zoom. Drag to move around a zoomed page.
+- Pages slide in when you turn them (off with Special effects).
+- Searching "pdf" shows only PDFs.
+- PDFs are left out of edits, printing, slideshows, movies and face finding; e-mailing and exporting copy the PDF as it is.
+- Options › File Types has a PDF documents switch.
+- PDFs are drawn by Picaluma itself, so nothing else needs to be installed. Password-protected PDFs can't be shown.
+
 ## 0.7.56 — 2026-11-26
 
 - Every button is now the same size: 26 px high, and every icon-only button 28 × 26 with the icon centred — toolbar, filters, folder buttons, tray, side panels and dialogs.

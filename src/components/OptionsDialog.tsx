@@ -11,7 +11,7 @@ import { useStore } from "../store";
 const TABS = ["General", "E-mail", "Export", "Slideshow", "File Types", "Name Tags", "Privacy", "Library"] as const;
 type Tab = (typeof TABS)[number];
 
-const ALL_TYPES: FileTypes = { heif: true, avif: true, raw: true, psd: true, tga: true, videos: true };
+const ALL_TYPES: FileTypes = { heif: true, avif: true, raw: true, psd: true, tga: true, videos: true, pdf: true };
 
 /** Tools › Options › File Types, like Picasa's: which kinds of files Picaluma looks for. */
 const TYPE_ROWS: [keyof FileTypes, string, string][] = [
@@ -21,6 +21,7 @@ const TYPE_ROWS: [keyof FileTypes, string, string][] = [
   ["psd", "Photoshop", "Photoshop documents (.psd)"],
   ["tga", "Targa", "Targa images (.tga)"],
   ["videos", "Movies", "MP4, MOV, AVI, MKV, WMV, MPEG, 3GP, AVCHD (.mts), WebM and more"],
+  ["pdf", "PDF documents", "First page as the thumbnail; every page in the viewer (.pdf)"],
 ];
 
 const EMAIL_SIZES = [

@@ -4,7 +4,7 @@ import { open as openFile, save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, photoUrl } from "../api";
 import { renderToCanvas } from "../effects";
-import { useStore } from "../store";
+import { isPicture, useStore } from "../store";
 import { confirmAsk, notify } from "../dialogs";
 import { plural } from "../format";
 import { takeRemake } from "../projects";
@@ -76,7 +76,7 @@ export default function MovieMaker() {
   }, [ids]);
 
   if (!ids) return null;
-  const pics = ids.filter((id) => !useStore.getState().videos.has(id));
+  const pics = ids.filter((id) => isPicture(useStore.getState(), id));
   const total = pics.length * seconds + (title ? 3 : 0);
   const busy = progress != null;
 

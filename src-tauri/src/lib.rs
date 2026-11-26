@@ -6,6 +6,7 @@ mod faces;
 mod folderini;
 mod importer;
 mod formats;
+mod pdf;
 mod people;
 mod picasa;
 mod scanner;
@@ -162,6 +163,7 @@ pub fn run() {
       commands::import_picasa_scanlist,
       commands::search,
       commands::get_photo,
+      commands::pdf_pages,
       commands::photo_properties,
       updater::update_check,
       updater::update_install,

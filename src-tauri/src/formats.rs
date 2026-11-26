@@ -18,6 +18,8 @@ pub const RAW: &[&str] = &[
 ];
 pub const PSD: &[&str] = &["psd"];
 pub const TGA: &[&str] = &["tga"];
+/// PDF documents: page 1 is the thumbnail; the viewer turns the pages.
+pub const PDF: &[&str] = &["pdf"];
 pub const VIDEO: &[&str] = &["mp4", "m4v", "mov", "qt", "avi", "mkv", "wmv", "asf", "mpg", "mpeg", "m2v", "3gp", "3g2", "mts", "m2ts", "webm", "flv", "mod", "tod"];
 
 /// Options › File Types. Everything is on by default.
@@ -30,11 +32,12 @@ pub struct FileTypes {
   pub psd: bool,
   pub tga: bool,
   pub videos: bool,
+  pub pdf: bool,
 }
 
 impl Default for FileTypes {
   fn default() -> Self {
-    Self { heif: true, avif: true, raw: true, psd: true, tga: true, videos: true }
+    Self { heif: true, avif: true, raw: true, psd: true, tga: true, videos: true, pdf: true }
   }
 }
 
@@ -43,7 +46,7 @@ static ENABLED: RwLock<Option<HashSet<&'static str>>> = RwLock::new(None);
 /// Sets which extensions the scanner and the live watcher pick up.
 pub fn configure(t: &FileTypes) {
   let mut set: HashSet<&'static str> = STANDARD.iter().copied().collect();
-  for (on, exts) in [(t.heif, HEIF), (t.avif, AVIF), (t.raw, RAW), (t.psd, PSD), (t.tga, TGA), (t.videos, VIDEO)] {
+  for (on, exts) in [(t.heif, HEIF), (t.avif, AVIF), (t.raw, RAW), (t.psd, PSD), (t.tga, TGA), (t.videos, VIDEO), (t.pdf, PDF)] {
     if on {
       set.extend(exts.iter().copied());
     }
@@ -73,6 +76,8 @@ pub enum Kind {
   /// Needs the operating system's decoder (HEIC/HEIF, AVIF, PSD).
   System,
   Video,
+  /// A PDF document, drawn by Picaluma (`pdf.rs`).
+  Pdf,
 }
 
 pub fn kind(path: &str) -> Kind {
@@ -80,6 +85,8 @@ pub fn kind(path: &str) -> Kind {
   let e = e.as_str();
   if VIDEO.contains(&e) {
     Kind::Video
+  } else if PDF.contains(&e) {
+    Kind::Pdf
   } else if RAW.contains(&e) {
     Kind::Raw
   } else if HEIF.contains(&e) || AVIF.contains(&e) || PSD.contains(&e) {
@@ -96,6 +103,15 @@ pub fn is_heif(path: &str) -> bool {
 
 pub fn is_video(path: &str) -> bool {
   kind(path) == Kind::Video
+}
+
+pub fn is_pdf(path: &str) -> bool {
+  kind(path) == Kind::Pdf
+}
+
+/// Movies and PDFs: shown and opened, but not edited, printed or analysed as pictures.
+pub fn is_document_or_movie(path: &str) -> bool {
+  matches!(kind(path), Kind::Video | Kind::Pdf)
 }
 
 /// The largest JPEG embedded in a RAW file (cameras store a full-size preview), found by its
@@ -169,6 +185,11 @@ mod tests {
     assert_eq!(kind("x/IMG.HEIC"), Kind::System);
     assert_eq!(kind("x/clip.mov"), Kind::Video);
     assert_eq!(kind("x/a.tga"), Kind::Image);
+    assert_eq!(kind("x/Report.PDF"), Kind::Pdf);
+    assert!(is_media(Path::new("doc.pdf")));
+    configure(&FileTypes { pdf: false, ..FileTypes::default() });
+    assert!(!is_media(Path::new("doc.pdf")));
+    configure(&FileTypes::default());
   }
 
   #[test]

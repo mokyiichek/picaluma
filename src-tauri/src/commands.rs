@@ -71,6 +71,8 @@ pub struct Snapshot {
   library_id: String,
   /// Videos (shown with a play badge and opened in the player).
   videos: Vec<i64>,
+  /// PDF documents (shown with a PDF badge and opened in the page viewer).
+  pdfs: Vec<i64>,
   /// Picture › Hide: hidden pictures (shown with View › Hidden Pictures).
   hidden: Vec<i64>,
   /// Albums › Recently Updated: pictures whose file changed in the last 30 days.
@@ -184,6 +186,7 @@ fn build_snapshot(conn: &rusqlite::Connection) -> rusqlite::Result<Snapshot> {
   let mut geotagged = Vec::new();
   let mut edits = Vec::new();
   let mut videos = Vec::new();
+  let mut pdfs = Vec::new();
   let mut hidden = Vec::new();
   let mut recent = Vec::new();
   let recent_since = chrono::Local::now().naive_local().and_utc().timestamp() - 30 * 86_400;
@@ -204,6 +207,8 @@ fn build_snapshot(conn: &rusqlite::Connection) -> rusqlite::Result<Snapshot> {
     }
     if crate::formats::is_video(&name) {
       videos.push(id);
+    } else if crate::formats::is_pdf(&name) {
+      pdfs.push(id);
     }
     if r.get::<_, i64>(6)? != 0 {
       hidden.push(id);
@@ -253,7 +258,7 @@ fn build_snapshot(conn: &rusqlite::Connection) -> rusqlite::Result<Snapshot> {
   let albums = load_albums(conn)?;
   let (people, faced, unnamed) = crate::people::snapshot(conn)?;
   let projects = load_projects(conn)?;
-  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, hidden, recent, projects, people, faced, unnamed })
+  Ok(Snapshot { folders, albums, starred, geotagged, edits, total_photos: total, library_id, videos, pdfs, hidden, recent, projects, people, faced, unnamed })
 }
 fn load_albums(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<AlbumDto>> {
   let mut albums: Vec<AlbumDto> = {
@@ -484,7 +489,7 @@ fn to_fts_query(q: &str) -> String {
 
 /// File type words typed in the search box and the extensions they stand for.
 fn file_type_alias(word: &str) -> Option<&'static [&'static str]> {
-  use crate::formats::{HEIF, RAW, VIDEO};
+  use crate::formats::{HEIF, PDF, RAW, VIDEO};
   const JPEG: &[&str] = &["jpg", "jpeg", "jpe", "jfif"];
   const TIFF: &[&str] = &["tif", "tiff"];
   match word.to_lowercase().as_str() {
@@ -493,8 +498,16 @@ fn file_type_alias(word: &str) -> Option<&'static [&'static str]> {
     "tif" | "tiff" => Some(TIFF),
     "raw" => Some(RAW),
     "video" | "videos" | "movie" | "movies" => Some(VIDEO),
+    "pdf" | "pdfs" | "document" | "documents" => Some(PDF),
     _ => None,
   }
+}
+
+/// A PDF's page sizes in points (width, height), for the page viewer.
+#[tauri::command(async)]
+pub fn pdf_pages(state: State<'_, AppState>, id: i64) -> CmdResult<Vec<(f32, f32)>> {
+  let path: String = db::read(&state, |conn| conn.query_row("SELECT path FROM photos WHERE id = ?1", [id], |r| r.get(0))).map_err(err)?;
+  crate::pdf::page_sizes(&path)
 }
 
 #[tauri::command(async)]

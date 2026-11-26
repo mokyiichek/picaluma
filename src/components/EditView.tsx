@@ -13,6 +13,7 @@ import { selectEditorSequence, useStore } from "../store";
 import { editHistory, editorPending, editorUndoDelete } from "../undo";
 import { ArrowIcon, BackIcon, BrushIcon, FixIcon, PlayIcon, SaveIcon, SunIcon, WrenchIcon } from "./Icons";
 import { usePhoto } from "./PropertiesPanel";
+import PdfEditor from "./PdfView";
 import { usePhotoFaces } from "./PeoplePanel";
 import { askText, notify } from "../dialogs";
 import { menuOwnsShortcut } from "../nativeMenu";
@@ -228,6 +229,7 @@ export default function EditView({ active }: { active: boolean }) {
   const photo = usePhoto(id);
   const stack = useEditStack(id);
   const isVideo = useStore((s) => id != null && s.videos.has(id));
+  const isPdf = useStore((s) => id != null && s.pdfs.has(id));
 
   useEffect(() => {
     if (!active) return;
@@ -266,6 +268,7 @@ export default function EditView({ active }: { active: boolean }) {
   editorPending.effect = tool?.kind === "effect" && id != null && toolPic.current === id ? { id, edit: tool.edit } : null;
 
   if (id == null) return null;
+  if (isPdf) return <PdfEditor id={id} photo={photo} active={active} caption={<CaptionBar photo={photo} />} onBack={backToLibrary} />;
   if (isVideo) {
     return (
       <>

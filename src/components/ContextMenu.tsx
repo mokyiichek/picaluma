@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
 import { Edit } from "../effects";
-import { isPersonId, isProjectId, PERSON_BASE, PROJECT_BASE, selectVisible, useStore } from "../store";
+import { isPersonId, isPicture, isProjectId, PERSON_BASE, PROJECT_BASE, selectVisible, useStore } from "../store";
 import { remakeProject } from "../projects";
 import { Item, MenuEntry } from "./MenuBar";
 import {
@@ -53,7 +53,7 @@ function sortEntry(id: number, current: string, reverse: boolean): MenuEntry {
 
 export function rotateSelected(deg: number) {
   const s = useStore.getState();
-  const pics = [...s.selected].filter((id) => !s.videos.has(id));
+  const pics = [...s.selected].filter((id) => isPicture(s, id));
   recordEdits("Rotate", pics, () => {
     for (const id of pics) {
       const list: Edit[] = [...(s.edits.get(id) ?? []), { op: "rotate", v: deg }];

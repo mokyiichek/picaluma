@@ -363,7 +363,7 @@ pub fn library_stats(state: State<'_, AppState>) -> CmdResult<LibraryStats> {
     let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).map_err(err)?;
     for (path, size) in rows.filter_map(Result::ok) {
       let ext = path.rsplit_once('.').map(|(_, e)| e.to_uppercase()).unwrap_or_default();
-      let t = types.entry(ext).or_insert((0, 0, crate::formats::kind(&path) == crate::formats::Kind::Video));
+      let t = types.entry(ext).or_insert((0, 0, crate::formats::is_document_or_movie(&path)));
       t.0 += 1;
       t.1 += size;
     }
@@ -475,7 +475,7 @@ pub async fn find_similar(app: AppHandle) -> CmdResult<Vec<Vec<i64>>> {
       let conn = state.db.lock().map_err(err)?;
       let mut stmt = conn.prepare("SELECT id, path, mtime, orientation FROM photos WHERE dhash IS NULL AND cloud = 0").map_err(err)?;
       let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get::<_, Option<i64>>(3)?.unwrap_or(1)))).map_err(err)?;
-      rows.filter_map(Result::ok).filter(|(_, p, ..)| crate::formats::kind(p) != crate::formats::Kind::Video).collect()
+      rows.filter_map(Result::ok).filter(|(_, p, ..)| !crate::formats::is_document_or_movie(p)).collect()
     };
     let total = todo.len();
     let mut last = Instant::now();
