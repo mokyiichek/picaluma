@@ -3162,7 +3162,7 @@ dependencies = [
 
 [[package]]
 name = "picaluma"
-version = "0.7.54"
+version = "0.7.56"
 dependencies = [
  "base64 0.22.1",
  "chrono",

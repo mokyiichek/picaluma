@@ -150,19 +150,18 @@ export default function LibraryToolbar() {
       </span>
       <SortMenu />
       <div className="filters">
-        <span className="label">{dateStep ? `Filters · ${DATE_STEPS[dateStep][0].toLowerCase()}` : "Filters"}</span>
         <span className="row">
-          <button className={`tbtn${starredOnly ? " pressed" : ""}`} title="Show only starred photos" onClick={() => setStarredOnly(!starredOnly)}>
-            <StarIcon size={14} />
+          <button className={`tbtn icon${starredOnly ? " pressed" : ""}`} title="Show only starred photos" onClick={() => setStarredOnly(!starredOnly)}>
+            <StarIcon />
           </button>
-          <button className={`tbtn${facesOnly ? " pressed" : ""}`} title="Show only photos with faces" onClick={() => setFacesOnly(!facesOnly)}>
-            <PersonIcon size={14} />
+          <button className={`tbtn icon${facesOnly ? " pressed" : ""}`} title="Show only photos with faces" onClick={() => setFacesOnly(!facesOnly)}>
+            <PersonIcon />
           </button>
-          <button className={`tbtn${videoOnly ? " pressed" : ""}`} title="Show only movies" onClick={() => setVideoOnly(!videoOnly)}>
-            <MovieIcon size={14} />
+          <button className={`tbtn icon${videoOnly ? " pressed" : ""}`} title="Show only movies" onClick={() => setVideoOnly(!videoOnly)}>
+            <MovieIcon />
           </button>
-          <button className={`tbtn${geoOnly ? " pressed" : ""}`} title="Show only geotagged photos" onClick={() => setGeoOnly(!geoOnly)}>
-            <PinIcon size={14} />
+          <button className={`tbtn icon${geoOnly ? " pressed" : ""}`} title="Show only geotagged photos" onClick={() => setGeoOnly(!geoOnly)}>
+            <PinIcon />
           </button>
           <input
             type="range"

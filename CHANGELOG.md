@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.56 — 2026-11-26
+
+- Every button is now the same size: 26 px high, and every icon-only button 28 × 26 with the icon centred — toolbar, filters, folder buttons, tray, side panels and dialogs.
+- Buttons in a row sit the same 4 px apart.
+- Tray: Star and Rotate line up with the top of the buttons beside them, Email / Print / Export with their bottom.
+- Filters: the "Filters" heading is gone and the filter buttons and date slider are centred in the toolbar.
+- Date filter slider: a small plain knob that stays on its track.
+- Sliders: the knob is centred on its track on the Mac too.
+
 ## 0.7.55 — 2026-11-26
 
 - **Rotating a cropped picture animates too** (cropped but not saved, or with other effects drawn on the picture), in the folder view and in Edit view. The picture turns straight away, instead of waiting for its new thumbnail to be drawn and then jumping. In Edit view it no longer shows squashed for a moment while the new rotation is drawn.

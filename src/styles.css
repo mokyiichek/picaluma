@@ -21,6 +21,10 @@
   --banner: #4caf50;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: light;
+  /* One button size everywhere: 26 px high, icon buttons 28 × 26, 4 px apart. */
+  --btn-h: 26px;
+  --btn-w: 28px;
+  --btn-gap: 4px;
 }
 
 * {
@@ -160,9 +164,7 @@ textarea {
   height: 26px;
   justify-content: center;
 }
-.tbtn.sq + .tbtn.sq {
-  margin-left: 2px;
-}
+
 /* Picasa: hand cursor on clickable controls, arrow on lists, I-beam in text. */
 .tbtn:not(:disabled),
 .fx-tile:not(.todo),
@@ -206,40 +208,39 @@ textarea {
 }
 .filters {
   display: flex;
-  flex-direction: column;
   align-items: center;
   margin-left: auto;
   margin-right: 8px;
-  line-height: 1;
-}
-.filters .label {
-  font-size: 10px;
-  color: var(--muted);
-  margin-bottom: 2px;
 }
 .filters .row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--btn-gap);
 }
-.filters .tbtn {
-  height: 18px;
-  padding: 0 3px;
-}
+/* The date filter: a small plain knob that stays on its track (no borders that WebKit and
+   Chromium place differently, so it sits centred on both). */
 .filters input.date-filter {
-  width: 92px;
-  height: 18px;
-  margin-left: 6px;
+  width: 96px;
+  height: 26px;
+  margin: 0 0 0 6px;
+  padding: 0;
 }
 .filters input.date-filter::-webkit-slider-runnable-track {
   height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: linear-gradient(#d3dae1, #eef1f4);
+  box-shadow: inset 0 0 0 1px #a7b1bb;
 }
 .filters input.date-filter::-webkit-slider-thumb {
   width: 12px;
-  height: 16px;
-  margin-top: -6px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, transparent 5px, #8e959c 5px, #8e959c 6px, transparent 6px), linear-gradient(#ffffff, #d9dde1);
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: linear-gradient(#ffffff, #d9dde1);
+}
+.filters input.date-filter:hover::-webkit-slider-thumb {
+  background: linear-gradient(#ffffff, #d3e4f4);
 }
 .searchbox {
   display: flex;
@@ -247,7 +248,7 @@ textarea {
   gap: 4px;
   width: 38%;
   max-width: 620px;
-  height: 24px;
+  height: var(--btn-h);
   padding: 0 6px;
   background: #fff;
   border: 1px solid #9fa9b4;
@@ -467,11 +468,8 @@ textarea {
 }
 .folder-head .actions {
   display: flex;
-  gap: 4px;
+  gap: var(--btn-gap);
   margin: 10px 0 8px;
-}
-.folder-head .actions .tbtn {
-  height: 24px;
 }
 .folder-head .desc {
   display: block;
@@ -630,18 +628,20 @@ input[type="range"] {
   background: transparent;
   cursor: default;
 }
+/* The track's edge is a shadow, not a border: WebKit (Mac) and Chromium (Windows) measure the
+   knob's offset from different edges of a bordered track, which left it off-centre on the Mac. */
 input[type="range"]::-webkit-slider-runnable-track {
-  height: 9px;
-  border: 1px solid #a7b1bb;
-  border-radius: 5px;
+  height: 11px;
+  border: none;
+  border-radius: 6px;
   background: linear-gradient(#d8dfe6, #f6f8fa);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px #a7b1bb, inset 0 2px 1px rgba(0, 0, 0, 0.1);
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 18px;
   height: 22px;
-  margin-top: -7.5px;
+  margin-top: -6.5px;
   border: 1px solid #8e959c;
   border-radius: 8px;
   background: linear-gradient(90deg, transparent 8px, #8e959c 8px, #8e959c 9px, transparent 9px), linear-gradient(#ffffff, #d9dde1);
@@ -1408,21 +1408,21 @@ input[type="range"]:focus {
 .tray .side-btns {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--btn-gap);
 }
-.tray .side-btns .tbtn {
-  height: 20px;
-  padding: 0 4px;
-}
+/* Star / rotate line up with the top of the buttons beside them, Email / Print / Export with
+   their bottom. */
 .tray .mid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  justify-content: space-between;
+  align-self: center;
+  height: calc(var(--btn-h) * 3 + var(--btn-gap) * 2);
 }
 .tray .mid .row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--btn-gap);
 }
 .share-btn {
   width: 140px;
@@ -3299,11 +3299,7 @@ button.link:hover {
 .modal .foot .tbtn,
 .modal .tool-buttons .tbtn {
   min-width: 75px;
-  height: 23px;
   justify-content: center;
-}
-.modal .tbtn {
-  height: 23px;
 }
 .modal .tbtn.default {
   box-shadow: inset 0 0 0 1px rgba(75, 125, 190, 0.35);
@@ -3842,4 +3838,31 @@ body.dragging-photos * {
 body.dragging-photos.copy-drag,
 body.dragging-photos.copy-drag * {
   cursor: copy !important;
+}
+
+/* ---------- One button size everywhere ----------
+   Every toolbar, tray, folder, panel and dialog button is the same height; buttons that show
+   only an icon are all the same size with the icon centred. (The small yes / no buttons on face
+   suggestions stay small.) */
+.tbtn {
+  height: var(--btn-h);
+  min-height: var(--btn-h);
+}
+.tbtn.icon,
+.tbtn.sq,
+.tbtn.caret {
+  width: var(--btn-w);
+  min-width: var(--btn-w);
+  padding: 0;
+  justify-content: center;
+}
+.tbtn.mini {
+  height: 18px;
+  min-height: 18px;
+}
+.tbtn.icon svg {
+  flex: none;
+}
+.compare-modes {
+  gap: var(--btn-gap);
 }

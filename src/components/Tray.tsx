@@ -84,11 +84,11 @@ export default function Tray() {
         <span className="label" />
       </div>
       <div className="side-btns">
-        <button className={`tbtn${held.length ? " pressed" : ""}`} title="Hold: keep the selected pictures in the tray while you look in other folders" onClick={() => useStore.getState().holdSelection()} disabled={!canHold}>
+        <button className={`tbtn icon${held.length ? " pressed" : ""}`} title="Hold: keep the selected pictures in the tray while you look in other folders" onClick={() => useStore.getState().holdSelection()} disabled={!canHold}>
           <HoldIcon />
         </button>
         <button
-          className="tbtn"
+          className="tbtn icon"
           title="Clear the tray"
           onClick={() => {
             clearSelection();
@@ -98,8 +98,8 @@ export default function Tray() {
         >
           <ClearSelIcon />
         </button>
-        <button className="tbtn" title="Add selected pictures to an album" disabled={!ids.length} onClick={() => useStore.getState().setAlbumPicker(ids)}>
-          <PicturesIcon size={14} />
+        <button className="tbtn icon" title="Add selected pictures to an album" disabled={!ids.length} onClick={() => useStore.getState().setAlbumPicker(ids)}>
+          <PicturesIcon />
         </button>
       </div>
       <div className="mid">
