@@ -295,6 +295,7 @@ export function StraightenBar({
   onApply: () => void;
   onCancel: () => void;
 }) {
+  const snapping = useRef(false);
   return (
     <div className="straighten-bar">
       {/* A mark at 0 (level), where the slider snaps, as the zoom slider does at actual size. */}
@@ -305,9 +306,13 @@ export function StraightenBar({
           max={20}
           step={0.1}
           value={tool.angle}
+          // Dragging snaps to level near the mark; the arrow keys still step by 0.1°.
+          onPointerDown={() => (snapping.current = true)}
+          onPointerUp={() => (snapping.current = false)}
+          onKeyDown={() => (snapping.current = false)}
           onChange={(e) => {
             const v = Number(e.target.value);
-            setTool({ ...tool, angle: Math.abs(v) < 0.7 ? 0 : v });
+            setTool({ ...tool, angle: snapping.current && Math.abs(v) < 1.2 ? 0 : v });
           }}
           onDoubleClick={() => setTool({ ...tool, angle: 0 })}
         />

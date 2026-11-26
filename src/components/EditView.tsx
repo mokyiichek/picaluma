@@ -5,6 +5,7 @@ import { api, photoUrl, thumbUrl, Photo, photoVersion } from "../api";
 import { CropRect, cropViewBox, displayAspect, Edit, EFFECTS, Param, render, renderToCanvas, SLIDER_OPS, sliderValue, straightenScale, TABS, turnRect } from "../effects";
 import { flightThumb, useEditedThumb, useThumbImage } from "../editedThumbs";
 import { zoomInArrival } from "../deleteAnim";
+import { editorGo, slideInArrival, turnBetween, turnIn } from "../navAnim";
 import { hasPixelOps, LEVEL_OPS, measureLevels } from "../pixelfx";
 import { newPixelTool, PIXEL_TOOLS, PixelTool, PixelToolOverlay, PixelToolPanel, toolEdit, worksOnOriginal } from "./PixelTools";
 import { CropOverlay, CropPanel, StraightenBar, Tool } from "./Tools";
@@ -142,7 +143,6 @@ const EMPTY: Edit[] = [];
 export function EditToolbar() {
   const id = useStore((s) => s.editId);
   const seq = useStore(selectEditorSequence);
-  const setEditId = useStore((s) => s.setEditId);
   const startSlideshow = useStore((s) => s.startSlideshow);
   const compare = useStore((s) => s.compare);
   const setCompare = useStore((s) => s.setCompare);
@@ -163,15 +163,15 @@ export function EditToolbar() {
         <button className="tbtn" style={{ width: 92 }} onClick={() => startSlideshow(seq, Math.max(0, idx))} title="Play fullscreen slideshow">
           <PlayIcon /> Play
         </button>
-        <button className="arrow" onClick={() => idx > 0 && setEditId(seq[idx - 1])} title="Previous (←)">
+        <button className="arrow" onClick={() => idx > 0 && editorGo(seq[idx - 1], -1)} title="Previous (←)">
           <ArrowIcon dir="left" />
         </button>
         <div className="strip">
           {strip.map((p) => (
-            <StripThumb key={p} id={p} current={p === id} onClick={() => setEditId(p)} />
+            <StripThumb key={p} id={p} current={p === id} onClick={() => editorGo(p)} />
           ))}
         </div>
-        <button className="arrow" onClick={() => idx < seq.length - 1 && setEditId(seq[idx + 1])} title="Next (→)">
+        <button className="arrow" onClick={() => idx < seq.length - 1 && editorGo(seq[idx + 1], 1)} title="Next (→)">
           <ArrowIcon dir="right" />
         </button>
       </div>
@@ -240,8 +240,8 @@ export default function EditView({ active }: { active: boolean }) {
       const i = s.editId != null ? seq.indexOf(s.editId) : -1;
       if (e.key === "Escape" && s.drawFace) s.setDrawFace(false);
       else if (e.key === "Escape") backToLibrary();
-      else if (e.key === "ArrowRight" && i < seq.length - 1) s.setEditId(seq[i + 1]);
-      else if (e.key === "ArrowLeft" && i > 0) s.setEditId(seq[i - 1]);
+      else if (e.key === "ArrowRight" && i < seq.length - 1) editorGo(seq[i + 1], 1);
+      else if (e.key === "ArrowLeft" && i > 0) editorGo(seq[i - 1], -1);
       else if (mod(e) && e.shiftKey && e.key.toLowerCase() === "z") stack.redo(); // ⇧⌘Z on Mac
       else if (mod(e) && e.key.toLowerCase() === "z") {
         if (!editorUndoDelete()) stack.undo();
@@ -597,8 +597,20 @@ function Stage({
 
   // After a Delete, the next picture grows into the deleted one's place.
   useLayoutEffect(() => {
-    if (active && box && boxRef.current) zoomInArrival(boxRef.current, id);
+    if (active && box && boxRef.current && !slideInArrival(boxRef.current, id)) zoomInArrival(boxRef.current, id);
   }, [id, box != null, active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rotating (and its Undo / Redo) turns the picture into its new place.
+  const lastTurn = useRef<{ id: number; rot: number; w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const prev = lastTurn.current;
+    if (!box) return;
+    lastTurn.current = { id, rot: r.rotate, w: box.w, h: box.h };
+    if (!active || !prev || prev.id !== id || prev.rot === r.rotate || !boxRef.current || hasPixelOps(shown)) return;
+    const turn = turnBetween(prev.rot, r.rotate);
+    // Turned back by the same angle, the new box must look as big as the old one did.
+    turnIn(boxRef.current, turn, Math.abs(turn) === 90 ? prev.w / box.h : prev.w / box.w);
+  }, [id, r.rotate, box, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zoom (↑/↓, Page Up/Down, +/−, wheel; 0 fits, 1 is actual size) and drag to pan. Tools work on the fitted view.
   // The zoom level lives in the store (the tray's zoom slider sets it, as in Picasa); the pan is here.
@@ -657,9 +669,29 @@ function Stage({
   // As in Picasa: the wheel goes to the next (down) or previous (up) picture; Ctrl+wheel (a
   // trackpad pinch on Mac) zooms. One notch moves one picture.
   const wheelAt = useRef(0);
+  const swipe = useRef({ x: 0, lock: 0 });
   const onWheel = (e: React.WheelEvent) => {
     if (tool) return;
     const zooming = e.ctrlKey || e.metaKey;
+    // A sideways two-finger swipe (trackpad) goes to the next or previous picture, once per swipe.
+    if (!zooming && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      if (zoom.z > 1) return;
+      const now = performance.now();
+      const sw = swipe.current;
+      if (now < sw.lock) {
+        sw.lock = now + 200; // the swipe's momentum is still coming in
+        return;
+      }
+      sw.x += e.deltaX;
+      if (Math.abs(sw.x) < 70) return;
+      const dir = sw.x > 0 ? 1 : -1;
+      sw.x = 0;
+      sw.lock = now + 200;
+      const seq = selectEditorSequence(useStore.getState());
+      const next = seq[seq.indexOf(id) + dir];
+      if (next != null) editorGo(next, dir);
+      return;
+    }
     wheelAcc.current += e.deltaY;
     if (Math.abs(wheelAcc.current) < 60) return;
     const down = wheelAcc.current > 0;
@@ -671,9 +703,10 @@ function Stage({
     const s = useStore.getState();
     const seq = selectEditorSequence(s);
     const next = seq[seq.indexOf(id) + (down ? 1 : -1)];
-    if (next != null) s.setEditId(next);
+    if (next != null) editorGo(next, down ? 1 : -1);
   };
   const onPanStart = (e: React.MouseEvent) => {
+    if (!tool && zoom.z <= 1 && e.button === 0) return swipeStart(e);
     if (tool || zoom.z <= 1 || e.button !== 0) return;
     e.preventDefault();
     const start = { mx: e.clientX, my: e.clientY, ...zoom };
@@ -683,6 +716,34 @@ function Stage({
       setDragging(false);
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+
+  // Not zoomed in: drag the picture sideways to go to the next or previous one (it follows the mouse).
+  const swipeStart = (e: React.MouseEvent) => {
+    const el = boxRef.current;
+    if (!el) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let dx = 0;
+    const follow = useStore.getState().effects;
+    const move = (ev: MouseEvent) => {
+      dx = ev.clientX - x0;
+      if (follow && Math.abs(dx) > 6) el.style.translate = `${dx * 0.6}px 0px`;
+    };
+    const up = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      const dir = dx < 0 ? 1 : -1;
+      const seq = selectEditorSequence(useStore.getState());
+      const next = Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(ev.clientY - y0) * 1.5 ? seq[seq.indexOf(id) + dir] : undefined;
+      if (next != null) return editorGo(next, dir);
+      if (!el.style.translate) return;
+      const back = el.animate([{ translate: el.style.translate }, { translate: "0px 0px" }], { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+      el.style.translate = "";
+      void back;
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);

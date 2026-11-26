@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.53 — 2026-11-26
+
+- **Straighten slider mark is centred on the Mac.** The mark sat off the track's middle, and snapping to level only caught within 0.7°. It now snaps within 1.2° while dragging; the arrow keys still step by 0.1°.
+- **Rotating turns the picture** with a quick animation, in the folder view and in Edit view, and on Undo / Redo of a rotate.
+- **Edit view slides between pictures**: ← / →, the arrow buttons, the filmstrip and the wheel slide the picture out and the next one in. A sideways trackpad swipe, or dragging the picture sideways, moves to the next or previous picture.
+- **↑ / ↓ zoom with a quicker glide.**
+- All of these follow Tools › Options › Special effects.
+
 ## 0.7.52 — 2026-11-26
 
 - **Straighten slider has a centre mark** (level) and snaps to it when close, like the zoom slider. Double-click the slider to go back to level.

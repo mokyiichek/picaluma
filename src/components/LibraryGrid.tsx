@@ -9,6 +9,7 @@ import { remakeProject } from "../projects";
 import PeopleManager from "./PeopleManager";
 import { useThumbImage } from "../editedThumbs";
 import { flipGrid, FlipStart, landIn, popIn, reflowBus } from "../deleteAnim";
+import { turnBetween, turnIn } from "../navAnim";
 import { useThumbCaption } from "../thumbCaptions";
 import ImportView from "./ImportView";
 import { CollageIcon, FolderIcon, MovieIcon, PinIcon, PlayIcon, SaveIcon, StarIcon } from "./Icons";
@@ -41,6 +42,12 @@ function moveGrid(el: HTMLElement, top: number, why: string) {
 
 /** Thumbnails that have already decoded once; remounts show them instantly without a placeholder. */
 const loadedThumbs = new Set<number>();
+/** A picture's rotation from its edits (0, 90, 180 or 270). */
+function rotationOf(edits: { op: string; v?: number }[] | undefined): number {
+  let r = 0;
+  if (edits) for (const e of edits) if (e.op === "rotate") r += e.v ?? 0;
+  return ((r % 360) + 360) % 360;
+}
 
 export default function LibraryGrid() {
   const visible = useStore(selectVisible);
@@ -561,6 +568,24 @@ const Thumb = memo(function Thumb({ id, x, y, w, h, ordered }: { id: number; x: 
   };
   useLayoutEffect(measure, [src, w, h, loaded, waiting, fit?.width, fit?.height, style?.transform]); // eslint-disable-line react-hooks/exhaustive-deps
   const corner = shown ? { x: Math.max(4, (w - shown.w) / 2 + 6), y: Math.max(4, (h - shown.h) / 2 + 6) } : null;
+  // Rotating (and its Undo / Redo) turns the picture, once its new rendering is on screen.
+  const rot = useStore((s) => rotationOf(s.edits.get(id)));
+  const lastRot = useRef(rot);
+  const turning = useRef<{ turn: number; src?: string; at: number } | null>(null);
+  useLayoutEffect(() => {
+    if (rot !== lastRot.current) {
+      const turn = turnBetween(lastRot.current, rot);
+      lastRot.current = rot;
+      turning.current = turn ? { turn, src: baked ? src : undefined, at: performance.now() } : null;
+    }
+    const t = turning.current;
+    const img = imgRef.current;
+    if (!t || !img || waiting || !src) return;
+    if (performance.now() - t.at > 1500) return void (turning.current = null);
+    if (baked && src === t.src) return; // the old rendering is still shown
+    turning.current = null;
+    turnIn(img, t.turn);
+  }, [rot, src, waiting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
