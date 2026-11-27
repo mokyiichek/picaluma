@@ -122,8 +122,8 @@ function photoEntries(): MenuEntry[] {
       ? [{ label: "Remove from Album", shortcut: "Delete", action: () => removeFromAlbum(s.albumView!, ids) } as MenuEntry]
       : []),
     sep,
-    { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: () => rotateSelected(90) },
-    { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: () => rotateSelected(-90) },
+    { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: ids.some((id) => isPicture(s, id)) ? () => rotateSelected(90) : undefined },
+    { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: ids.some((id) => isPicture(s, id)) ? () => rotateSelected(-90) : undefined },
     sep,
     { label: "Copy All Effects", action: one != null && s.edits.has(one) ? () => copyEffects(one) : undefined },
     { label: "Paste All Effects", action: s.copiedEdits ? () => pasteEffects(ids) : undefined },

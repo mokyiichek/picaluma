@@ -6,7 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api } from "../api";
 import { showDuplicates, showSimilar } from "./ToolsDialogs";
-import { selectVisible, useStore } from "../store";
+import { isPicture, selectVisible, useStore } from "../store";
 import {
   addFiles,
   batchEdit,
@@ -69,6 +69,7 @@ function useMenus(): [string, MenuEntry[]][] {
   const currentFolder = s.currentFolderId != null && s.currentFolderId > 0 ? s.folderById.get(s.currentFolderId) : undefined;
   const targets = trayIds();
   const edited = targets.filter((id) => s.edits.has(id));
+  const rotatable = targets.some((id) => isPicture(s, id));
 
   return [
     [
@@ -193,8 +194,8 @@ function useMenus(): [string, MenuEntry[]][] {
       [
         { label: "View and Edit", shortcut: "Ctrl+3", action: one != null ? () => s.openEditor(one) : undefined },
         sep,
-        { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: targets.length ? () => batchEdit(targets, "rotate", 90, "Rotate") : undefined },
-        { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: targets.length ? () => batchEdit(targets, "rotate", -90, "Rotate") : undefined },
+        { label: "Rotate Clockwise", shortcut: "Ctrl+R", action: rotatable ? () => batchEdit(targets, "rotate", 90, "Rotate") : undefined },
+        { label: "Rotate Counterclockwise", shortcut: "Ctrl+Shift+R", action: rotatable ? () => batchEdit(targets, "rotate", -90, "Rotate") : undefined },
         {
           label: "Batch Edit",
           submenu: BATCH.map(([label, op]) => ({ label, action: selected.length ? () => batchEdit(selected, op) : undefined })),

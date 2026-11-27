@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.58 — 2026-11-27
+
+- Rotate is greyed out for PDFs and movies (tray buttons, Picture menu and right-click menu), since they can't be rotated.
+
 ## 0.7.57 — 2026-11-27
 
 - PDF files are now found in your folders and shown in the library, with page 1 as the thumbnail and a small PDF label.

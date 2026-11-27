@@ -58,6 +58,8 @@ export default function Tray() {
       : folderPhotos.length
         ? `${kind} Selected - ${plural(folderPhotos.length, "photo")}`
         : "";
+  // Movies and PDFs don't rotate: Rotate is greyed out when only those are in the tray.
+  const canRotate = useStore((s) => ids.some((id) => isPicture(s, id)));
   const canHold = [...selected].some((id) => !heldSet.has(id));
 
   // Undoable like the menu's Rotate (Edit › Undo Rotate).
@@ -107,10 +109,10 @@ export default function Tray() {
           <button className={`tbtn icon${allStarred ? " pressed" : ""}`} title="Star / unstar" disabled={!ids.length} onClick={() => toggleStar(ids)}>
             <StarIcon filled={allStarred} />
           </button>
-          <button className="tbtn icon" title="Rotate counterclockwise" disabled={!ids.length} onClick={() => rotate(-90)}>
+          <button className="tbtn icon" title="Rotate counterclockwise" disabled={!canRotate} onClick={() => rotate(-90)}>
             <RotateIcon dir="left" />
           </button>
-          <button className="tbtn icon" title="Rotate clockwise" disabled={!ids.length} onClick={() => rotate(90)}>
+          <button className="tbtn icon" title="Rotate clockwise" disabled={!canRotate} onClick={() => rotate(90)}>
             <RotateIcon dir="right" />
           </button>
         </div>
