@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, TagCount } from "../api";
 import { mod } from "../platform";
 import { DATE_STEPS, FolderSort, useStore } from "../store";
-import { ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, MovieIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, TagIcon } from "./Icons";
+import { CalendarIcon, ClearIcon, ImportIcon, ListFlatIcon, ListTreeIcon, MovieIcon, PersonIcon, PinIcon, SearchIcon, StarIcon, TagIcon } from "./Icons";
 
 const SORTS: [FolderSort, string][] = [
   ["created", "Sort by Date"],
@@ -163,6 +163,9 @@ export default function LibraryToolbar() {
           <button className={`tbtn icon${geoOnly ? " pressed" : ""}`} title="Show only geotagged photos" onClick={() => setGeoOnly(!geoOnly)}>
             <PinIcon />
           </button>
+          <span className="date-filter-icon" title="Show only pictures from a recent time">
+            <CalendarIcon />
+          </span>
           <input
             type="range"
             className="date-filter"
@@ -174,6 +177,7 @@ export default function LibraryToolbar() {
             onChange={(e) => setDateStep(Number(e.target.value))}
             onDoubleClick={() => setDateStep(0)}
           />
+          <span className={`date-filter-label${dateStep ? " on" : ""}`}>{DATE_STEPS[dateStep][0]}</span>
         </span>
       </div>
       <div className="searchbox" style={{ position: "relative" }}>

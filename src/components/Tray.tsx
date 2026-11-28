@@ -162,7 +162,7 @@ export default function Tray() {
             </span>
           </span>
         )}
-        <span className="tgroup">
+        <span className="tray-panels">
           <button className={`tbtn icon${showProps && sidePanel === "people" ? " pressed" : ""}`} title="People in this picture" onClick={togglePeople}>
             <PersonIcon size={16} />
           </button>

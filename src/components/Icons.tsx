@@ -265,6 +265,19 @@ export const ZoomIcon = (p: P) =>
     p,
   );
 
+/** The date filter: a small calendar page. */
+export const CalendarIcon = (p: P) =>
+  svg(
+    p.size ?? 16,
+    <>
+      <rect x="3.5" y="5" width="17" height="15" rx="1.5" fill="#fff" stroke="#4a7fb0" strokeWidth="1.4" />
+      <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h14a1.5 1.5 0 0 1 1.5 1.5V10h-17z" fill="#4a7fb0" />
+      <path d="M8 3v4M16 3v4" stroke="#2d5c8a" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7 13h2M11 13h2M15 13h2M7 16.5h2M11 16.5h2" stroke="#8aa9c6" strokeWidth="1.6" />
+    </>,
+    p,
+  );
+
 export const PicturesIcon = (p: P) =>
   svg(
     p.size ?? 18,

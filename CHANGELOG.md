@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.59 — 2026-11-28
+
+- People, Places, Tags and Properties at the bottom right are now separate buttons with the standard space between them.
+- The tray is a little taller, so the Star / Rotate buttons and Email / Print / Export have room above and below.
+- The date filter has a calendar icon in front and shows the chosen span after it (Show all, Last 20 years … Last year … Last week).
+
 ## 0.7.58 — 2026-11-27
 
 - Rotate is greyed out for PDFs and movies (tray buttons, Picture menu and right-click menu), since they can't be rotated.
